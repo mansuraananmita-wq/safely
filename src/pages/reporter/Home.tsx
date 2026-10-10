@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { LiveLocationMap } from '../../components/LiveLocationMap'
 import { ReportCard } from '../../components/ReportCard'
 import { buttonClass, useTitle } from '../../components/ui'
 import { isMapPin, isOpen, isOverdue } from '../../logic'
@@ -23,6 +24,10 @@ export function HomePage() {
         <h1 className="font-display text-4xl">{currentUser?.name}</h1>
         <p className="mt-2 text-ink/70">{currentUser?.unit}</p>
       </div>
+      <section>
+        <h2 className="mb-3 font-display text-2xl">{tx('Your location', 'আপনার লোকেশন')}</h2>
+        <LiveLocationMap />
+      </section>
       {alerts[0] ? (
         <Link to="/app/alerts" className="block rounded-2xl bg-marigold/20 px-4 py-3 text-sm">
           <span className="font-semibold">{alerts[0].title}. </span>

@@ -46,7 +46,10 @@ export default function Landing() {
               <Link to="/login" className={buttonClass('secondary')}>{tx('Open a demo desk', 'ডেমো ডেস্ক খুলুন')}</Link>
             </div>
             <p className="mt-4 max-w-md text-sm text-ink/55">
-              {tx('This is not an emergency service. If someone is in danger, call 999.', 'এটি জরুরি সেবা নয়। কেউ বিপদে থাকলে ৯৯৯-এ কল করুন।')}
+              {tx(
+                'Campus members use the Safely phone app. This website is the operations desk. It is not an emergency service. If someone is in danger, call 999.',
+                'ক্যাম্পাসের সদস্যরা সেইফলি ফোন অ্যাপ ব্যবহার করেন। এই ওয়েবসাইট অপারেশন ডেস্ক। এটি জরুরি সেবা নয়। কেউ বিপদে থাকলে ৯৯৯-এ কল করুন।',
+              )}
             </p>
           </div>
           <div className="relative">

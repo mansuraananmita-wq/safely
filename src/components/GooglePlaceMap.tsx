@@ -8,6 +8,7 @@ export function GooglePlaceMap({
   note,
   zoom = 17,
   mapId,
+  eager = false,
 }: {
   lat: number
   lng: number
@@ -15,6 +16,7 @@ export function GooglePlaceMap({
   note?: string
   zoom?: number
   mapId?: string
+  eager?: boolean
 }) {
   const { tx, lang } = useApp()
   const hl = lang === 'bn' ? 'bn' : 'en'
@@ -44,7 +46,7 @@ export function GooglePlaceMap({
         title={label}
         src={src}
         className="h-56 w-full border-0 sm:h-80"
-        loading="lazy"
+        loading={eager ? 'eager' : 'lazy'}
         referrerPolicy="no-referrer-when-downgrade"
         allowFullScreen
       />
