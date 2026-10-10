@@ -1,5 +1,6 @@
-import { Lock, MapPin } from 'lucide-react'
-import { PLACES } from '../data'
+import { Lock } from 'lucide-react'
+import { GooglePlaceMap } from './GooglePlaceMap'
+import { PLACES, reportPoint } from '../data'
 import { dueLabel, identityMode, isOverdue, priorityLabel, roleLabel } from '../logic'
 import { useApp } from '../store'
 import type { Report } from '../types'
@@ -16,6 +17,14 @@ export function ReportStory({ report, internal }: { report: Report; internal: bo
   const due = dueLabel(report, lang)
   const overdue = isOverdue(report)
   const showPrivate = internal || report.reporterId === currentUser?.id
+  const point = reportPoint(report)
+  const exact = Boolean(
+    point &&
+      place &&
+      report.lat != null &&
+      report.lng != null &&
+      (Math.abs(report.lat - place.lat) > 0.0002 || Math.abs(report.lng - place.lng) > 0.0002),
+  )
 
   let who = tx('Reporter', 'রিপোর্টকারী')
   if (mode === 'anonymous') who = tx('Anonymous — no reply channel', 'বেনামি — উত্তরের পথ নেই')
@@ -53,31 +62,37 @@ export function ReportStory({ report, internal }: { report: Report; internal: bo
         </div>
       ) : null}
 
-      <dl className="grid gap-3 sm:grid-cols-3">
-        <div className="panel p-3">
-          <dt className="text-xs uppercase tracking-wide text-ink/45">{tx('Reporter', 'রিপোর্টকারী')}</dt>
-          <dd className="mt-1 text-sm font-medium">{who}</dd>
-        </div>
-        <div className="panel p-3">
-          <dt className="text-xs uppercase tracking-wide text-ink/45">{tx('Office', 'দপ্তর')}</dt>
-          <dd className="mt-1 text-sm font-medium">{department ? (lang === 'bn' ? department.bn : department.en) : tx('Not assigned yet', 'এখনও বরাদ্দ হয়নি')}</dd>
-        </div>
-        <div className="panel p-3">
-          <dt className="text-xs uppercase tracking-wide text-ink/45">{tx('Assignee', 'দায়িত্বে')}</dt>
-          <dd className="mt-1 text-sm font-medium">{report.assignee || tx('Waiting', 'অপেক্ষায়')}</dd>
-        </div>
-      </dl>
-
       <p className="whitespace-pre-wrap text-[15px] leading-relaxed">{report.description}</p>
 
       {report.blocksAccess ? <p className="text-sm font-medium text-clay">{tx('The reporter says this blocks a class, dorm, or route.', 'রিপোর্টকারী বলেছেন এতে ক্লাস, হল বা পথ আটকে আছে।')}</p> : null}
-      {showPrivate && report.contactWindow ? <p className="text-sm">{tx('Best time to talk:', 'কথা বলার সময়:')} {report.contactWindow}</p> : null}
-      {showPrivate && report.lat && report.lng ? (
-        <p className="inline-flex items-center gap-1 text-sm text-ink/70">
-          <MapPin className="h-4 w-4" />
-          {report.lat.toFixed(5)}, {report.lng.toFixed(5)}
-        </p>
+      {point ? (
+        <GooglePlaceMap
+          lat={point.lat}
+          lng={point.lng}
+          label={place ? (lang === 'bn' ? place.bn : place.en) : report.id}
+          note={
+            exact
+              ? tx('The reporter shared this device location.', 'রিপোর্টকারী এই ডিভাইসের লোকেশন দিয়েছেন।')
+              : report.locationDetail || tx('Building pin on Google Maps.', 'গুগল ম্যাপে ভবনের পিন।')
+          }
+        />
       ) : null}
+
+      <dl className="grid grid-cols-3 gap-2">
+        <div className="panel p-3">
+          <dt className="text-[11px] uppercase tracking-wide text-ink/45">{tx('Reporter', 'রিপোর্টকারী')}</dt>
+          <dd className="mt-1 text-sm font-medium leading-snug">{who}</dd>
+        </div>
+        <div className="panel p-3">
+          <dt className="text-[11px] uppercase tracking-wide text-ink/45">{tx('Office', 'দপ্তর')}</dt>
+          <dd className="mt-1 text-sm font-medium leading-snug">{department ? (lang === 'bn' ? department.bn : department.en) : tx('Not assigned yet', 'এখনও বরাদ্দ হয়নি')}</dd>
+        </div>
+        <div className="panel p-3">
+          <dt className="text-[11px] uppercase tracking-wide text-ink/45">{tx('Assignee', 'দায়িত্বে')}</dt>
+          <dd className="mt-1 text-sm font-medium leading-snug">{report.assignee || tx('Waiting', 'অপেক্ষায়')}</dd>
+        </div>
+      </dl>
+      {showPrivate && report.contactWindow ? <p className="text-sm">{tx('Best time to talk:', 'কথা বলার সময়:')} {report.contactWindow}</p> : null}
 
       {report.photos.length > 0 ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">

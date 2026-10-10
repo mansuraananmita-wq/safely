@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { categoryIcon } from '../../categoryUi'
-import { CampusMap } from '../../components/CampusMap'
+import { GooglePlaceMap } from '../../components/GooglePlaceMap'
 import { Button, Field, useTitle } from '../../components/ui'
 import { PLACES } from '../../data'
-import { isOpen, isPublicFeed, priorityLabel } from '../../logic'
+import { isMapPin, isOpen, isPublicFeed, priorityLabel } from '../../logic'
 import { useApp, type ReportInput } from '../../store'
 import type { CategoryId, Photo, Priority } from '../../types'
 
@@ -25,6 +25,7 @@ type FormState = {
   contactWindow: string
   privacyAck: boolean
   anonAck: boolean
+  pinFromDevice: boolean
 }
 
 const empty = (): FormState => ({
@@ -42,6 +43,7 @@ const empty = (): FormState => ({
   contactWindow: '',
   privacyAck: false,
   anonAck: false,
+  pinFromDevice: false,
 })
 
 function readFile(file: File): Promise<string> {
@@ -83,6 +85,7 @@ export function NewReportPage() {
       contactWindow: draft.contactWindow,
       privacyAck: draft.confidential,
       anonAck: draft.anonymous,
+      pinFromDevice: false,
     })
   }, [draftId, state.reports])
 
@@ -92,7 +95,8 @@ export function NewReportPage() {
   const place = PLACES.find((item) => item.id === form.locationId)
   const planned = state.announcements.find((item) => item.active && item.kind === 'maintenance' && item.locationId === form.locationId)
   const similar = state.reports.filter((report) => form.category && report.category === form.category && report.locationId === form.locationId && report.id !== form.id && isPublicFeed(report) && isOpen(report.status)).slice(0, 3)
-  const counts = Object.fromEntries(PLACES.map((item) => [item.id, state.reports.filter((report) => report.locationId === item.id && isMapOpen(report)).length]))
+  const counts = Object.fromEntries(PLACES.map((item) => [item.id, state.reports.filter((report) => report.locationId === item.id && isMapPin(report)).length]))
+  const places = [...PLACES].sort((a, b) => (counts[b.id] ?? 0) - (counts[a.id] ?? 0))
 
   const stepReady = [
     Boolean(form.category),
@@ -149,14 +153,37 @@ export function NewReportPage() {
     setForm((current) => ({ ...current, photos: [...current.photos, ...next].slice(0, 3) }))
   }
 
+  const choosePlace = (id: string) => {
+    const item = PLACES.find((place) => place.id === id)
+    setForm((current) => ({
+      ...current,
+      locationId: id,
+      lat: item?.lat,
+      lng: item?.lng,
+      pinFromDevice: false,
+    }))
+  }
+
   const locate = () => {
+    if (!form.locationId) {
+      toast(tx('Choose the building first.', 'আগে ভবনটি বেছে নিন।'))
+      return
+    }
     if (!navigator.geolocation) {
-      toast(tx('This browser cannot share a location.', 'এই ব্রাউজার লোকেশন দিতে পারে না।'))
+      toast(tx('This browser cannot share a location. The building pin is enough.', 'এই ব্রাউজার লোকেশন দিতে পারে না। ভবনের পিনই যথেষ্ট।'))
       return
     }
     navigator.geolocation.getCurrentPosition(
-      (position) => setForm((current) => ({ ...current, lat: position.coords.latitude, lng: position.coords.longitude })),
-      () => toast(tx('Location was blocked. The campus place is enough.', 'লোকেশন বন্ধ আছে। ক্যাম্পাসের স্থানই যথেষ্ট।')),
+      (position) => {
+        setForm((current) => ({
+          ...current,
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          pinFromDevice: true,
+        }))
+        toast(tx('The pin moved to where this device is. That is what the office will see.', 'পিন এই ডিভাইসের জায়গায় গেছে। দপ্তর সেটিই দেখবে।'))
+      },
+      () => toast(tx('Location was blocked. The building pin is enough.', 'লোকেশন বন্ধ আছে। ভবনের পিনই যথেষ্ট।')),
     )
   }
 
@@ -213,19 +240,30 @@ export function NewReportPage() {
 
         {step === 2 ? (
           <div className="space-y-4">
-            <CampusMap counts={counts} selected={form.locationId} onSelect={(id) => setForm({ ...form, locationId: id })} labelFor={(item) => (lang === 'bn' ? item.bn : item.short)} />
+            <p className="text-sm text-ink/70">{tx('Choose the building. The pin on Google Maps is what the office will follow.', 'ভবন বেছে নিন। গুগল ম্যাপের পিন দেখে দপ্তর জায়গায় যাবে।')}</p>
             <div className="flex flex-wrap gap-2">
-              {PLACES.map((item) => (
-                <button key={item.id} type="button" onClick={() => setForm({ ...form, locationId: item.id })} className={`rounded-full border px-3 py-1.5 text-sm ${form.locationId === item.id ? 'border-teal-700 bg-teal-800 text-white' : 'border-line bg-white'}`}>
+              {places.map((item) => (
+                <button key={item.id} type="button" onClick={() => choosePlace(item.id)} className={`rounded-full border px-3 py-2 text-sm ${form.locationId === item.id ? 'border-teal-700 bg-teal-800 text-white' : 'border-line bg-white'}`}>
                   {lang === 'bn' ? item.bn : item.en}
+                  {counts[item.id] ? ` · ${counts[item.id]}` : ''}
                 </button>
               ))}
             </div>
-            <Field label={tx('Detail', 'বিস্তারিত')} hint={tx('Room, pole, or side of the building.', 'কক্ষ, খুঁটি, বা ভবনের কোন পাশ।')}>
-              <input className="input" value={form.locationDetail} onChange={(event) => setForm({ ...form, locationDetail: event.target.value })} />
+            {place && form.lat != null && form.lng != null ? (
+              <GooglePlaceMap
+                lat={form.lat}
+                lng={form.lng}
+                zoom={form.pinFromDevice ? 17 : 16}
+                label={lang === 'bn' ? place.bn : place.en}
+                note={form.pinFromDevice ? tx('Pin from this device', 'পিন এই ডিভাইস থেকে') : tx('Pin for this building. Move it if you are standing at the problem.', 'এই ভবনের পিন। সমস্যার কাছে দাঁড়িয়ে থাকলে সরিয়ে নিন।')}
+              />
+            ) : (
+              <div className="panel px-5 py-8 text-sm text-ink/70">{tx('The Google Maps pin appears after you choose a place.', 'স্থান বেছে নিলে গুগল ম্যাপের পিন দেখা যাবে।')}</div>
+            )}
+            <Field label={tx('Where exactly', 'ঠিক কোথায়')} hint={tx('Room, pole, or side of the building.', 'কক্ষ, খুঁটি, বা ভবনের কোন পাশ।')}>
+              <input className="input" value={form.locationDetail} onChange={(event) => setForm({ ...form, locationDetail: event.target.value })} placeholder={tx('Example: west gate, beside the water tap', 'যেমন: পশ্চিম গেট, পানির ট্যাপের পাশে')} />
             </Field>
-            <Button variant="secondary" onClick={locate}>{tx('Add this device’s location', 'এই ডিভাইসের লোকেশন যোগ করুন')}</Button>
-            {form.lat ? <p className="text-sm text-ink/60">{form.lat.toFixed(5)}, {form.lng?.toFixed(5)}</p> : null}
+            <Button variant="secondary" onClick={locate} disabled={!form.locationId}>{tx('I am standing here', 'আমি এখানে দাঁড়িয়ে আছি')}</Button>
             {planned ? <div className="rounded-2xl bg-marigold/20 p-4 text-sm"><p className="font-semibold">{planned.title}</p><p className="mt-1">{planned.body}</p></div> : null}
             {similar.length > 0 ? (
               <div className="panel p-4">
@@ -256,7 +294,7 @@ export function NewReportPage() {
               <input type="checkbox" checked={form.anonymous} onChange={(event) => setForm({ ...form, anonymous: event.target.checked, confidential: event.target.checked ? true : form.confidential })} />
               <span>
                 <span className="block font-semibold">{tx('Hide my name', 'আমার নাম লুকান')}</span>
-                {tx('Officers will not see your name. In this preview the report still stays in your account so you can track it. A production system should keep that link in a separate restricted record. There is no direct reply channel for a fully anonymous report.', 'কর্মকর্তারা আপনার নাম দেখবেন না। এই প্রিভিউতে রিপোর্ট আপনার অ্যাকাউন্টে থাকে যাতে আপনি অনুসরণ করতে পারেন। আসল সিস্টেমে সেই যোগসূত্র আলাদা সীমিত রেকর্ডে থাকবে। সম্পূর্ণ বেনামি রিপোর্টে সরাসরি উত্তরের পথ থাকে না।')}
+                {tx('Officers will not see your name. The report stays on your account so you can follow it. They may not be able to ask a follow-up.', 'কর্মকর্তারা আপনার নাম দেখবেন না। রিপোর্ট আপনার অ্যাকাউন্টে থাকবে, তাই আপনি অনুসরণ করতে পারবেন। তারা হয়তো আরও প্রশ্ন করতে পারবেন না।')}
               </span>
             </label>
             {(sensitive || form.confidential) && !form.anonymous ? (
@@ -292,15 +330,23 @@ export function NewReportPage() {
         {step === 4 ? (
           <div className="panel space-y-2 p-5 text-sm">
             <p className="font-display text-3xl">{form.title}</p>
-            <p>{lang === 'bn' ? category?.bn : category?.en} · {place ? (lang === 'bn' ? place.bn : place.en) : ''}</p>
+            <p>{lang === 'bn' ? category?.bn : category?.en} · {place ? (lang === 'bn' ? place.bn : place.en) : ''}{form.locationDetail ? ` · ${form.locationDetail}` : ''}</p>
             <p className="whitespace-pre-wrap text-ink/80">{form.description}</p>
+            {place && form.lat != null && form.lng != null ? (
+              <GooglePlaceMap
+                lat={form.lat}
+                lng={form.lng}
+                label={lang === 'bn' ? place.bn : place.en}
+                note={tx('Check this pin before you submit.', 'জমা দেওয়ার আগে এই পিন দেখে নিন।')}
+              />
+            ) : null}
             <p>{form.confidential || sensitive ? tx('Restricted', 'সীমিত') : tx('Ordinary campus report', 'সাধারণ ক্যাম্পাস রিপোর্ট')} · {form.anonymous ? tx('Name hidden', 'নাম গোপন') : tx('Name visible to the assigned office', 'বরাদ্দকৃত দপ্তর নাম দেখতে পাবে')}</p>
             <p className="text-ink/60">{tx('An officer confirms the department. Safely only suggests one.', 'কর্মকর্তা বিভাগ নিশ্চিত করেন। সেইফলি শুধু পরামর্শ দেয়।')} {lang === 'bn' ? state.departments.find((item) => item.id === category?.suggestedDepartmentId)?.bn : state.departments.find((item) => item.id === category?.suggestedDepartmentId)?.en}</p>
           </div>
         ) : null}
       </div>
 
-      <div className="sticky bottom-24 z-20 mt-6 flex flex-wrap gap-2 bg-paper/95 py-3 md:static md:bg-transparent">
+      <div className="mt-6 flex flex-wrap gap-2">
         {step > 0 ? <Button variant="secondary" onClick={() => setStep((value) => value - 1)}>{tx('Back', 'পেছনে')}</Button> : null}
         {step < 4 ? <Button disabled={!stepReady} onClick={() => setStep((value) => value + 1)}>{tx('Continue', 'এগিয়ে যান')}</Button> : null}
         {step > 0 ? (
@@ -327,6 +373,3 @@ export function NewReportPage() {
   )
 }
 
-function isMapOpen(report: { locationId: string; status: string; confidential: boolean; anonymous: boolean; category: string }) {
-  return !report.confidential && !report.anonymous && report.category !== 'harassment' && report.category !== 'safety' && report.status !== 'draft' && report.status !== 'rejected' && report.status !== 'closed'
-}

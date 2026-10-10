@@ -1,37 +1,80 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { CampusMap } from '../../components/CampusMap'
+import { GooglePlaceMap } from '../../components/GooglePlaceMap'
 import { ReportCard } from '../../components/ReportCard'
-import { Button, Empty, Field, Modal, useTitle } from '../../components/ui'
-import { DEMO_ACCOUNTS, PLACES } from '../../data'
+import { Button, Empty, Field, Modal, buttonClass, useTitle } from '../../components/ui'
+import { DEMO_ACCOUNTS, PLACES, reportPoint } from '../../data'
 import { homePath, isOpen } from '../../logic'
 import { useApp } from '../../store'
 import { useNavigate } from 'react-router-dom'
 
 export function MapPage() {
   const { state, tx, lang } = useApp()
-  const [selected, setSelected] = useState('library')
-  useTitle(tx('Campus map', 'ক্যাম্পাস ম্যাপ'))
   const pins = state.reports.filter((report) => !report.confidential && !report.anonymous && report.category !== 'harassment' && report.category !== 'safety' && isOpen(report.status))
   const counts = Object.fromEntries(PLACES.map((place) => [place.id, pins.filter((report) => report.locationId === place.id).length]))
+  const busiest = PLACES.reduce((best, place) => ((counts[place.id] ?? 0) > (counts[best] ?? 0) ? place.id : best), PLACES[0].id)
+  const [selected, setSelected] = useState(busiest)
+  const [focusedId, setFocusedId] = useState<string | null>(null)
+  useTitle(tx('Campus map', 'ক্যাম্পাস ম্যাপ'))
   const safety = PLACES.map((place) => ({
     place,
     value: state.reports.filter((report) => report.locationId === place.id && report.category === 'safety' && !report.anonymous && !report.confidential && isOpen(report.status)).length,
   })).filter((item) => item.value > 0)
   const here = pins.filter((report) => report.locationId === selected)
+  const place = PLACES.find((item) => item.id === selected) ?? PLACES[0]
+  const focused = here.find((report) => report.id === focusedId) ?? null
+  const point = focused ? reportPoint(focused) : { lat: place.lat, lng: place.lng }
+  const exact = Boolean(
+    focused &&
+      focused.lat != null &&
+      focused.lng != null &&
+      (Math.abs(focused.lat - place.lat) > 0.0002 || Math.abs(focused.lng - place.lng) > 0.0002),
+  )
   return (
     <div className="mx-auto max-w-5xl space-y-4">
       <h1 className="font-display text-4xl">{tx('Campus map', 'ক্যাম্পাস ম্যাপ')}</h1>
-      <p className="max-w-2xl text-sm text-ink/70">{tx('Pins are ordinary open reports. Safety notes are counts only, with no story attached. A Google map can replace this drawing when the university adds a key.', 'পিন সাধারণ খোলা রিপোর্ট। নিরাপত্তার নোট শুধু সংখ্যা, কোনো বিবরণ নেই। বিশ্ববিদ্যালয় চাবি দিলে এটি গুগল ম্যাপে বদলানো যাবে।')}</p>
-      <CampusMap counts={counts} selected={selected} onSelect={setSelected} labelFor={(place) => (lang === 'bn' ? place.short : place.short)} />
+      <p className="max-w-2xl text-sm text-ink/70">{tx('Choose a place. Its open reports show on Google Maps. Sensitive reports stay off this map.', 'একটি স্থান বেছে নিন। খোলা রিপোর্ট গুগল ম্যাপে দেখা যাবে। সংবেদনশীল রিপোর্ট এই ম্যাপে আসে না।')}</p>
       <div className="flex flex-wrap gap-2">
-        {PLACES.map((place) => (
-          <button key={place.id} type="button" onClick={() => setSelected(place.id)} className={`rounded-full px-3 py-1.5 text-sm ${selected === place.id ? 'bg-teal-800 text-white' : 'bg-white'}`}>
-            {lang === 'bn' ? place.bn : place.en} · {counts[place.id] ?? 0}
+        {[...PLACES].sort((a, b) => (counts[b.id] ?? 0) - (counts[a.id] ?? 0)).map((item) => (
+          <button key={item.id} type="button" onClick={() => { setSelected(item.id); setFocusedId(null) }} className={`rounded-full px-3 py-2 text-sm ${selected === item.id ? 'bg-teal-800 text-white' : 'bg-white'}`}>
+            {lang === 'bn' ? item.bn : item.en} · {counts[item.id] ?? 0}
           </button>
         ))}
       </div>
-      <div className="space-y-3">{here.map((report) => <ReportCard key={report.id} report={report} base="/app/reports" />)}</div>
+      {point ? (
+        <GooglePlaceMap
+          mapId="campus-google-map"
+          lat={point.lat}
+          lng={point.lng}
+          zoom={exact ? 17 : 16}
+          label={focused ? focused.title : (lang === 'bn' ? place.bn : place.en)}
+          note={focused ? (exact ? tx('This report has its own pin.', 'এই রিপোর্টের নিজস্ব পিন আছে।') : tx('Same building pin as the other reports here.', 'এখানকার অন্য রিপোর্টের মতোই এই ভবনের পিন।')) : tx(`${counts[place.id] ?? 0} open reports at this building.`, `এই ভবনে ${counts[place.id] ?? 0}টি খোলা রিপোর্ট।`)}
+        />
+      ) : null}
+      {here.length === 0 ? (
+        <Empty
+          title={tx('Nothing open here', 'এখানে কিছু খোলা নেই')}
+          body={tx('Pick another place, or file a report if you can see the problem.', 'অন্য স্থান বেছে নিন, অথবা সমস্যা দেখতে পেলে রিপোর্ট দিন।')}
+          action={<Link to="/app/report/new" className={buttonClass('primary')}>{tx('Report a problem', 'সমস্যা জানান')}</Link>}
+        />
+      ) : (
+        <div className="space-y-3">
+          {here.map((report) => {
+            const spot = reportPoint(report)
+            const ownPin = Boolean(spot && (Math.abs(spot.lat - place.lat) > 0.0002 || Math.abs(spot.lng - place.lng) > 0.0002))
+            return (
+              <div key={report.id} className={focused?.id === report.id ? 'rounded-2xl ring-2 ring-teal-700' : ''}>
+                {ownPin ? (
+                  <button type="button" onClick={() => { setFocusedId(report.id); document.getElementById('campus-google-map')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }} className="mb-1 text-sm font-semibold text-teal-800">
+                    {focused?.id === report.id ? tx('Showing this exact pin', 'এই সঠিক পিন দেখানো হচ্ছে') : tx('Show the exact pin', 'সঠিক পিন দেখুন')}
+                  </button>
+                ) : null}
+                <ReportCard report={report} base="/app/reports" />
+              </div>
+            )
+          })}
+        </div>
+      )}
       <section className="panel p-4">
         <h2 className="font-display text-2xl">{tx('Safety notes by area', 'এলাকা অনুযায়ী নিরাপত্তা নোট')}</h2>
         <p className="mt-1 text-sm text-ink/65">{tx('Descriptions stay with the security office.', 'বিবরণ নিরাপত্তা দপ্তরে থাকে।')}</p>

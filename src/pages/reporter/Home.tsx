@@ -26,7 +26,7 @@ export function HomePage() {
       {alerts[0] ? (
         <Link to="/app/alerts" className="block rounded-2xl bg-marigold/20 px-4 py-3 text-sm">
           <span className="font-semibold">{alerts[0].title}. </span>
-          <span className="text-ink/75">{alerts[0].body}</span>
+          <span className="line-clamp-2 text-ink/75">{alerts[0].body}</span>
         </Link>
       ) : null}
       <div className="grid grid-cols-3 gap-2">
@@ -58,7 +58,7 @@ export function HomePage() {
       <section>
         <div className="mb-3 flex items-end justify-between">
           <h2 className="font-display text-2xl">{tx('Open around campus', 'ক্যাম্পাসে যা খোলা')}</h2>
-          <Link to="/app/map" className="text-sm font-semibold text-teal-800">{tx('Map', 'ম্যাপ')}</Link>
+          <Link to="/app/map" className="text-sm font-semibold text-teal-800">{tx('See on Google Maps', 'গুগল ম্যাপে দেখুন')}</Link>
         </div>
         <div className="space-y-3">{nearby.map((report) => <ReportCard key={report.id} report={report} base="/app/reports" />)}</div>
       </section>

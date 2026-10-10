@@ -49,8 +49,8 @@ export interface Place {
   en: string
   bn: string
   short: string
-  x: number
-  y: number
+  lat: number
+  lng: number
 }
 
 export interface User {

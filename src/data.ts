@@ -2,18 +2,24 @@ import { uid } from './logic'
 import type { Activity, Announcement, AppState, Category, Department, LostItem, Place, Report, User } from './types'
 
 export const PLACES: Place[] = [
-  { id: 'gate', en: 'Main Gate', bn: 'প্রধান ফটক', short: 'Gate', x: 14, y: 64 },
-  { id: 'bus', en: 'Bus Stand', bn: 'বাস স্ট্যান্ড', short: 'Bus', x: 8, y: 36 },
-  { id: 'medical', en: 'Medical Center', bn: 'মেডিকেল সেন্টার', short: 'Medical', x: 28, y: 16 },
-  { id: 'admin', en: 'Admin Building', bn: 'প্রশাসন ভবন', short: 'Admin', x: 30, y: 38 },
-  { id: 'library', en: 'Library', bn: 'গ্রন্থাগার', short: 'Library', x: 50, y: 22 },
-  { id: 'science', en: 'Science Block', bn: 'বিজ্ঞান ভবন', short: 'Science', x: 74, y: 20 },
-  { id: 'cafe', en: 'Cafeteria', bn: 'ক্যাফেটেরিয়া', short: 'Cafe', x: 46, y: 50 },
-  { id: 'arts', en: 'Arts Faculty', bn: 'কলা অনুষদ', short: 'Arts', x: 66, y: 48 },
-  { id: 'eng', en: 'Engineering Lab', bn: 'প্রকৌশল ল্যাব', short: 'Eng Lab', x: 84, y: 42 },
-  { id: 'dorm', en: 'Dormitory A', bn: 'আবাসিক হল এ', short: 'Dorm A', x: 30, y: 78 },
-  { id: 'field', en: 'Sports Field', bn: 'খেলার মাঠ', short: 'Field', x: 74, y: 76 },
+  { id: 'gate', en: 'Main Gate', bn: 'প্রধান ফটক', short: 'Gate', lat: 23.7251, lng: 90.38158 },
+  { id: 'bus', en: 'Bus Stand', bn: 'বাস স্ট্যান্ড', short: 'Bus', lat: 23.7349, lng: 90.37906 },
+  { id: 'medical', en: 'Medical Center', bn: 'মেডিকেল সেন্টার', short: 'Medical', lat: 23.7419, lng: 90.38746 },
+  { id: 'admin', en: 'Admin Building', bn: 'প্রশাসন ভবন', short: 'Admin', lat: 23.7342, lng: 90.3883 },
+  { id: 'library', en: 'Library', bn: 'গ্রন্থাগার', short: 'Library', lat: 23.7398, lng: 90.3967 },
+  { id: 'science', en: 'Science Block', bn: 'বিজ্ঞান ভবন', short: 'Science', lat: 23.7405, lng: 90.40678 },
+  { id: 'cafe', en: 'Cafeteria', bn: 'ক্যাফেটেরিয়া', short: 'Cafe', lat: 23.73, lng: 90.39502 },
+  { id: 'arts', en: 'Arts Faculty', bn: 'কলা অনুষদ', short: 'Arts', lat: 23.7307, lng: 90.40342 },
+  { id: 'eng', en: 'Engineering Lab', bn: 'প্রকৌশল ল্যাব', short: 'Eng Lab', lat: 23.7328, lng: 90.41098 },
+  { id: 'dorm', en: 'Dormitory A', bn: 'আবাসিক হল এ', short: 'Dorm A', lat: 23.7202, lng: 90.3883 },
+  { id: 'field', en: 'Sports Field', bn: 'খেলার মাঠ', short: 'Field', lat: 23.7209, lng: 90.40678 },
 ]
+
+export function reportPoint(report: { lat?: number; lng?: number; locationId: string }): { lat: number; lng: number } | null {
+  if (typeof report.lat === 'number' && typeof report.lng === 'number') return { lat: report.lat, lng: report.lng }
+  const place = PLACES.find((item) => item.id === report.locationId)
+  return place ? { lat: place.lat, lng: place.lng } : null
+}
 
 export const CATEGORIES: Category[] = [
   {
