@@ -1,0 +1,742 @@
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { buildSeed } from './data'
+import { allowedTransitions, assignmentBlocked, isOpen, nextReportId, uid } from './logic'
+import type {
+  Activity,
+  Announcement,
+  AppNotification,
+  AppState,
+  AuditEntry,
+  Category,
+  Department,
+  Lang,
+  LostItem,
+  Photo,
+  Priority,
+  Report,
+  Role,
+  Status,
+  User,
+} from './types'
+
+export const STORAGE_KEY = 'safely-preview-v1'
+
+function load(): AppState {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return buildSeed()
+    const parsed = JSON.parse(raw) as { version?: number; state?: AppState }
+    if (parsed.version !== 1 || !parsed.state?.reports || !parsed.state.users || !parsed.state.categories) return buildSeed()
+    return parsed.state
+  } catch {
+    return buildSeed()
+  }
+}
+
+function persist(state: AppState) {
+  const write = (value: AppState) => localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, state: value }))
+  try {
+    write(state)
+  } catch {
+    const slim: AppState = {
+      ...state,
+      reports: state.reports.map((report) => ({
+        ...report,
+        photos: report.photos.map((photo) => ({ name: photo.name })),
+        resolutionPhoto: report.resolutionPhoto ? { name: report.resolutionPhoto.name } : undefined,
+      })),
+    }
+    try {
+      write(slim)
+    } catch {
+      /* Preview storage is full. */
+    }
+  }
+}
+
+function pin(): string {
+  return String(Math.floor(100000 + Math.random() * 900000))
+}
+
+function nowIso(): string {
+  return new Date().toISOString()
+}
+
+function addHours(iso: string, hours: number): string {
+  return new Date(new Date(iso).getTime() + hours * 3_600_000).toISOString()
+}
+
+function activity(actor: string, visibility: Activity['visibility'], kind: Activity['kind'], message: string): Activity {
+  return { id: uid('a'), at: nowIso(), actor, visibility, kind, message }
+}
+
+function withNotes(state: AppState, users: User[], title: string, body: string, href: string): AppState {
+  const notes: AppNotification[] = users
+    .filter((user) => user.notifyInApp && !user.suspended)
+    .map((user) => ({ id: uid('n'), userId: user.id, title, body, href, read: false, createdAt: nowIso() }))
+  return { ...state, notifications: [...notes, ...state.notifications].slice(0, 200) }
+}
+
+function withAudit(state: AppState, actor: string, action: string, target: string): AppState {
+  const entry: AuditEntry = { id: uid('au'), at: nowIso(), actor, action, target }
+  return { ...state, audit: [entry, ...state.audit].slice(0, 300) }
+}
+
+function deskAudience(state: AppState, report: Pick<Report, 'confidential' | 'category'>): User[] {
+  if (report.confidential || report.category === 'harassment') {
+    return state.users.filter((user) => user.role === 'admin' || user.role === 'security' || user.departmentId === 'd-affairs')
+  }
+  if (report.category === 'safety') return state.users.filter((user) => user.role === 'admin' || user.role === 'security')
+  return state.users.filter((user) => user.role === 'admin')
+}
+
+function replaceReport(state: AppState, report: Report): AppState {
+  const exists = state.reports.some((item) => item.id === report.id)
+  return {
+    ...state,
+    reports: exists ? state.reports.map((item) => (item.id === report.id ? report : item)) : [report, ...state.reports],
+  }
+}
+
+export type ReportInput = {
+  id?: string
+  title: string
+  description: string
+  category: Report['category']
+  locationId: string
+  locationDetail: string
+  lat?: number
+  lng?: number
+  photos: Photo[]
+  confidential: boolean
+  anonymous: boolean
+  priority: Priority
+  blocksAccess: boolean
+  contactWindow: string
+}
+
+type Toast = { id: string; text: string }
+
+type Api = {
+  state: AppState
+  currentUser: User | null
+  lang: Lang
+  tx: (en: string, bn: string) => string
+  toasts: Toast[]
+  toast: (text: string) => void
+  login: (email: string, password: string) => 'unknown' | 'suspended' | 'unverified' | 'password' | null
+  loginDirect: (email: string) => 'unknown' | 'suspended' | 'unverified' | null
+  logout: () => void
+  register: (input: { name: string; email: string; role: Role; unit: string; identifier: string }) => 'domain' | 'exists' | 'role' | null
+  verify: (email: string, code: string) => boolean
+  resend: (email: string) => void
+  requestReset: (email: string) => boolean
+  completeReset: (email: string, code: string) => boolean
+  setLang: (lang: Lang) => void
+  setTextSize: (size: 'default' | 'large') => void
+  setContrast: (on: boolean) => void
+  saveDraft: (input: ReportInput) => string | null
+  submitReport: (input: ReportInput) => string | null
+  deleteDraft: (id: string) => void
+  addComment: (reportId: string, body: string, visibility: 'public' | 'internal') => void
+  setStatus: (reportId: string, status: Status, note: string, resolutionPhoto?: Photo) => boolean
+  assign: (reportId: string, departmentId: string, assignee: string, priority: Priority) => boolean
+  setPriority: (ids: string[], priority: Priority) => void
+  requestInfo: (reportId: string, body: string) => void
+  rate: (reportId: string, rating: number, feedback: string) => void
+  reopen: (reportId: string, reason: string) => void
+  confirm: (reportId: string) => void
+  markRead: (id: string) => void
+  markAllRead: () => void
+  publishAnnouncement: (input: { title: string; body: string; kind: Announcement['kind']; locationId?: string }) => void
+  setAnnouncementActive: (id: string, active: boolean) => void
+  addLost: (input: { title: string; place: string; detail: string; kind: LostItem['kind']; contact: string }) => void
+  setLostStatus: (id: string, status: LostItem['status']) => void
+  updateUser: (id: string, patch: Partial<Pick<User, 'role' | 'suspended' | 'departmentId'>>) => void
+  updateDepartment: (id: string, patch: Partial<Pick<Department, 'lead' | 'email'>>) => void
+  updateCategory: (id: string, patch: Partial<Pick<Category, 'active' | 'slaHours'>>) => void
+  extendDue: (reportId: string) => void
+  updateProfile: (patch: Partial<Pick<User, 'name' | 'unit' | 'notifyInApp' | 'notifyEmail' | 'notifyPush'>>) => void
+  recordExport: () => void
+  resetDemo: () => void
+}
+
+const Ctx = createContext<Api | null>(null)
+
+export function StoreProvider({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<AppState>(() => load())
+  const [toasts, setToasts] = useState<Toast[]>([])
+  const stateRef = useRef(state)
+  stateRef.current = state
+
+  useEffect(() => {
+    persist(state)
+  }, [state])
+
+  useEffect(() => {
+    document.documentElement.lang = state.prefs.lang === 'bn' ? 'bn' : 'en'
+    document.documentElement.classList.toggle('text-large', state.prefs.textSize === 'large')
+    document.documentElement.classList.toggle('contrast', state.prefs.contrast)
+  }, [state.prefs])
+
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== STORAGE_KEY || !event.newValue) return
+      try {
+        const parsed = JSON.parse(event.newValue) as { state?: AppState }
+        if (parsed.state) setState(parsed.state)
+      } catch {
+        /* Ignore unreadable preview data from another tab. */
+      }
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
+
+  const toast = (text: string) => {
+    const id = uid('t')
+    setToasts((prev) => [...prev, { id, text }].slice(-4))
+    window.setTimeout(() => setToasts((prev) => prev.filter((item) => item.id !== id)), 4200)
+  }
+
+  const say = (en: string, bn: string) => toast(stateRef.current.prefs.lang === 'bn' ? bn : en)
+
+  const update = (fn: (current: AppState) => AppState) => setState((prev) => fn(prev))
+
+  const userByEmail = (email: string) =>
+    stateRef.current.users.find((user) => user.email.toLowerCase() === email.trim().toLowerCase())
+
+  const startSession = (email: string): 'unknown' | 'suspended' | 'unverified' | null => {
+    const user = userByEmail(email)
+    if (!user) return 'unknown'
+    if (user.suspended) return 'suspended'
+    if (!user.verified) return 'unverified'
+    update((current) => ({ ...current, sessionUserId: user.id }))
+    return null
+  }
+
+  const buildReport = (current: AppState, user: User, input: ReportInput, status: Status): Report => {
+    const existing = input.id ? current.reports.find((report) => report.id === input.id) : undefined
+    const stamp = nowIso()
+    const sla = current.categories.find((category) => category.id === input.category)?.slaHours ?? 72
+    const confidential = input.category === 'harassment' ? true : input.confidential
+    let priority = input.priority
+    if ((input.category === 'harassment' || input.category === 'safety') && (priority === 'low' || priority === 'medium')) {
+      priority = 'high'
+    }
+    return {
+      confirmations: [],
+      infoRequested: false,
+      activities: [],
+      resolutionNote: '',
+      ...existing,
+      id: existing?.id || input.id || nextReportId(current.reports),
+      title: input.title.trim(),
+      description: input.description.trim(),
+      category: input.category,
+      locationId: input.locationId,
+      locationDetail: input.locationDetail.trim(),
+      lat: input.lat,
+      lng: input.lng,
+      photos: input.photos.slice(0, 3),
+      confidential,
+      anonymous: input.anonymous,
+      status,
+      priority,
+      reporterId: user.id,
+      createdAt: existing?.createdAt ?? stamp,
+      updatedAt: stamp,
+      dueAt: status === 'draft' ? (existing?.dueAt ?? addHours(stamp, sla)) : addHours(stamp, sla),
+      blocksAccess: input.blocksAccess,
+      contactWindow: confidential && !input.anonymous ? input.contactWindow.trim() : '',
+      departmentId: status === 'draft' ? undefined : existing?.departmentId,
+      assignee: status === 'draft' ? undefined : existing?.assignee,
+    }
+  }
+
+  const api: Api = {
+    state,
+    currentUser: state.users.find((user) => user.id === state.sessionUserId) ?? null,
+    lang: state.prefs.lang,
+    tx: (en, bn) => (state.prefs.lang === 'bn' ? bn : en),
+    toasts,
+    toast,
+    login: (email, password) => {
+      if (password.trim().length < 8) return 'password'
+      return startSession(email)
+    },
+    loginDirect: (email) => startSession(email),
+    logout: () => update((current) => ({ ...current, sessionUserId: null })),
+    register: ({ name, email, role, unit, identifier }) => {
+      const clean = email.trim().toLowerCase()
+      if (!clean.endsWith('@padma.edu')) return 'domain'
+      if (role !== 'student' && role !== 'teacher' && role !== 'staff') return 'role'
+      if (stateRef.current.users.some((user) => user.email === clean)) return 'exists'
+      const user: User = {
+        id: uid('u'),
+        name: name.trim(),
+        email: clean,
+        role,
+        unit: unit.trim(),
+        identifier: identifier.trim(),
+        verified: false,
+        suspended: false,
+        notifyInApp: true,
+        notifyEmail: true,
+        notifyPush: false,
+      }
+      update((current) => ({
+        ...current,
+        users: [...current.users, user],
+        codes: { ...current.codes, [`verify:${clean}`]: pin() },
+      }))
+      return null
+    },
+    verify: (email, code) => {
+      const key = `verify:${email.trim().toLowerCase()}`
+      const expected = stateRef.current.codes[key]
+      if (!expected || expected !== code.trim()) {
+        say('That code does not match the demo inbox.', 'কোডটি ডেমো ইনবক্সের সাথে মেলেনি।')
+        return false
+      }
+      update((current) => ({
+        ...current,
+        users: current.users.map((user) => (user.email === email.trim().toLowerCase() ? { ...user, verified: true } : user)),
+        codes: { ...current.codes, [key]: '' },
+      }))
+      say('Email marked verified for this preview.', 'এই প্রিভিউতে ইমেইল যাচাই হয়েছে।')
+      return true
+    },
+    resend: (email) => {
+      const key = `verify:${email.trim().toLowerCase()}`
+      update((current) => ({ ...current, codes: { ...current.codes, [key]: pin() } }))
+    },
+    requestReset: (email) => {
+      const user = userByEmail(email)
+      if (!user) return false
+      const key = `reset:${user.email}`
+      update((current) => ({ ...current, codes: { ...current.codes, [key]: pin() } }))
+      return true
+    },
+    completeReset: (email, code) => {
+      const key = `reset:${email.trim().toLowerCase()}`
+      if (stateRef.current.codes[key] !== code.trim()) {
+        say('That reset code does not match.', 'রিসেট কোড মেলেনি।')
+        return false
+      }
+      update((current) => ({ ...current, codes: { ...current.codes, [key]: '' } }))
+      say('Password reset recorded. Sign in with any 8+ character password in this preview.', 'পাসওয়ার্ড রিসেট হয়েছে। এই প্রিভিউতে ৮ অক্ষরের যেকোনো পাসওয়ার্ডে ঢুকতে পারবেন।')
+      return true
+    },
+    setLang: (lang) => update((current) => ({ ...current, prefs: { ...current.prefs, lang } })),
+    setTextSize: (textSize) => update((current) => ({ ...current, prefs: { ...current.prefs, textSize } })),
+    setContrast: (contrast) => update((current) => ({ ...current, prefs: { ...current.prefs, contrast } })),
+    saveDraft: (input) => {
+      const current = stateRef.current
+      const user = current.users.find((item) => item.id === current.sessionUserId)
+      if (!user) return null
+      if (!input.category || input.title.trim().length < 4) {
+        say('Add a category and a short title before saving a draft.', 'খসড়া সেভ করতে বিভাগ ও ছোট একটি শিরোনাম দিন।')
+        return null
+      }
+      const existing = input.id ? current.reports.find((report) => report.id === input.id) : undefined
+      if (existing && (existing.status !== 'draft' || existing.reporterId !== user.id)) return null
+      const report = buildReport(current, user, input, 'draft')
+      update((prev) => replaceReport(prev, buildReport(prev, user, { ...input, id: report.id }, 'draft')))
+      say('Draft saved in this browser.', 'খসড়া এই ব্রাউজারে সেভ হয়েছে।')
+      return report.id
+    },
+    submitReport: (input) => {
+      const current = stateRef.current
+      const user = current.users.find((item) => item.id === current.sessionUserId)
+      if (!user) return null
+      if (input.title.trim().length < 8 || input.description.trim().length < 20 || !input.locationId) {
+        say('Add a title, a fuller description, and a campus place.', 'শিরোনাম, বিস্তারিত বিবরণ এবং ক্যাম্পাসের স্থান দিন।')
+        return null
+      }
+      const existing = input.id ? current.reports.find((report) => report.id === input.id) : undefined
+      if (existing && (existing.status !== 'draft' || existing.reporterId !== user.id)) return null
+      const dayAgo = Date.now() - 86_400_000
+      const recent = current.reports.filter(
+        (report) => report.reporterId === user.id && report.status !== 'draft' && new Date(report.createdAt).getTime() > dayAgo,
+      )
+      if (recent.length >= 5) {
+        say('This preview accepts five reports a day from one account.', 'এই প্রিভিউতে একটি অ্যাকাউন্ট থেকে দিনে পাঁচটি রিপোর্ট যায়।')
+        return null
+      }
+      const created = buildReport(current, user, input, 'submitted')
+      const submitted: Report = {
+        ...created,
+        activities: [...created.activities, activity('Safely', 'public', 'system', created.anonymous ? 'Anonymous report submitted.' : 'Report submitted.')],
+      }
+      update((prev) => {
+        let next = replaceReport(prev, submitted)
+        const audience = deskAudience(next, submitted).filter((item) => item.id !== user.id)
+        const href = `/admin/reports/${submitted.id}`
+        const title = submitted.confidential ? 'Confidential report submitted' : 'New campus report'
+        const body = submitted.confidential ? `${submitted.id} is in the restricted queue.` : `${submitted.id}: ${submitted.title}`
+        next = withNotes(next, audience, title, body, href)
+        if (user.notifyInApp) {
+          next = withNotes(next, [user], 'Report received', `${submitted.id} is with the campus desk.`, `/app/reports/${submitted.id}`)
+        }
+        return next
+      })
+      say(`Submitted ${submitted.id}.`, `${submitted.id} জমা হয়েছে।`)
+      return submitted.id
+    },
+    deleteDraft: (id) => {
+      const user = stateRef.current.users.find((item) => item.id === stateRef.current.sessionUserId)
+      update((current) => ({
+        ...current,
+        reports: current.reports.filter((report) => !(report.id === id && report.status === 'draft' && report.reporterId === user?.id)),
+      }))
+      say('Draft deleted.', 'খসড়া মুছে ফেলা হয়েছে।')
+    },
+    addComment: (reportId, body, visibility) => {
+      const text = body.trim()
+      if (text.length < 2) return
+      const current = stateRef.current
+      const user = current.users.find((item) => item.id === current.sessionUserId)
+      const report = current.reports.find((item) => item.id === reportId)
+      if (!user || !report) return
+      const internal = visibility === 'internal'
+      const nextReport: Report = {
+        ...report,
+        updatedAt: nowIso(),
+        infoRequested: internal ? report.infoRequested : false,
+        activities: [...report.activities, activity(user.name, internal ? 'internal' : 'public', internal ? 'internal' : 'reply', text)],
+      }
+      update((prev) => {
+        let next = replaceReport(prev, nextReport)
+        if (!internal && report.reporterId && report.reporterId !== user.id) {
+          const reporter = next.users.find((item) => item.id === report.reporterId)
+          if (reporter) next = withNotes(next, [reporter], 'New update on your report', `${report.id} has a new reply.`, `/app/reports/${report.id}`)
+        }
+        if (!internal && report.reporterId === user.id) {
+          next = withNotes(
+            next,
+            deskAudience(next, report).filter((item) => item.id !== user.id),
+            'Reporter replied',
+            `${report.id} has a reply from the reporter.`,
+            `/admin/reports/${report.id}`,
+          )
+        }
+        return next
+      })
+    },
+    setStatus: (reportId, status, note, resolutionPhoto) => {
+      const current = stateRef.current
+      const user = current.users.find((item) => item.id === current.sessionUserId)
+      const report = current.reports.find((item) => item.id === reportId)
+      if (!user || !report) return false
+      if (!allowedTransitions(user, report).includes(status)) {
+        say('That status change is not available for this account.', 'এই অ্যাকাউন্ট থেকে এই স্ট্যাটাস বদলানো যাবে না।')
+        return false
+      }
+      if ((status === 'rejected' || status === 'resolved' || status === 'reopened') && note.trim().length < 8) {
+        say('Add a short note so the next person knows why.', 'কেন বদলালেন, ছোট একটি নোট দিন।')
+        return false
+      }
+      const stamp = nowIso()
+      const nextReport: Report = {
+        ...report,
+        status,
+        updatedAt: stamp,
+        rejectReason: status === 'rejected' ? note.trim() : report.rejectReason,
+        resolutionNote: status === 'resolved' ? note.trim() : report.resolutionNote,
+        resolutionPhoto: status === 'resolved' && resolutionPhoto ? resolutionPhoto : report.resolutionPhoto,
+        resolvedAt: status === 'resolved' ? stamp : report.resolvedAt,
+        closedAt: status === 'closed' ? stamp : report.closedAt,
+        infoRequested: false,
+        activities: [
+          ...report.activities,
+          activity('Safely', 'public', 'system', note.trim() ? `Status set to ${status.replaceAll('_', ' ')}. ${note.trim()}` : `Status set to ${status.replaceAll('_', ' ')}.`),
+        ],
+      }
+      update((prev) => {
+        let next = replaceReport(prev, nextReport)
+        next = withAudit(next, user.name, `Set status to ${status.replaceAll('_', ' ')}`, report.id)
+        const reporter = next.users.find((item) => item.id === report.reporterId)
+        if (reporter && reporter.id !== user.id) {
+          next = withNotes(next, [reporter], 'Report status changed', `${report.id} is now ${status.replaceAll('_', ' ')}.`, `/app/reports/${report.id}`)
+        }
+        return next
+      })
+      say('Status updated.', 'স্ট্যাটাস আপডেট হয়েছে।')
+      return true
+    },
+    assign: (reportId, departmentId, assignee, priority) => {
+      const current = stateRef.current
+      const user = current.users.find((item) => item.id === current.sessionUserId)
+      const report = current.reports.find((item) => item.id === reportId)
+      const department = current.departments.find((item) => item.id === departmentId)
+      if (!user || !report || !department) return false
+      if (user.role !== 'admin' && user.role !== 'security') {
+        say('Only the campus desk can assign a department.', 'বিভাগ বরাদ্দ করতে পারবে ক্যাম্পাস ডেস্ক।')
+        return false
+      }
+      if (!isOpen(report.status)) {
+        say('Reopen the report before assigning it.', 'বরাদ্দের আগে রিপোর্টটি আবার খুলুন।')
+        return false
+      }
+      if (assignmentBlocked(report, departmentId)) {
+        say('Confidential reports stay with Security or Student Affairs.', 'গোপন রিপোর্ট শুধু নিরাপত্তা বা শিক্ষার্থী বিষয়ক দপ্তরে যাবে।')
+        return false
+      }
+      const status: Status = report.status === 'submitted' || report.status === 'under_review' || report.status === 'reopened' ? 'assigned' : report.status
+      const lead = assignee.trim() || department.lead
+      const nextReport: Report = {
+        ...report,
+        departmentId,
+        assignee: lead,
+        priority,
+        status,
+        updatedAt: nowIso(),
+        activities: [...report.activities, activity(user.name, 'public', 'system', `Assigned to ${department.en}. Priority: ${priority}.`)],
+      }
+      update((prev) => {
+        let next = replaceReport(prev, nextReport)
+        next = withAudit(next, user.name, `Assigned report to ${department.en}`, report.id)
+        const office = next.users.filter((item) => item.departmentId === departmentId && item.id !== user.id)
+        next = withNotes(next, office, 'Report assigned to your office', `${report.id} is on the ${department.en} desk.`, `/admin/reports/${report.id}`)
+        const reporter = next.users.find((item) => item.id === report.reporterId)
+        if (reporter && reporter.id !== user.id) {
+          next = withNotes(next, [reporter], 'Your report was assigned', `${report.id} went to ${department.en}.`, `/app/reports/${report.id}`)
+        }
+        return next
+      })
+      say('Department assigned.', 'বিভাগ বরাদ্দ হয়েছে।')
+      return true
+    },
+    setPriority: (ids, priority) => {
+      const user = stateRef.current.users.find((item) => item.id === stateRef.current.sessionUserId)
+      if (!user || (user.role !== 'admin' && user.role !== 'security')) return
+      update((current) => {
+        const reports = current.reports.map((report) => (ids.includes(report.id) && report.status !== 'draft' ? { ...report, priority, updatedAt: nowIso() } : report))
+        return withAudit({ ...current, reports }, user.name, `Set priority to ${priority} on ${ids.length} reports`, ids.join(', '))
+      })
+      say('Priority updated.', 'অগ্রাধিকার আপডেট হয়েছে।')
+    },
+    requestInfo: (reportId, body) => {
+      const text = body.trim()
+      if (text.length < 8) {
+        say('Write the question you need answered.', 'যে প্রশ্নটির উত্তর দরকার, তা লিখুন।')
+        return
+      }
+      const current = stateRef.current
+      const user = current.users.find((item) => item.id === current.sessionUserId)
+      const report = current.reports.find((item) => item.id === reportId)
+      if (!user || !report) return
+      if (report.anonymous && !report.reporterId) {
+        say('This anonymous report has no reply channel.', 'এই বেনামি রিপোর্টে উত্তর দেওয়ার পথ নেই।')
+        return
+      }
+      const nextReport: Report = {
+        ...report,
+        infoRequested: true,
+        updatedAt: nowIso(),
+        activities: [...report.activities, activity(user.name, 'public', 'reply', text)],
+      }
+      update((prev) => {
+        let next = replaceReport(prev, nextReport)
+        next = withAudit(next, user.name, 'Asked the reporter for more information', report.id)
+        const reporter = next.users.find((item) => item.id === report.reporterId)
+        if (reporter) next = withNotes(next, [reporter], 'More information requested', `${report.id} needs a reply.`, `/app/reports/${report.id}`)
+        return next
+      })
+      say('Question sent to the reporter.', 'প্রশ্ন রিপোর্টকারীর কাছে গেছে।')
+    },
+    rate: (reportId, rating, feedback) => {
+      const user = stateRef.current.users.find((item) => item.id === stateRef.current.sessionUserId)
+      update((current) => ({
+        ...current,
+        reports: current.reports.map((report) =>
+          report.id === reportId && report.reporterId === user?.id && (report.status === 'resolved' || report.status === 'closed')
+            ? { ...report, rating, feedback: feedback.trim(), updatedAt: nowIso() }
+            : report,
+        ),
+      }))
+      say('Thanks. The rating is on the report.', 'ধন্যবাদ। রেটিং রিপোর্টে যোগ হয়েছে।')
+    },
+    reopen: (reportId, reason) => {
+      const text = reason.trim()
+      if (text.length < 8) {
+        say('Say what is still wrong.', 'কী এখনও ঠিক হয়নি, তা লিখুন।')
+        return
+      }
+      const current = stateRef.current
+      const user = current.users.find((item) => item.id === current.sessionUserId)
+      const report = current.reports.find((item) => item.id === reportId)
+      if (!user || !report || report.reporterId !== user.id) return
+      if (report.status !== 'resolved' && report.status !== 'closed') return
+      const nextReport: Report = {
+        ...report,
+        status: 'reopened',
+        updatedAt: nowIso(),
+        activities: [...report.activities, activity(user.name, 'public', 'system', `Reopened: ${text}`)],
+      }
+      update((prev) => {
+        let next = replaceReport(prev, nextReport)
+        const office = next.users.filter((item) => item.role === 'admin' || (report.departmentId && item.departmentId === report.departmentId))
+        next = withNotes(next, office, 'Report reopened', `${report.id} was reopened by the reporter.`, `/admin/reports/${report.id}`)
+        return withAudit(next, user.name, 'Reopened report', report.id)
+      })
+      say('Reopen request sent.', 'পুনরায় খোলার অনুরোধ গেছে।')
+    },
+    confirm: (reportId) => {
+      const user = stateRef.current.users.find((item) => item.id === stateRef.current.sessionUserId)
+      if (!user) return
+      const report = stateRef.current.reports.find((item) => item.id === reportId)
+      if (!report || report.reporterId === user.id || report.confirmations.includes(user.id)) return
+      if (report.confidential || report.anonymous || report.category === 'harassment' || report.category === 'safety') return
+      update((current) => ({
+        ...current,
+        reports: current.reports.map((item) =>
+          item.id === reportId ? { ...item, confirmations: [...item.confirmations, user.id], updatedAt: nowIso() } : item,
+        ),
+      }))
+      say('You are counted on this report.', 'আপনাকে এই রিপোর্টের সাথে যোগ করা হয়েছে।')
+    },
+    markRead: (id) =>
+      update((current) => ({
+        ...current,
+        notifications: current.notifications.map((item) => (item.id === id ? { ...item, read: true } : item)),
+      })),
+    markAllRead: () => {
+      const userId = stateRef.current.sessionUserId
+      update((current) => ({
+        ...current,
+        notifications: current.notifications.map((item) => (item.userId === userId ? { ...item, read: true } : item)),
+      }))
+    },
+    publishAnnouncement: (input) => {
+      const user = stateRef.current.users.find((item) => item.id === stateRef.current.sessionUserId)
+      if (!user || (user.role !== 'admin' && user.role !== 'security')) return
+      const item: Announcement = {
+        id: uid('an'),
+        title: input.title.trim(),
+        body: input.body.trim(),
+        kind: input.kind,
+        locationId: input.locationId || undefined,
+        active: true,
+        createdAt: nowIso(),
+      }
+      if (item.title.length < 4 || item.body.length < 8) return
+      update((current) => {
+        const next = withAudit({ ...current, announcements: [item, ...current.announcements] }, user.name, 'Published a campus alert', item.id)
+        return withNotes(next, next.users.filter((account) => account.id !== user.id), item.title, item.body, '/app/alerts')
+      })
+      say('Alert published.', 'সতর্কতা প্রকাশ হয়েছে।')
+    },
+    setAnnouncementActive: (id, active) => {
+      const user = stateRef.current.users.find((item) => item.id === stateRef.current.sessionUserId)
+      if (!user || user.role !== 'admin') return
+      update((current) => withAudit({
+        ...current,
+        announcements: current.announcements.map((item) => (item.id === id ? { ...item, active } : item)),
+      }, user.name, active ? 'Restored a campus alert' : 'Hid a campus alert', id))
+    },
+    addLost: (input) => {
+      const user = stateRef.current.users.find((item) => item.id === stateRef.current.sessionUserId)
+      if (!user) return
+      if (input.title.trim().length < 3 || input.place.trim().length < 2) return
+      const item: LostItem = {
+        id: uid('lf'),
+        title: input.title.trim(),
+        place: input.place.trim(),
+        detail: input.detail.trim(),
+        kind: input.kind,
+        contact: input.contact.trim() || user.name,
+        reporterId: user.id,
+        status: 'open',
+        createdAt: nowIso(),
+      }
+      update((current) => ({ ...current, lostFound: [item, ...current.lostFound] }))
+      say('Posted on lost and found.', 'হারানো ও পাওয়া তালিকায় যোগ হয়েছে।')
+    },
+    setLostStatus: (id, status) => {
+      const user = stateRef.current.users.find((item) => item.id === stateRef.current.sessionUserId)
+      update((current) => ({
+        ...current,
+        lostFound: current.lostFound.map((item) =>
+          item.id === id && (item.reporterId === user?.id || user?.role === 'admin') ? { ...item, status } : item,
+        ),
+      }))
+    },
+    updateUser: (id, patch) => {
+      const actor = stateRef.current.users.find((item) => item.id === stateRef.current.sessionUserId)
+      if (!actor || actor.role !== 'admin' || actor.id === id && patch.suspended) return
+      update((current) => withAudit({
+        ...current,
+        users: current.users.map((user) => (user.id === id ? { ...user, ...patch } : user)),
+      }, actor.name, patch.suspended ? 'Suspended an account' : 'Updated an account role', id))
+      say('Account updated.', 'অ্যাকাউন্ট আপডেট হয়েছে।')
+    },
+    updateDepartment: (id, patch) => {
+      const actor = stateRef.current.users.find((item) => item.id === stateRef.current.sessionUserId)
+      if (!actor || actor.role !== 'admin') return
+      update((current) => withAudit({
+        ...current,
+        departments: current.departments.map((department) => (department.id === id ? { ...department, ...patch } : department)),
+      }, actor.name, 'Updated a department', id))
+    },
+    updateCategory: (id, patch) => {
+      const actor = stateRef.current.users.find((item) => item.id === stateRef.current.sessionUserId)
+      if (!actor || actor.role !== 'admin') return
+      update((current) => ({
+        ...current,
+        categories: current.categories.map((category) => (category.id === id ? { ...category, ...patch } : category)),
+      }))
+    },
+    extendDue: (reportId) => {
+      const user = stateRef.current.users.find((item) => item.id === stateRef.current.sessionUserId)
+      const report = stateRef.current.reports.find((item) => item.id === reportId)
+      if (!user || !report || !isOpen(report.status)) return
+      const dueAt = addHours(report.dueAt, 24)
+      const nextReport: Report = {
+        ...report,
+        dueAt,
+        updatedAt: nowIso(),
+        activities: [...report.activities, activity(user.name, 'internal', 'internal', 'Target time extended by 24 hours.')],
+      }
+      update((prev) => withAudit(replaceReport(prev, nextReport), user.name, 'Extended the target time by 24 hours', report.id))
+      say('Target time extended by 24 hours.', 'লক্ষ্য সময় ২৪ ঘণ্টা বাড়ানো হয়েছে।')
+    },
+    updateProfile: (patch) => {
+      const userId = stateRef.current.sessionUserId
+      update((current) => ({
+        ...current,
+        users: current.users.map((user) => (user.id === userId ? { ...user, ...patch, name: patch.name?.trim() || user.name } : user)),
+      }))
+    },
+    recordExport: () => {
+      const user = stateRef.current.users.find((item) => item.id === stateRef.current.sessionUserId)
+      if (!user) return
+      update((current) => withAudit(current, user.name, 'Exported a report CSV', 'reports.csv'))
+    },
+    resetDemo: () => {
+      const fresh = buildSeed()
+      setState(fresh)
+      say('Preview data restored.', 'প্রিভিউ ডেটা ফিরিয়ে আনা হয়েছে।')
+    },
+  }
+
+  return (
+    <Ctx.Provider value={api}>
+      {children}
+      <div className="no-print fixed bottom-4 right-4 z-[70] flex w-[min(100%-2rem,22rem)] flex-col gap-2">
+        {toasts.map((item) => (
+          <button key={item.id} onClick={() => setToasts((prev) => prev.filter((toast) => toast.id !== item.id))} className="rounded-xl bg-ink px-4 py-3 text-left text-sm text-paper shadow-card">
+            {item.text}
+          </button>
+        ))}
+      </div>
+    </Ctx.Provider>
+  )
+}
+
+export function useApp(): Api {
+  const value = useContext(Ctx)
+  if (!value) throw new Error('useApp must be used inside StoreProvider')
+  return value
+}
