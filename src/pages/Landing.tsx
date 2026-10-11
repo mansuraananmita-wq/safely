@@ -24,6 +24,11 @@ export default function Landing() {
         <Link to="/login" className={buttonClass('secondary', 'ml-auto md:ml-0')}>{tx('Sign in', 'সাইন ইন')}</Link>
         <Link to="/register" className={cx(buttonClass('primary'), 'hidden sm:inline-flex')}>{tx('Report a problem', 'সমস্যা জানান')}</Link>
       </header>
+      <nav className="flex gap-4 overflow-x-auto px-4 pb-2 text-sm md:hidden" aria-label={tx('Sections', 'বিভাগ')}>
+        <a href="#how" className="shrink-0 text-ink/70">{tx('How it works', 'কীভাবে কাজ করে')}</a>
+        <a href="#privacy" className="shrink-0 text-ink/70">{tx('Privacy', 'গোপনীয়তা')}</a>
+        <Link to="/status" className="shrink-0 text-ink/70">{tx('Public figures', 'প্রকাশ্য হিসাব')}</Link>
+      </nav>
 
       <main>
         <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 pb-16 pt-6 lg:grid-cols-[1.1fr_0.9fr]">

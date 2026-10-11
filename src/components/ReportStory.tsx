@@ -1,15 +1,17 @@
 import { Lock } from 'lucide-react'
 import { GooglePlaceMap } from './GooglePlaceMap'
-import { PLACES, reportPoint } from '../data'
+import { PLACES, reportPoint, subcategoryLabel } from '../data'
 import { dueLabel, identityMode, isOverdue, priorityLabel, roleLabel } from '../logic'
 import { useApp } from '../store'
 import type { Report } from '../types'
+import { StatusProgress } from './StatusProgress'
 import { Timeline } from './Timeline'
 import { StatusPill } from './ui'
 
 export function ReportStory({ report, internal }: { report: Report; internal: boolean }) {
   const { currentUser, state, lang, tx } = useApp()
   const category = state.categories.find((item) => item.id === report.category)
+  const sub = subcategoryLabel(report.category, report.subcategory, lang)
   const place = PLACES.find((item) => item.id === report.locationId)
   const department = state.departments.find((item) => item.id === report.departmentId)
   const owner = state.users.find((item) => item.id === report.reporterId)
@@ -45,6 +47,7 @@ export function ReportStory({ report, internal }: { report: Report; internal: bo
         <h1 className="mt-3 font-display text-4xl leading-tight">{report.title}</h1>
         <p className="mt-3 text-sm text-ink/70">
           {lang === 'bn' ? category?.bn : category?.en}
+          {sub ? ` · ${sub}` : ''}
           {place ? ` · ${lang === 'bn' ? place.bn : place.en}` : ''}
           {report.locationDetail ? ` · ${report.locationDetail}` : ''}
         </p>
@@ -129,6 +132,8 @@ export function ReportStory({ report, internal }: { report: Report; internal: bo
           {report.feedback ? ` — ${report.feedback}` : ''}
         </p>
       ) : null}
+
+      <StatusProgress report={report} office={department ? (lang === 'bn' ? department.bn : department.en) : undefined} />
 
       <section>
         <h2 className="mb-3 font-display text-2xl">{tx('Updates', 'আপডেট')}</h2>

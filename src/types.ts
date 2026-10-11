@@ -87,6 +87,7 @@ export interface Report {
   title: string
   description: string
   category: CategoryId
+  subcategory?: string
   locationId: string
   locationDetail: string
   lat?: number
@@ -116,6 +117,8 @@ export interface Report {
   activities: Activity[]
 }
 
+export type NoticeKind = 'received' | 'assigned' | 'info' | 'resolved'
+
 export interface AppNotification {
   id: string
   userId: string
@@ -124,6 +127,7 @@ export interface AppNotification {
   href: string
   read: boolean
   createdAt: string
+  kind?: NoticeKind
 }
 
 export interface Announcement {

@@ -3,7 +3,7 @@ import { Button, Field, useTitle } from '../../components/ui'
 import { PLACES } from '../../data'
 import { average, hoursBetween, isOpen, isOverdue } from '../../logic'
 import { useApp } from '../../store'
-import type { Announcement, Role } from '../../types'
+import type { Announcement, Role, User } from '../../types'
 
 export function DepartmentsPage() {
   const { currentUser, state, tx, lang, updateDepartment } = useApp()
@@ -17,7 +17,7 @@ export function DepartmentsPage() {
         {state.departments.map((department) => {
           const queue = state.reports.filter((report) => report.departmentId === department.id && report.status !== 'draft')
           const open = queue.filter((report) => isOpen(report.status))
-          const overdue = queue.filter(isOverdue)
+          const overdue = queue.filter((report) => isOverdue(report))
           const done = queue.filter((report) => report.resolvedAt)
           const avg = done.length ? average(done.map((report) => hoursBetween(report.createdAt, report.resolvedAt!))) / 24 : 0
           return (
@@ -42,7 +42,7 @@ export function DepartmentsPage() {
 }
 
 export function UsersPage() {
-  const { currentUser, state, tx, lang, updateUser } = useApp()
+  const { currentUser, state, tx } = useApp()
   const [query, setQuery] = useState('')
   useTitle(tx('People', 'ব্যবহারকারী'))
   if (!currentUser) return null
@@ -51,8 +51,19 @@ export function UsersPage() {
     <div>
       <h1 className="font-display text-4xl">{tx('People', 'ব্যবহারকারী')}</h1>
       <input className="input mt-4 max-w-md" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={tx('Search name, email, or ID', 'নাম, ইমেইল, বা আইডি')} />
-      <div className="mt-4 overflow-x-auto">
-        <table className="w-full text-left text-sm">
+      <div className="mt-4 space-y-3 lg:hidden">
+        {people.map((user) => (
+          <article key={user.id} className="panel space-y-3 p-4">
+            <div>
+              <p className="font-semibold">{user.name}</p>
+              <p className="text-xs text-ink/50">{user.email} · {user.identifier}{user.verified ? '' : ` · ${tx('unverified', 'অযাচাই')}`}</p>
+            </div>
+            <PersonControls user={user} />
+          </article>
+        ))}
+      </div>
+      <div className="mt-4 hidden overflow-x-auto lg:block">
+        <table className="w-full min-w-[720px] text-left text-sm">
           <thead className="text-xs uppercase tracking-wide text-ink/45">
             <tr><th className="py-2">{tx('Person', 'ব্যক্তি')}</th><th>{tx('Role', 'ভূমিকা')}</th><th>{tx('Office', 'দপ্তর')}</th><th>{tx('Access', 'অ্যাক্সেস')}</th></tr>
           </thead>
@@ -63,28 +74,61 @@ export function UsersPage() {
                   <span className="block font-semibold">{user.name}</span>
                   <span className="text-xs text-ink/50">{user.email} · {user.identifier}{user.verified ? '' : ` · ${tx('unverified', 'অযাচাই')}`}</span>
                 </td>
-                <td className="py-2 pr-3">
-                  <select className="input" value={user.role} onChange={(event) => updateUser(user.id, { role: event.target.value as Role })}>
-                    {(['student', 'teacher', 'staff', 'department', 'security', 'admin'] as Role[]).map((role) => <option key={role} value={role}>{role}</option>)}
-                  </select>
-                </td>
-                <td className="py-2 pr-3">
-                  <select className="input" value={user.departmentId ?? ''} onChange={(event) => updateUser(user.id, { departmentId: event.target.value || undefined })}>
-                    <option value="">{tx('None', 'নেই')}</option>
-                    {state.departments.map((department) => <option key={department.id} value={department.id}>{lang === 'bn' ? department.bn : department.en}</option>)}
-                  </select>
-                </td>
-                <td className="py-2">
-                  <Button variant={user.suspended ? 'primary' : 'danger'} disabled={user.id === currentUser.id} onClick={() => updateUser(user.id, { suspended: !user.suspended })}>
-                    {user.suspended ? tx('Restore', 'ফেরান') : tx('Suspend', 'স্থগিত')}
-                  </Button>
-                </td>
+                <td className="py-2 pr-3"><RoleSelect user={user} /></td>
+                <td className="py-2 pr-3"><OfficeSelect user={user} /></td>
+                <td className="py-2"><AccessButton user={user} /></td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
     </div>
+  )
+}
+
+function PersonControls({ user }: { user: User }) {
+  const { tx } = useApp()
+  return (
+    <div className="grid gap-3">
+      <label className="text-sm">
+        <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink/45">{tx('Role', 'ভূমিকা')}</span>
+        <RoleSelect user={user} />
+      </label>
+      <label className="text-sm">
+        <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink/45">{tx('Office', 'দপ্তর')}</span>
+        <OfficeSelect user={user} />
+      </label>
+      <AccessButton user={user} />
+    </div>
+  )
+}
+
+function RoleSelect({ user }: { user: User }) {
+  const { updateUser } = useApp()
+  return (
+    <select className="input" aria-label={user.name} value={user.role} onChange={(event) => updateUser(user.id, { role: event.target.value as Role })}>
+      {(['student', 'teacher', 'staff', 'department', 'security', 'admin'] as Role[]).map((role) => <option key={role} value={role}>{role}</option>)}
+    </select>
+  )
+}
+
+function OfficeSelect({ user }: { user: User }) {
+  const { state, tx, lang, updateUser } = useApp()
+  return (
+    <select className="input" aria-label={tx('Office', 'দপ্তর')} value={user.departmentId ?? ''} onChange={(event) => updateUser(user.id, { departmentId: event.target.value || undefined })}>
+      <option value="">{tx('None', 'নেই')}</option>
+      {state.departments.map((department) => <option key={department.id} value={department.id}>{lang === 'bn' ? department.bn : department.en}</option>)}
+    </select>
+  )
+}
+
+function AccessButton({ user }: { user: User }) {
+  const { currentUser, tx, updateUser } = useApp()
+  if (!currentUser) return null
+  return (
+    <Button variant={user.suspended ? 'primary' : 'danger'} disabled={user.id === currentUser.id} onClick={() => updateUser(user.id, { suspended: !user.suspended })}>
+      {user.suspended ? tx('Restore', 'ফেরান') : tx('Suspend', 'স্থগিত')}
+    </Button>
   )
 }
 

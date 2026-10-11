@@ -28,6 +28,16 @@ export function isOverdue(report: Report, now = Date.now()): boolean {
   return new Date(report.dueAt).getTime() < now
 }
 
+export function isUnassigned(report: Report): boolean {
+  return isOpen(report.status) && !report.departmentId
+}
+
+export function resolvedThisMonth(report: Report, now = new Date()): boolean {
+  if (!report.resolvedAt) return false
+  const date = new Date(report.resolvedAt)
+  return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth()
+}
+
 export function isPublicFeed(report: Report): boolean {
   if (report.confidential || report.anonymous) return false
   if (report.category === 'harassment' || report.category === 'safety') return false
@@ -39,24 +49,37 @@ export function isMapPin(report: Report): boolean {
   return isPublicFeed(report) && isOpen(report.status)
 }
 
+export function isStudentAffairs(user: Pick<User, 'role' | 'departmentId'>): boolean {
+  return user.role === 'department' && user.departmentId === 'd-affairs'
+}
+
+export function isRestrictedDesk(user: Pick<User, 'role' | 'departmentId'> | null): boolean {
+  return !!user && (user.role === 'security' || isStudentAffairs(user))
+}
+
+export function restrictedVisible(user: User, report: Report): boolean {
+  if (report.status === 'draft') return false
+  const sensitive = report.confidential || report.category === 'harassment'
+  const waiting = !report.departmentId
+  if (user.role === 'security') {
+    if (report.departmentId === 'd-sec') return true
+    return waiting && (sensitive || report.category === 'safety')
+  }
+  if (isStudentAffairs(user)) {
+    if (report.departmentId === 'd-affairs') return true
+    return waiting && sensitive
+  }
+  return false
+}
+
 export function canView(user: User, report: Report): boolean {
   if (report.status === 'draft') return report.reporterId === user.id
   if (report.reporterId && report.reporterId === user.id) return true
   if (user.role === 'admin') return true
-  if (user.role === 'security') {
-    return (
-      report.confidential ||
-      report.category === 'safety' ||
-      report.category === 'harassment' ||
-      report.departmentId === 'd-sec'
-    )
-  }
+  if (user.role === 'security' || isStudentAffairs(user)) return restrictedVisible(user, report)
   if (user.role === 'department') {
     if (report.departmentId !== user.departmentId) return false
-    if (report.category === 'harassment' && user.departmentId !== 'd-affairs' && user.departmentId !== 'd-sec') {
-      return false
-    }
-    if (report.confidential && user.departmentId !== 'd-affairs' && user.departmentId !== 'd-sec') return false
+    if (report.category === 'harassment' || report.confidential) return false
     return true
   }
   return isPublicFeed(report)
@@ -64,7 +87,7 @@ export function canView(user: User, report: Report): boolean {
 
 export function deskReports(user: User, reports: Report[]): Report[] {
   if (user.role === 'admin') return reports.filter((r) => r.status !== 'draft')
-  if (user.role === 'security') return reports.filter((r) => r.status !== 'draft' && canView(user, r))
+  if (user.role === 'security' || isStudentAffairs(user)) return reports.filter((r) => restrictedVisible(user, r))
   if (user.role === 'department') {
     return reports.filter((r) => r.status !== 'draft' && r.departmentId === user.departmentId && canView(user, r))
   }
@@ -75,6 +98,22 @@ export function assignmentBlocked(report: Pick<Report, 'confidential' | 'categor
   const sensitive = report.confidential || report.category === 'harassment'
   if (!sensitive) return false
   return departmentId !== 'd-sec' && departmentId !== 'd-affairs'
+}
+
+export const QUEUE_OFFICES = ['d-maint', 'd-elec', 'd-water', 'd-it', 'd-sec', 'd-affairs'] as const
+
+export function officeCanRead(departmentId: string, report: Report): boolean {
+  if (report.status === 'draft' || report.departmentId !== departmentId) return false
+  if (assignmentBlocked(report, departmentId)) return false
+  return true
+}
+
+export function assignedAt(report: Report): string | undefined {
+  const hit = [...report.activities]
+    .sort((a, b) => +new Date(a.at) - +new Date(b.at))
+    .find((item) => item.message.toLowerCase().includes('assigned'))
+  if (hit) return hit.at
+  return report.departmentId ? report.createdAt : undefined
 }
 
 export type IdentityMode = 'anonymous' | 'self-anonymous' | 'restricted' | 'named' | 'role-only'
@@ -91,7 +130,8 @@ export function identityMode(user: User, report: Report): IdentityMode {
 
 export function homePath(role: Role): string {
   if (role === 'student' || role === 'teacher' || role === 'staff') return '/app'
-  return '/admin'
+  if (role === 'admin') return '/admin'
+  return '/admin/queues'
 }
 
 export function isMember(role: Role): boolean {
@@ -166,16 +206,12 @@ export function allowedTransitions(user: User, report: Report): Status[] {
   }
   let options = map[report.status]
   if (user.role === 'department') {
-    if (report.departmentId !== user.departmentId) return []
+    if (!canView(user, report)) return []
     options = options.filter((status) => status === 'in_progress' || status === 'resolved')
   }
   if (user.role === 'security') {
-    const owns =
-      report.departmentId === user.departmentId ||
-      report.confidential ||
-      report.category === 'safety' ||
-      report.category === 'harassment'
-    if (!owns) return []
+    if (!report.departmentId || !restrictedVisible(user, report)) return []
+    options = options.filter((status) => status === 'in_progress' || status === 'resolved')
   }
   return options
 }

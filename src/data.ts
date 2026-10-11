@@ -1,5 +1,5 @@
 import { uid } from './logic'
-import type { Activity, Announcement, AppState, Category, Department, LostItem, Place, Report, User } from './types'
+import type { Activity, Announcement, AppState, Category, CategoryId, Department, Lang, LostItem, Place, Report, User } from './types'
 
 export const PLACES: Place[] = [
   { id: 'gate', en: 'Main Gate', bn: 'প্রধান ফটক', short: 'Gate', lat: 23.7251, lng: 90.38158 },
@@ -133,6 +133,74 @@ export const CATEGORIES: Category[] = [
     active: true,
   },
 ]
+
+export const SUBCATEGORIES: Record<CategoryId, { id: string; en: string; bn: string }[]> = {
+  infrastructure: [
+    { id: 'road', en: 'Road or footpath', bn: 'রাস্তা বা ফুটপাত' },
+    { id: 'building', en: 'Building damage', bn: 'ভবনের ক্ষতি' },
+    { id: 'stairs', en: 'Stairs or railing', bn: 'সিঁড়ি বা রেলিং' },
+    { id: 'drain', en: 'Drainage', bn: 'ড্রেনেজ' },
+  ],
+  lighting: [
+    { id: 'streetlight', en: 'Streetlight', bn: 'রাস্তার বাতি' },
+    { id: 'room-power', en: 'Room has no power', bn: 'কক্ষে বিদ্যুৎ নেই' },
+    { id: 'fan', en: 'Fan or AC', bn: 'ফ্যান বা এসি' },
+    { id: 'wire', en: 'Exposed wire', bn: 'খোলা তার' },
+  ],
+  water: [
+    { id: 'no-water', en: 'No water', bn: 'পানি নেই' },
+    { id: 'leak', en: 'Leak', bn: 'লিক' },
+    { id: 'blocked-drain', en: 'Drain blocked', bn: 'ড্রেন বন্ধ' },
+    { id: 'dirty', en: 'Dirty water', bn: 'নোংরা পানি' },
+  ],
+  cleanliness: [
+    { id: 'bin', en: 'Overflowing bin', bn: 'ডাস্টবিন উপচে পড়েছে' },
+    { id: 'litter', en: 'Litter', bn: 'ময়লা ছড়ানো' },
+    { id: 'washroom', en: 'Washroom', bn: 'ওয়াশরুম' },
+    { id: 'pest', en: 'Pest', bn: 'পোকামাকড়' },
+  ],
+  safety: [
+    { id: 'dark', en: 'Dark area', bn: 'অন্ধকার জায়গা' },
+    { id: 'suspicious', en: 'Suspicious activity', bn: 'সন্দেহজনক ঘটনা' },
+    { id: 'exit', en: 'Blocked exit', bn: 'বাহিরের পথ বন্ধ' },
+    { id: 'other-safety', en: 'Other safety note', bn: 'অন্য নিরাপত্তা নোট' },
+  ],
+  harassment: [
+    { id: 'verbal', en: 'Verbal', bn: 'মৌখিক' },
+    { id: 'discrimination', en: 'Discrimination', bn: 'বৈষম্য' },
+    { id: 'contact', en: 'Unwanted contact', bn: 'অনাকাঙ্ক্ষিত যোগাযোগ' },
+    { id: 'other-harassment', en: 'Other', bn: 'অন্যান্য' },
+  ],
+  classroom: [
+    { id: 'furniture', en: 'Furniture', bn: 'আসবাব' },
+    { id: 'equipment', en: 'Lab equipment', bn: 'ল্যাব সরঞ্জাম' },
+    { id: 'board', en: 'Board or projector', bn: 'বোর্ড বা প্রজেক্টর' },
+    { id: 'temperature', en: 'Too hot or too cold', bn: 'খুব গরম বা খুব ঠান্ডা' },
+  ],
+  internet: [
+    { id: 'wifi', en: 'Wi-Fi', bn: 'ওয়াইফাই' },
+    { id: 'portal', en: 'Campus portal', bn: 'ক্যাম্পাস পোর্টাল' },
+    { id: 'computer', en: 'Lab computer', bn: 'ল্যাব কম্পিউটার' },
+    { id: 'display', en: 'Display or cable', bn: 'ডিসপ্লে বা কেবল' },
+  ],
+  accessibility: [
+    { id: 'lift', en: 'Lift', bn: 'লিফট' },
+    { id: 'ramp', en: 'Ramp', bn: 'র‍্যাম্প' },
+    { id: 'door', en: 'Door', bn: 'দরজা' },
+    { id: 'seating', en: 'Sign or seating', bn: 'সাইন বা আসন' },
+  ],
+  other: [
+    { id: 'unsure', en: 'Not sure where it fits', bn: 'কোন বিভাগে পড়ে বুঝতে পারছি না' },
+    { id: 'several', en: 'More than one problem', bn: 'একাধিক সমস্যা' },
+  ],
+}
+
+export function subcategoryLabel(categoryId: string, subcategoryId: string | undefined, lang: Lang): string {
+  if (!subcategoryId) return ''
+  const item = SUBCATEGORIES[categoryId as CategoryId]?.find((entry) => entry.id === subcategoryId)
+  if (!item) return ''
+  return lang === 'bn' ? item.bn : item.en
+}
 
 export const DEPARTMENTS: Department[] = [
   { id: 'd-maint', en: 'Maintenance', bn: 'রক্ষণাবেক্ষণ', lead: 'Mahmud Hossain', email: 'maintenance@padma.edu', sensitive: false },
@@ -629,10 +697,11 @@ export function buildSeed(): AppState {
     users,
     reports,
     notifications: [
-      { id: uid('n'), userId: 'u-amina', title: 'Water report is past its target', body: 'SF-10455 at Dormitory A is still open after the target time.', href: '/app/reports/SF-10455', read: false, createdAt: ago(8) },
-      { id: uid('n'), userId: 'u-amina', title: 'Please rate a resolved report', body: 'Food waste beside Dormitory A was marked resolved.', href: '/app/reports/SF-10350', read: false, createdAt: ago(18) },
-      { id: uid('n'), userId: 'u-amina', title: 'Gate crossing work has started', body: 'Maintenance moved SF-10482 to in progress.', href: '/app/reports/SF-10482', read: true, createdAt: ago(18) },
-      { id: uid('n'), userId: 'u-nusrat', title: 'Electrical asked for a pole number', body: 'Reply on SF-10490 if the number is printed on the lamp.', href: '/app/reports/SF-10490', read: false, createdAt: ago(4) },
+      { id: 'n-sample-received', userId: 'u-amina', kind: 'received', title: 'Your report has been received.', body: 'SF-10510 is with the campus desk.', href: '/app/reports/SF-10510', read: false, createdAt: ago(5) },
+      { id: 'n-sample-assigned', userId: 'u-amina', kind: 'assigned', title: 'Your report has been assigned.', body: 'SF-10455 went to Water & Sanitation.', href: '/app/reports/SF-10455', read: false, createdAt: ago(5 * 24) },
+      { id: 'n-sample-info', userId: 'u-amina', kind: 'info', title: 'More information is needed.', body: 'The desk asked a question on SF-10482. Reply from the report.', href: '/app/reports/SF-10482', read: false, createdAt: ago(20) },
+      { id: 'n-sample-resolved', userId: 'u-amina', kind: 'resolved', title: 'Your report has been resolved.', body: 'SF-10350 was marked resolved. You can rate the work.', href: '/app/reports/SF-10350', read: true, createdAt: ago(20) },
+      { id: 'n-nusrat-info', userId: 'u-nusrat', kind: 'info', title: 'More information is needed.', body: 'Electrical asked for the pole number on SF-10490.', href: '/app/reports/SF-10490', read: false, createdAt: ago(4) },
       { id: uid('n'), userId: 'u-admin', title: 'New wifi report is waiting', body: 'SF-10510 has had no first response yet.', href: '/admin/reports/SF-10510', read: false, createdAt: ago(5) },
       { id: uid('n'), userId: 'u-admin', title: 'Confidential report needs review', body: 'A harassment report is in the safety queue.', href: '/admin/reports/SF-10501', read: false, createdAt: ago(9) },
       { id: uid('n'), userId: 'u-sec', title: 'Confidential report submitted', body: 'Review SF-10501. The description stays with security and student affairs.', href: '/admin/reports/SF-10501', read: false, createdAt: ago(9) },

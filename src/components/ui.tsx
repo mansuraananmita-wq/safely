@@ -24,6 +24,10 @@ export function buttonClass(variant: Variant = 'primary', className = ''): strin
   return cx(buttonBase, variants[variant], className)
 }
 
+export function navClass(active: boolean): string {
+  return cx('flex items-center gap-2 rounded-xl px-3 py-2 text-sm', active ? 'bg-teal-800 font-semibold text-white' : 'text-ink/75 hover:bg-white')
+}
+
 export function Button({ variant = 'primary', className, type, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant }) {
   return <button type={type ?? 'button'} className={buttonClass(variant, className)} {...props} />
 }
@@ -105,6 +109,7 @@ export function StatusPill({ status }: { status: Status }) {
 }
 
 export function Modal({ open, title, children, onClose }: { open: boolean; title: string; children: ReactNode; onClose: () => void }) {
+  const { tx } = useApp()
   useEffect(() => {
     if (!open) return
     const onKey = (event: KeyboardEvent) => {
@@ -115,11 +120,11 @@ export function Modal({ open, title, children, onClose }: { open: boolean; title
   }, [open, onClose])
   if (!open) return null
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-ink/40 p-4" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-[60] grid place-items-center bg-ink/40 p-4" data-confirm="" onMouseDown={onClose}>
       <div role="dialog" aria-modal="true" aria-label={title} className="panel w-full max-w-lg p-5 shadow-card" onMouseDown={(event) => event.stopPropagation()}>
         <div className="mb-3 flex items-start justify-between gap-3">
           <h2 className="font-display text-2xl">{title}</h2>
-          <button type="button" onClick={onClose} className="rounded-full p-1" aria-label="Close">
+          <button type="button" onClick={onClose} className="rounded-full p-1" aria-label={tx('Close', 'বন্ধ')}>
             <X className="h-4 w-4" />
           </button>
         </div>

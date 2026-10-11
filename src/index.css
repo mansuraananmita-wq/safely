@@ -15,13 +15,27 @@ body {
 }
 
 html.text-large {
-  font-size: 18px;
+  font-size: 20px;
 }
 
-html.contrast .panel {
-  border-color: #152033;
+html.contrast body {
+  background: #fff;
+  color: #000;
+}
+
+html.contrast .panel,
+html.contrast .input {
+  border-color: #000;
   border-width: 2px;
   background: #fff;
+}
+
+html.contrast .text-ink\/50,
+html.contrast .text-ink\/55,
+html.contrast .text-ink\/60,
+html.contrast .text-ink\/70,
+html.contrast .text-ink\/75 {
+  color: #111;
 }
 
 ::selection {
@@ -43,6 +57,21 @@ html.contrast .panel {
   }
   .input {
     @apply w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm text-ink outline-none placeholder:text-ink/35 focus:border-teal-700;
+  }
+  .safely-pin span {
+    display: block;
+    width: 18px;
+    height: 18px;
+    margin-left: 5px;
+    border: 2px solid #fff;
+    border-radius: 50% 50% 50% 0;
+    background: #163a66;
+    box-shadow: 0 2px 6px rgba(16, 40, 68, 0.35);
+    transform: rotate(-45deg);
+  }
+  .pin-map.leaflet-container {
+    z-index: 0;
+    font-family: "IBM Plex Sans", system-ui, sans-serif;
   }
 }
 

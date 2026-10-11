@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { buildSeed } from './data'
-import { allowedTransitions, assignmentBlocked, isOpen, nextReportId, uid } from './logic'
+import { allowedTransitions, assignmentBlocked, canView, isOpen, nextReportId, uid } from './logic'
 import type {
   Activity,
   Announcement,
@@ -11,6 +11,7 @@ import type {
   Department,
   Lang,
   LostItem,
+  NoticeKind,
   Photo,
   Priority,
   Report,
@@ -27,10 +28,25 @@ function load(): AppState {
     if (!raw) return buildSeed()
     const parsed = JSON.parse(raw) as { version?: number; state?: AppState }
     if (parsed.version !== 1 || !parsed.state?.reports || !parsed.state.users || !parsed.state.categories) return buildSeed()
-    return parsed.state
+    return withSampleNotices(parsed.state)
   } catch {
     return buildSeed()
   }
+}
+
+function withSampleNotices(state: AppState): AppState {
+  const ids = ['n-sample-received', 'n-sample-assigned', 'n-sample-info', 'n-sample-resolved']
+  const have = new Set(state.notifications.map((item) => item.id))
+  if (ids.every((id) => have.has(id))) return state
+  const missing = buildSeed().notifications.filter((item) => item.id.startsWith('n-sample-') && !have.has(item.id))
+  if (!missing.length) return state
+  const next = { ...state, notifications: [...missing, ...state.notifications] }
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, state: next }))
+  } catch {
+    /* The in-memory copy still shows the notices if the saved preview is too large. */
+  }
+  return next
 }
 
 function persist(state: AppState) {
@@ -70,10 +86,10 @@ function activity(actor: string, visibility: Activity['visibility'], kind: Activ
   return { id: uid('a'), at: nowIso(), actor, visibility, kind, message }
 }
 
-function withNotes(state: AppState, users: User[], title: string, body: string, href: string): AppState {
+function withNotes(state: AppState, users: User[], title: string, body: string, href: string, kind?: NoticeKind): AppState {
   const notes: AppNotification[] = users
     .filter((user) => user.notifyInApp && !user.suspended)
-    .map((user) => ({ id: uid('n'), userId: user.id, title, body, href, read: false, createdAt: nowIso() }))
+    .map((user) => ({ id: uid('n'), userId: user.id, title, body, href, read: false, createdAt: nowIso(), kind }))
   return { ...state, notifications: [...notes, ...state.notifications].slice(0, 200) }
 }
 
@@ -103,6 +119,7 @@ export type ReportInput = {
   title: string
   description: string
   category: Report['category']
+  subcategory?: string
   locationId: string
   locationDetail: string
   lat?: number
@@ -234,6 +251,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       title: input.title.trim(),
       description: input.description.trim(),
       category: input.category,
+      subcategory: input.subcategory || '',
       locationId: input.locationId,
       locationDetail: input.locationDetail.trim(),
       lat: input.lat,
@@ -377,7 +395,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const body = submitted.confidential ? `${submitted.id} is in the restricted queue.` : `${submitted.id}: ${submitted.title}`
         next = withNotes(next, audience, title, body, href)
         if (user.notifyInApp) {
-          next = withNotes(next, [user], 'Report received', `${submitted.id} is with the campus desk.`, `/app/reports/${submitted.id}`)
+          next = withNotes(next, [user], 'Your report has been received.', `${submitted.id} is with the campus desk.`, `/app/reports/${submitted.id}`, 'received')
         }
         return next
       })
@@ -398,7 +416,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const current = stateRef.current
       const user = current.users.find((item) => item.id === current.sessionUserId)
       const report = current.reports.find((item) => item.id === reportId)
-      if (!user || !report) return
+      if (!user || !report || !canView(user, report)) return
       const internal = visibility === 'internal'
       const nextReport: Report = {
         ...report,
@@ -458,7 +476,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         next = withAudit(next, user.name, `Set status to ${status.replaceAll('_', ' ')}`, report.id)
         const reporter = next.users.find((item) => item.id === report.reporterId)
         if (reporter && reporter.id !== user.id) {
-          next = withNotes(next, [reporter], 'Report status changed', `${report.id} is now ${status.replaceAll('_', ' ')}.`, `/app/reports/${report.id}`)
+          const href = `/app/reports/${report.id}`
+          if (status === 'resolved') {
+            next = withNotes(next, [reporter], 'Your report has been resolved.', `${report.id} is marked resolved. You can rate the work.`, href, 'resolved')
+          } else {
+            next = withNotes(next, [reporter], 'Report status changed', `${report.id} is now ${status.replaceAll('_', ' ')}.`, href)
+          }
         }
         return next
       })
@@ -471,8 +494,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const report = current.reports.find((item) => item.id === reportId)
       const department = current.departments.find((item) => item.id === departmentId)
       if (!user || !report || !department) return false
-      if (user.role !== 'admin' && user.role !== 'security') {
-        say('Only the campus desk can assign a department.', 'বিভাগ বরাদ্দ করতে পারবে ক্যাম্পাস ডেস্ক।')
+      if (user.role !== 'admin') {
+        say('Only the operations desk can assign a department.', 'বিভাগ বরাদ্দ করতে পারবে অপারেশন ডেস্ক।')
         return false
       }
       if (!isOpen(report.status)) {
@@ -501,7 +524,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         next = withNotes(next, office, 'Report assigned to your office', `${report.id} is on the ${department.en} desk.`, `/admin/reports/${report.id}`)
         const reporter = next.users.find((item) => item.id === report.reporterId)
         if (reporter && reporter.id !== user.id) {
-          next = withNotes(next, [reporter], 'Your report was assigned', `${report.id} went to ${department.en}.`, `/app/reports/${report.id}`)
+          next = withNotes(next, [reporter], 'Your report has been assigned.', `${report.id} went to ${department.en}.`, `/app/reports/${report.id}`, 'assigned')
         }
         return next
       })
@@ -526,7 +549,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const current = stateRef.current
       const user = current.users.find((item) => item.id === current.sessionUserId)
       const report = current.reports.find((item) => item.id === reportId)
-      if (!user || !report) return
+      if (!user || !report || user.role !== 'admin') return
       if (report.anonymous && !report.reporterId) {
         say('This anonymous report has no reply channel.', 'এই বেনামি রিপোর্টে উত্তর দেওয়ার পথ নেই।')
         return
@@ -541,7 +564,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         let next = replaceReport(prev, nextReport)
         next = withAudit(next, user.name, 'Asked the reporter for more information', report.id)
         const reporter = next.users.find((item) => item.id === report.reporterId)
-        if (reporter) next = withNotes(next, [reporter], 'More information requested', `${report.id} needs a reply.`, `/app/reports/${report.id}`)
+        if (reporter) next = withNotes(next, [reporter], 'More information is needed.', `${report.id} needs a reply.`, `/app/reports/${report.id}`, 'info')
         return next
       })
       say('Question sent to the reporter.', 'প্রশ্ন রিপোর্টকারীর কাছে গেছে।')
@@ -691,7 +714,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     extendDue: (reportId) => {
       const user = stateRef.current.users.find((item) => item.id === stateRef.current.sessionUserId)
       const report = stateRef.current.reports.find((item) => item.id === reportId)
-      if (!user || !report || !isOpen(report.status)) return
+      if (!user || !report || user.role !== 'admin' || !isOpen(report.status)) return
       const dueAt = addHours(report.dueAt, 24)
       const nextReport: Report = {
         ...report,
@@ -724,7 +747,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   return (
     <Ctx.Provider value={api}>
       {children}
-      <div className="no-print fixed bottom-4 right-4 z-[70] flex w-[min(100%-2rem,22rem)] flex-col gap-2">
+      <div className="no-print fixed bottom-24 right-4 z-[70] flex w-[min(100%-2rem,22rem)] flex-col gap-2 md:bottom-4">
         {toasts.map((item) => (
           <button key={item.id} onClick={() => setToasts((prev) => prev.filter((toast) => toast.id !== item.id))} className="rounded-xl bg-ink px-4 py-3 text-left text-sm text-paper shadow-card">
             {item.text}

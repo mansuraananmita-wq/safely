@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { categoryIcon } from '../../categoryUi'
 import { GooglePlaceMap } from '../../components/GooglePlaceMap'
+import { PinPicker } from '../../components/PinPicker'
 import { Button, Field, useTitle } from '../../components/ui'
-import { PLACES } from '../../data'
+import { PLACES, SUBCATEGORIES, subcategoryLabel } from '../../data'
 import { isMapPin, isOpen, isPublicFeed, priorityLabel } from '../../logic'
 import { useApp, type ReportInput } from '../../store'
 import type { CategoryId, Photo, Priority } from '../../types'
@@ -13,6 +14,7 @@ type FormState = {
   title: string
   description: string
   category: CategoryId | ''
+  subcategory: string
   locationId: string
   locationDetail: string
   lat?: number
@@ -26,6 +28,7 @@ type FormState = {
   privacyAck: boolean
   anonAck: boolean
   pinFromDevice: boolean
+  pinMoved: boolean
 }
 
 const empty = (): FormState => ({
@@ -33,6 +36,7 @@ const empty = (): FormState => ({
   title: '',
   description: '',
   category: '',
+  subcategory: '',
   locationId: '',
   locationDetail: '',
   photos: [],
@@ -44,6 +48,7 @@ const empty = (): FormState => ({
   privacyAck: false,
   anonAck: false,
   pinFromDevice: false,
+  pinMoved: false,
 })
 
 function readFile(file: File): Promise<string> {
@@ -73,6 +78,7 @@ export function NewReportPage() {
       title: draft.title,
       description: draft.description,
       category: draft.category,
+      subcategory: draft.subcategory ?? '',
       locationId: draft.locationId,
       locationDetail: draft.locationDetail,
       lat: draft.lat,
@@ -86,10 +92,12 @@ export function NewReportPage() {
       privacyAck: draft.confidential,
       anonAck: draft.anonymous,
       pinFromDevice: false,
+      pinMoved: false,
     })
   }, [draftId, state.reports])
 
-  const steps = [tx('Category', 'বিভাগ'), tx('Details', 'বিবরণ'), tx('Place', 'স্থান'), tx('Privacy', 'গোপনীয়তা'), tx('Review', 'পর্যালোচনা')]
+  const steps = [tx('Report', 'রিপোর্ট'), tx('Photos', 'ছবি'), tx('Location', 'স্থান'), tx('Privacy', 'গোপনীয়তা'), tx('Review', 'পর্যালোচনা')]
+  const subs = form.category ? SUBCATEGORIES[form.category] : []
   const category = state.categories.find((item) => item.id === form.category)
   const sensitive = category?.sensitive || form.category === 'harassment'
   const place = PLACES.find((item) => item.id === form.locationId)
@@ -99,9 +107,9 @@ export function NewReportPage() {
   const places = [...PLACES].sort((a, b) => (counts[b.id] ?? 0) - (counts[a.id] ?? 0))
 
   const stepReady = [
-    Boolean(form.category),
-    form.title.trim().length >= 8 && form.description.trim().length >= 20,
-    Boolean(form.locationId),
+    Boolean(form.category && form.subcategory && form.title.trim().length >= 8 && form.description.trim().length >= 20),
+    true,
+    Boolean(form.locationId && form.locationDetail.trim().length >= 3 && form.lat != null && form.lng != null),
     ((!sensitive && !form.confidential) || form.privacyAck) && (!form.anonymous || form.anonAck),
     true,
   ][step]
@@ -113,6 +121,7 @@ export function NewReportPage() {
       title: form.title,
       description: form.description,
       category: form.category,
+      subcategory: form.subcategory,
       locationId: form.locationId,
       locationDetail: form.locationDetail,
       lat: form.lat,
@@ -131,6 +140,7 @@ export function NewReportPage() {
     setForm((current) => ({
       ...current,
       category: id,
+      subcategory: '',
       confidential: next?.sensitive ? true : current.confidential,
       priority: id === 'harassment' || id === 'safety' ? 'high' : current.priority,
     }))
@@ -161,6 +171,7 @@ export function NewReportPage() {
       lat: item?.lat,
       lng: item?.lng,
       pinFromDevice: false,
+      pinMoved: false,
     }))
   }
 
@@ -180,11 +191,16 @@ export function NewReportPage() {
           lat: position.coords.latitude,
           lng: position.coords.longitude,
           pinFromDevice: true,
+          pinMoved: false,
         }))
         toast(tx('The pin moved to where this device is. That is what the office will see.', 'পিন এই ডিভাইসের জায়গায় গেছে। দপ্তর সেটিই দেখবে।'))
       },
       () => toast(tx('Location was blocked. The building pin is enough.', 'লোকেশন বন্ধ আছে। ভবনের পিনই যথেষ্ট।')),
     )
+  }
+
+  const movePin = (lat: number, lng: number) => {
+    setForm((current) => ({ ...current, lat, lng, pinFromDevice: false, pinMoved: true }))
   }
 
   return (
@@ -202,27 +218,39 @@ export function NewReportPage() {
 
       <div className="mt-6 space-y-4">
         {step === 0 ? (
-          <div className="grid gap-2 sm:grid-cols-2">
-            {state.categories.filter((item) => item.active).map((item) => {
-              const Icon = categoryIcon[item.id]
-              const active = form.category === item.id
-              return (
-                <button key={item.id} type="button" onClick={() => pickCategory(item.id)} className={`panel p-4 text-left ${active ? 'border-teal-700 bg-teal-50' : ''}`}>
-                  <Icon className="h-4 w-4 text-teal-800" />
-                  <span className="mt-2 block font-semibold">{lang === 'bn' ? item.bn : item.en}</span>
-                  <span className="mt-1 block text-sm text-ink/65">{lang === 'bn' ? item.hintBn : item.hintEn}</span>
-                </button>
-              )
-            })}
-          </div>
-        ) : null}
-
-        {step === 1 ? (
           <div className="space-y-4">
-            <Field label={tx('Title', 'শিরোনাম')} hint={tx('At least 8 characters.', 'কমপক্ষে ৮ অক্ষর।')}>
+            <Field label={tx('Report title', 'রিপোর্টের শিরোনাম')} hint={tx('At least 8 characters. Say the problem in one line.', 'কমপক্ষে ৮ অক্ষর। এক লাইনে সমস্যাটি বলুন।')}>
               <input className="input" maxLength={120} value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} />
             </Field>
-            <Field label={tx('What happened', 'কী হয়েছে')} hint={tx('At least 20 characters. Leave out gossip and other people’s full names if you can.', 'কমপক্ষে ২০ অক্ষর। সম্ভব হলে গুজব ও অন্যের পুরো নাম বাদ দিন।')}>
+            <div>
+              <p className="mb-2 text-sm font-medium">{tx('Category', 'বিভাগ')}</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {state.categories.filter((item) => item.active).map((item) => {
+                  const Icon = categoryIcon[item.id]
+                  const active = form.category === item.id
+                  return (
+                    <button key={item.id} type="button" onClick={() => pickCategory(item.id)} className={`panel p-4 text-left ${active ? 'border-teal-700 bg-teal-50' : ''}`}>
+                      <Icon className="h-4 w-4 text-teal-800" />
+                      <span className="mt-2 block font-semibold">{lang === 'bn' ? item.bn : item.en}</span>
+                      <span className="mt-1 block text-sm text-ink/65">{lang === 'bn' ? item.hintBn : item.hintEn}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            {subs.length > 0 ? (
+              <div>
+                <p className="mb-2 text-sm font-medium">{tx('Subcategory', 'উপবিভাগ')}</p>
+                <div className="flex flex-wrap gap-2">
+                  {subs.map((item) => (
+                    <button key={item.id} type="button" onClick={() => setForm({ ...form, subcategory: item.id })} className={`rounded-full border px-3 py-2 text-sm ${form.subcategory === item.id ? 'border-teal-700 bg-teal-800 text-white' : 'border-line bg-white'}`}>
+                      {lang === 'bn' ? item.bn : item.en}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            <Field label={tx('Description', 'বিবরণ')} hint={tx('At least 20 characters. Leave out gossip and other people’s full names if you can.', 'কমপক্ষে ২০ অক্ষর। সম্ভব হলে গুজব ও অন্যের পুরো নাম বাদ দিন।')}>
               <textarea className="input min-h-36" maxLength={2000} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
             </Field>
             <Field label={tx('Impact', 'প্রভাব')}>
@@ -238,31 +266,42 @@ export function NewReportPage() {
           </div>
         ) : null}
 
+        {step === 1 ? (
+          <div className="space-y-4">
+            <Field label={tx('Photos', 'ছবি')} hint={tx('Optional. Up to 3. JPG, PNG, or WebP. 5 MB each. The preview is what the desk will see.', 'ঐচ্ছিক। সর্বোচ্চ ৩টি। JPG, PNG বা WebP। প্রতিটি ৫ এমবি। এই প্রিভিউই ডেস্ক দেখবে।')}>
+              <input className="input" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => { const list = event.target.files; if (list) void addPhotos(Array.from(list)); event.target.value = '' }} />
+            </Field>
+            {form.photos.length === 0 ? <p className="text-sm text-ink/60">{tx('No photo yet. You can continue without one.', 'এখনও ছবি নেই। ছবি ছাড়াও এগোনো যায়।')}</p> : <PhotoPreviews photos={form.photos} onRemove={(index) => setForm({ ...form, photos: form.photos.filter((_, item) => item !== index) })} removeLabel={tx('Remove', 'সরান')} />}
+          </div>
+        ) : null}
+
         {step === 2 ? (
           <div className="space-y-4">
-            <p className="text-sm text-ink/70">{tx('Choose the building. The pin on Google Maps is what the office will follow.', 'ভবন বেছে নিন। গুগল ম্যাপের পিন দেখে দপ্তর জায়গায় যাবে।')}</p>
-            <div className="flex flex-wrap gap-2">
-              {places.map((item) => (
-                <button key={item.id} type="button" onClick={() => choosePlace(item.id)} className={`rounded-full border px-3 py-2 text-sm ${form.locationId === item.id ? 'border-teal-700 bg-teal-800 text-white' : 'border-line bg-white'}`}>
-                  {lang === 'bn' ? item.bn : item.en}
-                  {counts[item.id] ? ` · ${counts[item.id]}` : ''}
-                </button>
-              ))}
-            </div>
-            {place && form.lat != null && form.lng != null ? (
-              <GooglePlaceMap
-                lat={form.lat}
-                lng={form.lng}
-                zoom={form.pinFromDevice ? 17 : 16}
-                label={lang === 'bn' ? place.bn : place.en}
-                note={form.pinFromDevice ? tx('Pin from this device', 'পিন এই ডিভাইস থেকে') : tx('Pin for this building. Move it if you are standing at the problem.', 'এই ভবনের পিন। সমস্যার কাছে দাঁড়িয়ে থাকলে সরিয়ে নিন।')}
-              />
-            ) : (
-              <div className="panel px-5 py-8 text-sm text-ink/70">{tx('The Google Maps pin appears after you choose a place.', 'স্থান বেছে নিলে গুগল ম্যাপের পিন দেখা যাবে।')}</div>
-            )}
-            <Field label={tx('Where exactly', 'ঠিক কোথায়')} hint={tx('Room, pole, or side of the building.', 'কক্ষ, খুঁটি, বা ভবনের কোন পাশ।')}>
+            <Field label={tx('Campus building', 'ক্যাম্পাস ভবন')}>
+              <div className="flex flex-wrap gap-2">
+                {places.map((item) => (
+                  <button key={item.id} type="button" onClick={() => choosePlace(item.id)} className={`rounded-full border px-3 py-2 text-sm ${form.locationId === item.id ? 'border-teal-700 bg-teal-800 text-white' : 'border-line bg-white'}`}>
+                    {lang === 'bn' ? item.bn : item.en}
+                    {counts[item.id] ? ` · ${counts[item.id]}` : ''}
+                  </button>
+                ))}
+              </div>
+            </Field>
+            <Field label={tx('Exact location', 'ঠিকানা')} hint={tx('Room, pole, gate, or side of the building.', 'কক্ষ, খুঁটি, গেট, বা ভবনের কোন পাশ।')}>
               <input className="input" value={form.locationDetail} onChange={(event) => setForm({ ...form, locationDetail: event.target.value })} placeholder={tx('Example: west gate, beside the water tap', 'যেমন: পশ্চিম গেট, পানির ট্যাপের পাশে')} />
             </Field>
+            {place && form.lat != null && form.lng != null ? (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">{tx('Move the pin', 'পিন সরান')}</p>
+                <p className="text-sm text-ink/70">{tx('Drag the pin, or tap the map, until it sits on the problem. The review step shows this spot on Google Maps.', 'পিন টেনে, বা ম্যাপে টোকা দিয়ে, সমস্যার উপর আনুন। পরের ধাপে এই জায়গা গুগল ম্যাপে দেখা যাবে।')}</p>
+                <PinPicker lat={form.lat} lng={form.lng} onMove={movePin} />
+                <p className="text-xs text-ink/55">
+                  {form.pinMoved ? tx('You moved this pin.', 'আপনি এই পিন সরিয়েছেন।') : form.pinFromDevice ? tx('Pin from this device.', 'পিন এই ডিভাইস থেকে।') : tx('Pin starts at the building you chose.', 'পিন আপনার বেছে নেওয়া ভবন থেকে শুরু।')}
+                </p>
+              </div>
+            ) : (
+              <div className="panel px-5 py-8 text-sm text-ink/70">{tx('Choose a building and the pin appears for you to move.', 'ভবন বেছে নিলে পিন আসবে, তারপর সেটি সরাতে পারবেন।')}</div>
+            )}
             <Button variant="secondary" onClick={locate} disabled={!form.locationId}>{tx('I am standing here', 'আমি এখানে দাঁড়িয়ে আছি')}</Button>
             {planned ? <div className="rounded-2xl bg-marigold/20 p-4 text-sm"><p className="font-semibold">{planned.title}</p><p className="mt-1">{planned.body}</p></div> : null}
             {similar.length > 0 ? (
@@ -283,19 +322,20 @@ export function NewReportPage() {
 
         {step === 3 ? (
           <div className="space-y-4">
-            <label className="panel flex gap-3 p-4 text-sm">
-              <input type="checkbox" checked={sensitive || form.confidential} disabled={sensitive} onChange={(event) => setForm({ ...form, confidential: event.target.checked, anonymous: event.target.checked ? form.anonymous : false })} />
-              <span>
-                <span className="block font-semibold">{tx('Restricted audience', 'সীমিত পরিসর')}</span>
-                {tx('Only security, student affairs, and the operations desk can read the story. Harassment reports always use this.', 'শুধু নিরাপত্তা, শিক্ষার্থী বিষয়ক দপ্তর এবং অপারেশন ডেস্ক বিবরণ পড়তে পারে। হয়রানির রিপোর্টে এটি বাধ্যতামূলক।')}
+            <p className="text-sm text-ink/70">{tx('These two choices are separate. Read both before you continue.', 'এই দুটি আলাদা। এগোনোর আগে দুটোই পড়ুন।')}</p>
+            <label className="panel block space-y-2 p-4 text-sm">
+              <span className="flex gap-3">
+                <input type="checkbox" checked={sensitive || form.confidential} disabled={sensitive} onChange={(event) => setForm({ ...form, confidential: event.target.checked, anonymous: event.target.checked ? form.anonymous : false })} />
+                <span className="font-semibold">{tx('Confidential', 'গোপন')}</span>
               </span>
+              <span className="block pl-7 text-ink/75">{tx('The story is hidden from the public map, other students, and ordinary offices. Security, Student Affairs, and the operations desk can still read it. Your name stays visible to that desk unless you also hide it. Harassment reports are always confidential.', 'বিবরণ প্রকাশ্য ম্যাপ, অন্য শিক্ষার্থী, এবং সাধারণ দপ্তরের কাছ থেকে লুকানো থাকে। নিরাপত্তা, শিক্ষার্থী বিষয়ক দপ্তর, এবং অপারেশন ডেস্ক পড়তে পারে। নাম না লুকালে সেই ডেস্ক আপনার নাম দেখে। হয়রানির রিপোর্ট সবসময় গোপন।')}</span>
             </label>
-            <label className="panel flex gap-3 p-4 text-sm">
-              <input type="checkbox" checked={form.anonymous} onChange={(event) => setForm({ ...form, anonymous: event.target.checked, confidential: event.target.checked ? true : form.confidential })} />
-              <span>
-                <span className="block font-semibold">{tx('Hide my name', 'আমার নাম লুকান')}</span>
-                {tx('Officers will not see your name. The report stays on your account so you can follow it. They may not be able to ask a follow-up.', 'কর্মকর্তারা আপনার নাম দেখবেন না। রিপোর্ট আপনার অ্যাকাউন্টে থাকবে, তাই আপনি অনুসরণ করতে পারবেন। তারা হয়তো আরও প্রশ্ন করতে পারবেন না।')}
+            <label className="panel block space-y-2 p-4 text-sm">
+              <span className="flex gap-3">
+                <input type="checkbox" checked={form.anonymous} onChange={(event) => setForm({ ...form, anonymous: event.target.checked, confidential: event.target.checked ? true : form.confidential })} />
+                <span className="font-semibold">{tx('Anonymous', 'বেনামি')}</span>
               </span>
+              <span className="block pl-7 text-ink/75">{tx('Officers do not see your name. You can still open this report from your own account. They may not be able to ask a follow-up. Anonymous also turns Confidential on, so the story stays off the public map.', 'কর্মকর্তারা আপনার নাম দেখেন না। আপনি নিজের অ্যাকাউন্ট থেকে রিপোর্ট খুলতে পারবেন। তারা হয়তো আরও প্রশ্ন করতে পারবেন না। বেনামি চালু করলে গোপনও চালু হয়, তাই বিবরণ প্রকাশ্য ম্যাপে আসে না।')}</span>
             </label>
             {(sensitive || form.confidential) && !form.anonymous ? (
               <Field label={tx('Best time for the safety team to reach you in the app', 'অ্যাপে নিরাপত্তা দলের কথা বলার সময়')}>
@@ -305,42 +345,34 @@ export function NewReportPage() {
             {sensitive || form.confidential ? (
               <label className="flex gap-2 text-sm">
                 <input type="checkbox" checked={form.privacyAck} onChange={(event) => setForm({ ...form, privacyAck: event.target.checked })} />
-                {tx('I understand the limited audience.', 'আমি সীমিত পরিসর বুঝেছি।')}
+                {tx('I understand who can read a confidential report.', 'গোপন রিপোর্ট কে পড়তে পারে তা আমি বুঝেছি।')}
               </label>
             ) : null}
             {form.anonymous ? (
               <label className="flex gap-2 text-sm">
                 <input type="checkbox" checked={form.anonAck} onChange={(event) => setForm({ ...form, anonAck: event.target.checked })} />
-                {tx('I understand officers may not be able to ask follow-up questions.', 'আমি বুঝেছি কর্মকর্তারা হয়তো ফলোআপ প্রশ্ন করতে পারবেন না।')}
+                {tx('I understand my name will be hidden and follow-up may not be possible.', 'আমি বুঝেছি আমার নাম লুকানো থাকবে এবং ফলোআপ নাও হতে পারে।')}
               </label>
             ) : null}
-            <Field label={tx('Photos', 'ছবি')} hint={tx('Up to 3. JPG, PNG, or WebP. 5 MB each. Avoid faces of people who are not involved.', 'সর্বোচ্চ ৩টি। JPG, PNG বা WebP। প্রতিটি ৫ এমবি। যারা জড়িত নন, তাদের মুখ এড়িয়ে চলুন।')}>
-              <input className="input" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => { const list = event.target.files; if (list) void addPhotos(Array.from(list)); event.target.value = '' }} />
-            </Field>
-            <div className="flex flex-wrap gap-2">
-              {form.photos.map((photo) => (
-                <button key={photo.name} type="button" className="rounded-full bg-white px-3 py-1 text-xs" onClick={() => setForm({ ...form, photos: form.photos.filter((item) => item.name !== photo.name) })}>
-                  {photo.name} ×
-                </button>
-              ))}
-            </div>
           </div>
         ) : null}
 
         {step === 4 ? (
-          <div className="panel space-y-2 p-5 text-sm">
+          <div className="panel space-y-3 p-5 text-sm">
+            <p className="text-xs font-semibold uppercase tracking-wide text-ink/45">{tx('Review before you submit', 'জমা দেওয়ার আগে দেখে নিন')}</p>
             <p className="font-display text-3xl">{form.title}</p>
-            <p>{lang === 'bn' ? category?.bn : category?.en} · {place ? (lang === 'bn' ? place.bn : place.en) : ''}{form.locationDetail ? ` · ${form.locationDetail}` : ''}</p>
+            <p>{lang === 'bn' ? category?.bn : category?.en}{form.subcategory ? ` · ${subcategoryLabel(form.category, form.subcategory, lang)}` : ''} · {place ? (lang === 'bn' ? place.bn : place.en) : ''}{form.locationDetail ? ` · ${form.locationDetail}` : ''}</p>
             <p className="whitespace-pre-wrap text-ink/80">{form.description}</p>
+            {form.photos.length > 0 ? <PhotoPreviews photos={form.photos} /> : <p className="text-ink/55">{tx('No photos attached.', 'কোনো ছবি যোগ হয়নি।')}</p>}
             {place && form.lat != null && form.lng != null ? (
               <GooglePlaceMap
                 lat={form.lat}
                 lng={form.lng}
                 label={lang === 'bn' ? place.bn : place.en}
-                note={tx('Check this pin before you submit.', 'জমা দেওয়ার আগে এই পিন দেখে নিন।')}
+                note={form.pinMoved ? tx('Pin you placed. Check it on Google Maps.', 'আপনার বসানো পিন। গুগল ম্যাপে দেখে নিন।') : tx('Check this pin before you submit.', 'জমা দেওয়ার আগে এই পিন দেখে নিন।')}
               />
             ) : null}
-            <p>{form.confidential || sensitive ? tx('Restricted', 'সীমিত') : tx('Ordinary campus report', 'সাধারণ ক্যাম্পাস রিপোর্ট')} · {form.anonymous ? tx('Name hidden', 'নাম গোপন') : tx('Name visible to the assigned office', 'বরাদ্দকৃত দপ্তর নাম দেখতে পাবে')}</p>
+            <p>{form.confidential || sensitive ? tx('Confidential — limited desk', 'গোপন — সীমিত ডেস্ক') : tx('Ordinary campus report', 'সাধারণ ক্যাম্পাস রিপোর্ট')} · {form.anonymous ? tx('Anonymous — name hidden', 'বেনামি — নাম গোপন') : tx('Name visible to the assigned office', 'বরাদ্দকৃত দপ্তর নাম দেখতে পাবে')}</p>
             <p className="text-ink/60">{tx('An officer confirms the department. Safely only suggests one.', 'কর্মকর্তা বিভাগ নিশ্চিত করেন। সেইফলি শুধু পরামর্শ দেয়।')} {lang === 'bn' ? state.departments.find((item) => item.id === category?.suggestedDepartmentId)?.bn : state.departments.find((item) => item.id === category?.suggestedDepartmentId)?.en}</p>
           </div>
         ) : null}
@@ -361,7 +393,7 @@ export function NewReportPage() {
           }}>{tx('Save draft', 'খসড়া সেভ')}</Button>
         ) : null}
         {step === 4 ? (
-          <Button disabled={!form.category || !form.locationId} onClick={() => {
+          <Button disabled={!form.category || !form.subcategory || !form.locationId || form.locationDetail.trim().length < 3 || form.title.trim().length < 8} onClick={() => {
             const body = payload()
             if (!body) return
             const id = submitReport(body)
@@ -369,6 +401,22 @@ export function NewReportPage() {
           }}>{tx('Submit report', 'রিপোর্ট জমা দিন')}</Button>
         ) : null}
       </div>
+    </div>
+  )
+}
+
+function PhotoPreviews({ photos, onRemove, removeLabel }: { photos: Photo[]; onRemove?: (index: number) => void; removeLabel?: string }) {
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      {photos.map((photo, index) => (
+        <figure key={`${photo.name}-${index}`} className="overflow-hidden rounded-xl border border-line bg-white">
+          {photo.url ? <img src={photo.url} alt={photo.name} className="h-32 w-full object-cover" /> : <div className="flex h-32 items-end p-3 text-xs">{photo.name}</div>}
+          <figcaption className="flex items-center justify-between gap-2 px-2 py-1.5 text-xs">
+            <span className="truncate">{photo.name}</span>
+            {onRemove && removeLabel ? <button type="button" className="shrink-0 font-semibold text-teal-800" onClick={() => onRemove(index)}>{removeLabel}</button> : null}
+          </figcaption>
+        </figure>
+      ))}
     </div>
   )
 }

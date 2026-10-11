@@ -2,6 +2,7 @@ import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import { AdminLayout } from './layouts/AdminLayout'
 import { ReporterLayout } from './layouts/ReporterLayout'
 import { AdminReportsPage } from './pages/admin/AdminReports'
+import { DepartmentQueuesPage } from './pages/admin/DepartmentQueues'
 import { AnnouncementsPage, AuditPage, CategoriesPage, DepartmentsPage, UsersPage } from './pages/admin/Manage'
 import { OverviewPage } from './pages/admin/Overview'
 import { ReviewPage } from './pages/admin/Review'
@@ -14,29 +15,22 @@ import { AlertsPage, HelpPage, LostFoundPage, MapPage, ProfilePage } from './pag
 import { MyReportsPage } from './pages/reporter/MyReports'
 import { NewReportPage } from './pages/reporter/NewReport'
 import { ReportDetailPage } from './pages/reporter/ReportDetail'
-import { isMember } from './logic'
+import { homePath, isMember } from './logic'
 import { useApp } from './store'
 
 function Guard({ mode }: { mode: 'member' | 'desk' }) {
   const { currentUser } = useApp()
   const location = useLocation()
   if (!currentUser || currentUser.suspended) return <Navigate to="/login" replace state={{ from: location.pathname }} />
-  if (mode === 'member' && !isMember(currentUser.role)) return <Navigate to="/admin" replace />
+  if (mode === 'member' && !isMember(currentUser.role)) return <Navigate to={homePath(currentUser.role)} replace />
   if (mode === 'desk' && isMember(currentUser.role)) return <Navigate to="/app" replace />
   return <Outlet />
 }
 
-function AdminOnly() {
+function OperationsOnly() {
   const { currentUser } = useApp()
   if (!currentUser) return <Navigate to="/login" replace />
-  if (currentUser.role !== 'admin') return <Navigate to="/admin" replace />
-  return <Outlet />
-}
-
-function DeskManagers() {
-  const { currentUser } = useApp()
-  if (!currentUser) return <Navigate to="/login" replace />
-  if (currentUser.role !== 'admin' && currentUser.role !== 'security') return <Navigate to="/admin" replace />
+  if (currentUser.role !== 'admin') return <Navigate to={homePath(currentUser.role)} replace />
   return <Outlet />
 }
 
@@ -75,20 +69,19 @@ export default function App() {
       </Route>
       <Route element={<Guard mode="desk" />}>
         <Route element={<AdminLayout />}>
-          <Route path="/admin" element={<OverviewPage />} />
-          <Route path="/admin/reports" element={<AdminReportsPage />} />
-          <Route path="/admin/reports/:id" element={<ReviewPage />} />
-          <Route path="/admin/departments" element={<DepartmentsPage />} />
-          <Route path="/admin/profile" element={<ProfilePage />} />
-          <Route path="/admin/notifications" element={<NotificationsPage />} />
-          <Route element={<DeskManagers />}>
+          <Route element={<OperationsOnly />}>
+            <Route path="/admin" element={<OverviewPage />} />
+            <Route path="/admin/reports" element={<AdminReportsPage />} />
+            <Route path="/admin/departments" element={<DepartmentsPage />} />
             <Route path="/admin/alerts" element={<AnnouncementsPage />} />
             <Route path="/admin/audit" element={<AuditPage />} />
-          </Route>
-          <Route element={<AdminOnly />}>
             <Route path="/admin/users" element={<UsersPage />} />
             <Route path="/admin/categories" element={<CategoriesPage />} />
           </Route>
+          <Route path="/admin/reports/:id" element={<ReviewPage />} />
+          <Route path="/admin/queues" element={<DepartmentQueuesPage />} />
+          <Route path="/admin/profile" element={<ProfilePage />} />
+          <Route path="/admin/notifications" element={<NotificationsPage />} />
         </Route>
       </Route>
       <Route path="*" element={<NotFound />} />

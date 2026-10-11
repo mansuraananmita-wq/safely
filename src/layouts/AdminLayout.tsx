@@ -1,38 +1,56 @@
-import { Building2, ClipboardList, LayoutDashboard, Megaphone, Menu, ScrollText, Tags, Users, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { Building2, ClipboardList, Inbox, LayoutDashboard, Megaphone, MoreHorizontal, ScrollText, Tags, UserRound, Users } from 'lucide-react'
+import { useState } from 'react'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { AccountTools } from '../components/AccountTools'
-import { Logo, cx } from '../components/ui'
+import { Logo, cx, navClass } from '../components/ui'
 import { useApp } from '../store'
+
+function onPath(pathname: string, to: string, end?: boolean) {
+  if (end) return pathname === to
+  return pathname === to || pathname.startsWith(`${to}/`)
+}
 
 export function AdminLayout() {
   const { currentUser, lang, tx } = useApp()
-  const [open, setOpen] = useState(false)
+  const { pathname } = useLocation()
+  const [moreOpen, setMoreOpen] = useState(false)
   const role = currentUser?.role
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  const restricted = role === 'security' || currentUser?.departmentId === 'd-affairs'
+  const items = role === 'admin'
+    ? [
+        { to: '/admin', end: true, icon: LayoutDashboard, en: 'Dashboard', bn: 'ড্যাশবোর্ড', shortEn: 'Home', shortBn: 'হোম', primary: true },
+        { to: '/admin/reports', icon: ClipboardList, en: 'All reports', bn: 'সব রিপোর্ট', shortEn: 'Reports', shortBn: 'রিপোর্ট', primary: true },
+        { to: '/admin/departments', icon: Building2, en: 'Departments', bn: 'বিভাগ', shortEn: 'Offices', shortBn: 'দপ্তর', primary: true },
+        { to: '/admin/users', icon: Users, en: 'Users', bn: 'ব্যবহারকারী', shortEn: 'Users', shortBn: 'ব্যক্তি', primary: true },
+        { to: '/admin/categories', icon: Tags, en: 'Categories', bn: 'ক্যাটাগরি', shortEn: 'Types', shortBn: 'ধরন', primary: false },
+        { to: '/admin/alerts', icon: Megaphone, en: 'Alerts', bn: 'সতর্কতা', shortEn: 'Alerts', shortBn: 'সতর্কতা', primary: false },
+        { to: '/admin/audit', icon: ScrollText, en: 'Audit log', bn: 'অডিট লগ', shortEn: 'Audit', shortBn: 'অডিট', primary: false },
+        { to: '/admin/profile', icon: UserRound, en: 'Profile', bn: 'প্রোফাইল', shortEn: 'Profile', shortBn: 'প্রোফাইল', primary: false },
+      ]
+    : [
+        {
+          to: '/admin/queues',
+          end: true,
+          icon: Inbox,
+          en: restricted ? 'Restricted queue' : 'Assigned queue',
+          bn: restricted ? 'সীমিত সারি' : 'বরাদ্দকৃত সারি',
+          shortEn: 'Queue',
+          shortBn: 'সারি',
+          primary: true,
+        },
+        { to: '/admin/profile', icon: UserRound, en: 'Profile', bn: 'প্রোফাইল', shortEn: 'Profile', shortBn: 'প্রোফাইল', primary: true },
+      ]
+  const bottom = items.filter((item) => item.primary)
+  const more = items.filter((item) => !item.primary)
+  const moreActive = more.some((item) => onPath(pathname, item.to, item.end))
+  const label = (item: (typeof items)[number]) => (lang === 'bn' ? item.bn : item.en)
 
-  const items = [
-    { to: '/admin', end: true, icon: LayoutDashboard, en: 'Overview', bn: 'সারাংশ', show: true },
-    { to: '/admin/reports', icon: ClipboardList, en: 'Reports', bn: 'রিপোর্ট', show: true },
-    { to: '/admin/departments', icon: Building2, en: 'Departments', bn: 'বিভাগ', show: true },
-    { to: '/admin/alerts', icon: Megaphone, en: 'Alerts', bn: 'সতর্কতা', show: role === 'admin' || role === 'security' },
-    { to: '/admin/users', icon: Users, en: 'People', bn: 'ব্যবহারকারী', show: role === 'admin' },
-    { to: '/admin/categories', icon: Tags, en: 'Categories', bn: 'ক্যাটাগরি', show: role === 'admin' },
-    { to: '/admin/audit', icon: ScrollText, en: 'Audit', bn: 'অডিট', show: role === 'admin' || role === 'security' },
-  ].filter((item) => item.show)
-
-  const nav = (
-    <nav className="space-y-1">
-      {items.map((item) => (
-        <NavLink key={item.to} to={item.to} end={item.end} onClick={() => setOpen(false)} className={({ isActive }) => cx('flex items-center gap-2 rounded-xl px-3 py-2 text-sm', isActive ? 'bg-teal-50 font-semibold text-teal-900' : 'text-ink/75 hover:bg-white')}>
+  const links = (list: typeof items, close: boolean) => (
+    <nav className="space-y-1" aria-label={tx('Sections', 'বিভাগ')}>
+      {list.map((item) => (
+        <NavLink key={item.to} to={item.to} end={item.end} onClick={() => close && setMoreOpen(false)} className={({ isActive }) => navClass(isActive || (item.to === '/admin/queues' && pathname.startsWith('/admin/reports/')))}>
           <item.icon className="h-4 w-4" />
-          {lang === 'bn' ? item.bn : item.en}
+          {label(item)}
         </NavLink>
       ))}
     </nav>
@@ -42,34 +60,49 @@ export function AdminLayout() {
     <div className="min-h-screen">
       <header className="no-print sticky top-0 z-30 border-b border-line/80 bg-paper/90 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
-          <button type="button" className="rounded-full border border-line bg-white p-2 lg:hidden" onClick={() => setOpen(true)} aria-label={tx('Open menu', 'মেনু খুলুন')}>
-            <Menu className="h-4 w-4" />
-          </button>
           <Logo />
-          <p className="hidden text-sm text-ink/50 sm:block">{tx('Campus desk', 'ক্যাম্পাস ডেস্ক')}</p>
+          <p className="hidden text-sm text-ink/50 sm:block">
+            {role === 'admin' ? tx('Operations desk', 'অপারেশন ডেস্ক') : restricted ? tx('Restricted desk', 'সীমিত ডেস্ক') : tx('Department office', 'দপ্তর')}
+          </p>
           <AccountTools bellTo="/admin/notifications" profileTo="/admin/profile" />
         </div>
       </header>
-      <div className="mx-auto grid max-w-7xl lg:grid-cols-[230px_1fr]">
-        <aside className="no-print hidden px-3 py-6 lg:block">{nav}</aside>
-        <main id="main" className="px-4 py-6">
+      <div className="mx-auto grid max-w-7xl md:grid-cols-[200px_1fr] lg:grid-cols-[230px_1fr]">
+        <aside className="no-print hidden px-3 py-6 md:block">{links(items, false)}</aside>
+        <main id="main" className="min-w-0 px-4 py-6 pb-28 md:pb-10">
           <Outlet />
         </main>
       </div>
-      {open ? (
-        <div className="fixed inset-0 z-40 lg:hidden">
-          <button type="button" className="absolute inset-0 bg-ink/40" aria-label={tx('Close menu', 'মেনু বন্ধ')} onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-0 flex h-full w-72 flex-col bg-paper p-4 shadow-card">
-            <div className="mb-4 flex items-center justify-between">
-              <Logo />
-              <button type="button" onClick={() => setOpen(false)} aria-label={tx('Close menu', 'মেনু বন্ধ')}>
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            {nav}
+      {moreOpen ? (
+        <div className="no-print fixed inset-0 z-40 md:hidden">
+          <button type="button" className="absolute inset-0 bg-ink/40" aria-label={tx('Close menu', 'মেনু বন্ধ')} onClick={() => setMoreOpen(false)} />
+          <div className="absolute inset-x-3 bottom-20 max-h-[70vh] overflow-y-auto rounded-2xl border border-line bg-card p-2 shadow-card">
+            {links(more, true)}
           </div>
         </div>
       ) : null}
+      <nav className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-line bg-card/95 backdrop-blur md:hidden" aria-label={tx('Sections', 'বিভাগ')} style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}>
+        <div className="grid px-1 pt-1" style={{ gridTemplateColumns: `repeat(${bottom.length + (more.length > 0 ? 1 : 0)}, minmax(0, 1fr))` }}>
+          {bottom.map((item) => (
+            <NavLink key={item.to} to={item.to} end={item.end} onClick={() => setMoreOpen(false)} className={({ isActive }) => cx('grid place-items-center gap-0.5 rounded-xl px-1 py-1 text-center text-[11px] leading-tight', isActive || (item.to === '/admin/queues' && pathname.startsWith('/admin/reports/')) ? 'bg-teal-50 font-semibold text-teal-800' : 'text-ink/55')}>
+              <item.icon className="h-4 w-4" />
+              {lang === 'bn' ? item.shortBn : item.shortEn}
+            </NavLink>
+          ))}
+          {more.length > 0 ? (
+            <button
+              type="button"
+              aria-expanded={moreOpen}
+              aria-current={moreActive ? 'page' : undefined}
+              onClick={() => setMoreOpen((value) => !value)}
+              className={cx('grid place-items-center gap-0.5 rounded-xl px-1 py-1 text-[11px] leading-tight', moreActive || moreOpen ? 'bg-teal-50 font-semibold text-teal-800' : 'text-ink/55')}
+            >
+              <MoreHorizontal className="h-4 w-4" />
+              {tx('More', 'আরও')}
+            </button>
+          ) : null}
+        </div>
+      </nav>
     </div>
   )
 }
