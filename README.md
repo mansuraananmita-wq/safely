@@ -2,7 +2,7 @@
 
 Padma University campus problem desk. Students, teachers, and staff file a report. The operations desk assigns an office and follows the status. Sensitive cases stay with a smaller desk.
 
-This repository is a **frontend preview**. There is no shared backend, database, or login server yet. Each app keeps its own sample data on the device.
+The website can run as a browser preview, or against a Supabase database. The phone app still keeps its own sample data for the session and does not share reports with the website.
 
 Safely is not an emergency service. If someone is in danger, call **999**.
 
@@ -17,7 +17,7 @@ The two apps do not share reports. A report filed in the phone app does not appe
 
 ## Website
 
-Stack: React, TypeScript, Vite, Tailwind CSS, React Router. Preview data lives in `localStorage` under `safely-preview-v1`.
+Stack: React, TypeScript, Vite, Tailwind CSS, React Router, Supabase. Without `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`, preview data stays in `localStorage` under `safely-preview-v1`. With those values set, sign-in, reports, queues, notifications, and the audit log use the database.
 
 ```bash
 npm install
@@ -30,7 +30,7 @@ Open [http://localhost:5173/](http://localhost:5173/).
 
 ### Sign in
 
-Demo buttons skip the password. A manual sign-in accepts any password of 8 or more characters. New accounts must use `@padma.edu`. The verification code is shown on the page. Nothing is emailed.
+Demo buttons skip the password in the browser preview. Against Supabase they sign in with the password `padma1234`. A manual preview sign-in still accepts any password of 8 or more characters. New accounts must use `@padma.edu`. The preview verification code is shown on the page. Supabase registration uses the password from the form.
 
 | Email | Role |
 | --- | --- |
@@ -68,7 +68,7 @@ Nothing is assigned to a department until an officer confirms it. Confidential r
 
 ### Public page
 
-`/status` shows open counts, category bars, and the busiest places. Harassment, confidential, anonymous, and safety reports are excluded. The figures are whatever this browser has saved.
+`/status` shows open counts, category bars, and the busiest places. Harassment, confidential, anonymous, and safety reports are excluded. With Supabase connected, those figures come from the `public_reports` view. Otherwise they are whatever this browser has saved.
 
 ## Phone app
 
@@ -106,17 +106,22 @@ Campus buildings have fixed coordinates. Choosing a building drops that pin. “
 
 The home screen always shows a map. If location is blocked, the pin stays on campus until it is allowed. Harassment and other restricted reports are not drawn on the public campus map. People who are allowed to open the report still see its pin.
 
-## Not built yet
+## Backend
 
-- Supabase, PostgreSQL, Supabase Auth, Storage, and row-level security
-- A real mail or push channel (in-app notification preferences are stored on the website only)
-- One shared record between the website and the phone app
+Supabase (Postgres, Auth, and row-level security) is wired up for the website. Create a project, run the two SQL files, and add the anon key. The full steps, including exactly what to paste into the SQL Editor, are in [BACKEND.md](BACKEND.md).
+
+Still not built:
+
+- A mail or phone-push delivery channel (the website stores the preference and writes in-app notifications)
+- The Flutter app talking to the same database
 - Google Maps JavaScript API (the embed does not need a key)
+- A photo storage bucket (photo names and previews are saved on the report row)
 
 ## Layout
 
 ```
 src/            website
+supabase/       schema.sql and seed.sql for the SQL Editor
 mobile/         Flutter phone app
 public/         website favicon
 ```

@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { buildSeed } from './data'
+import { DEMO_PASSWORD, isRemote, supabase } from './lib/supabase'
+import { consumeSignedIn, pullCampus, pushDiff, rememberUser } from './lib/sync'
 import { allowedTransitions, assignmentBlocked, canView, isOpen, nextReportId, uid } from './logic'
 import type {
   Activity,
@@ -21,6 +23,37 @@ import type {
 } from './types'
 
 export const STORAGE_KEY = 'safely-preview-v1'
+const PREFS_KEY = 'safely-prefs'
+
+export { consumeSignedIn }
+
+function readPrefs(): AppState['prefs'] | null {
+  try {
+    const raw = localStorage.getItem(PREFS_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as AppState['prefs']
+    if (parsed?.lang !== 'en' && parsed?.lang !== 'bn') return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function shell(): AppState {
+  const seed = buildSeed()
+  return {
+    ...seed,
+    users: [],
+    reports: [],
+    notifications: [],
+    announcements: [],
+    lostFound: [],
+    audit: [],
+    codes: {},
+    sessionUserId: null,
+    prefs: readPrefs() ?? seed.prefs,
+  }
+}
 
 function load(): AppState {
   try {
@@ -141,13 +174,15 @@ type Api = {
   tx: (en: string, bn: string) => string
   toasts: Toast[]
   toast: (text: string) => void
-  login: (email: string, password: string) => 'unknown' | 'suspended' | 'unverified' | 'password' | null
-  loginDirect: (email: string) => 'unknown' | 'suspended' | 'unverified' | null
+  remote: boolean
+  ready: boolean
+  login: (email: string, password: string) => Promise<'unknown' | 'suspended' | 'unverified' | 'password' | null>
+  loginDirect: (email: string) => Promise<'unknown' | 'suspended' | 'unverified' | 'password' | null>
   logout: () => void
-  register: (input: { name: string; email: string; role: Role; unit: string; identifier: string }) => 'domain' | 'exists' | 'role' | null
+  register: (input: { name: string; email: string; role: Role; unit: string; identifier: string; password: string }) => Promise<'domain' | 'exists' | 'role' | 'signed-in' | null>
   verify: (email: string, code: string) => boolean
   resend: (email: string) => void
-  requestReset: (email: string) => boolean
+  requestReset: (email: string) => Promise<boolean>
   completeReset: (email: string, code: string) => boolean
   setLang: (lang: Lang) => void
   setTextSize: (size: 'default' | 'large') => void
@@ -181,14 +216,25 @@ type Api = {
 const Ctx = createContext<Api | null>(null)
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AppState>(() => load())
+  const remote = isRemote
+  const [state, setState] = useState<AppState>(() => (remote ? shell() : load()))
+  const [ready, setReady] = useState(!remote)
   const [toasts, setToasts] = useState<Toast[]>([])
   const stateRef = useRef(state)
+  const readyRef = useRef(!remote)
   stateRef.current = state
 
   useEffect(() => {
+    if (remote) {
+      try {
+        localStorage.setItem(PREFS_KEY, JSON.stringify(state.prefs))
+      } catch {
+        /* Preferences stay in memory for this tab. */
+      }
+      return
+    }
     persist(state)
-  }, [state])
+  }, [state, remote])
 
   useEffect(() => {
     document.documentElement.lang = state.prefs.lang === 'bn' ? 'bn' : 'en'
@@ -197,6 +243,35 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [state.prefs])
 
   useEffect(() => {
+    if (!remote || !supabase) return
+    let alive = true
+    void supabase.auth.getSession().then(async ({ data }) => {
+      const next = await pullCampus(data.session)
+      if (!alive) return
+      next.prefs = stateRef.current.prefs
+      readyRef.current = true
+      setReady(true)
+      setState(next)
+    }).catch(() => {
+      if (!alive) return
+      readyRef.current = true
+      setReady(true)
+    })
+    const { data: subscription } = supabase.auth.onAuthStateChange((event) => {
+      if (event !== 'SIGNED_OUT') return
+      void pullCampus(null).then((next) => {
+        next.prefs = stateRef.current.prefs
+        setState(next)
+      })
+    })
+    return () => {
+      alive = false
+      subscription.subscription.unsubscribe()
+    }
+  }, [remote])
+
+  useEffect(() => {
+    if (remote) return
     const onStorage = (event: StorageEvent) => {
       if (event.key !== STORAGE_KEY || !event.newValue) return
       try {
@@ -218,7 +293,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const say = (en: string, bn: string) => toast(stateRef.current.prefs.lang === 'bn' ? bn : en)
 
-  const update = (fn: (current: AppState) => AppState) => setState((prev) => fn(prev))
+  const update = (fn: (current: AppState) => AppState) => setState((prev) => {
+    const next = fn(prev)
+    if (remote && readyRef.current && supabase) {
+      void pushDiff(prev, next).then((error) => {
+        if (error) toast(stateRef.current.prefs.lang === 'bn' ? 'ক্যাম্পাস ডেটাবেস এই পরিবর্তন নেয়নি।' : 'The campus database rejected that change.')
+      })
+    }
+    return next
+  })
 
   const userByEmail = (email: string) =>
     stateRef.current.users.find((user) => user.email.toLowerCase() === email.trim().toLowerCase())
@@ -228,7 +311,35 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!user) return 'unknown'
     if (user.suspended) return 'suspended'
     if (!user.verified) return 'unverified'
+    rememberUser(user)
     update((current) => ({ ...current, sessionUserId: user.id }))
+    return null
+  }
+
+  const signInRemote = async (email: string, password: string): Promise<'unknown' | 'suspended' | 'unverified' | 'password' | null> => {
+    if (!supabase) return 'unknown'
+    const address = email.trim().toLowerCase()
+    const { data, error } = await supabase.auth.signInWithPassword({ email: address, password })
+    if (error || !data.session) return 'password'
+    const next = await pullCampus(data.session)
+    next.prefs = stateRef.current.prefs
+    const user = next.users.find((item) => item.email.toLowerCase() === address)
+    if (!user) {
+      await supabase.auth.signOut()
+      return 'unknown'
+    }
+    if (user.suspended) {
+      await supabase.auth.signOut()
+      return 'suspended'
+    }
+    if (!user.verified) {
+      await supabase.auth.signOut()
+      return 'unverified'
+    }
+    rememberUser(user)
+    readyRef.current = true
+    setReady(true)
+    setState(next)
     return null
   }
 
@@ -279,16 +390,51 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     tx: (en, bn) => (state.prefs.lang === 'bn' ? bn : en),
     toasts,
     toast,
-    login: (email, password) => {
+    remote,
+    ready,
+    login: async (email, password) => {
       if (password.trim().length < 8) return 'password'
+      if (remote) return signInRemote(email, password)
       return startSession(email)
     },
-    loginDirect: (email) => startSession(email),
-    logout: () => update((current) => ({ ...current, sessionUserId: null })),
-    register: ({ name, email, role, unit, identifier }) => {
+    loginDirect: async (email) => {
+      if (remote) return signInRemote(email, DEMO_PASSWORD)
+      return startSession(email)
+    },
+    logout: () => {
+      if (remote && supabase) {
+        void supabase.auth.signOut()
+        return
+      }
+      update((current) => ({ ...current, sessionUserId: null }))
+    },
+    register: async ({ name, email, role, unit, identifier, password }) => {
       const clean = email.trim().toLowerCase()
       if (!clean.endsWith('@padma.edu')) return 'domain'
       if (role !== 'student' && role !== 'teacher' && role !== 'staff') return 'role'
+      if (password.trim().length < 8) return 'role'
+      if (remote && supabase) {
+        const { data, error } = await supabase.auth.signUp({
+          email: clean,
+          password,
+          options: { data: { name: name.trim(), role, unit: unit.trim(), identifier: identifier.trim() } },
+        })
+        if (error) {
+          if (!error.message.toLowerCase().includes('already')) say(error.message, error.message)
+          return 'exists'
+        }
+        if (data.session) {
+          const next = await pullCampus(data.session)
+          next.prefs = stateRef.current.prefs
+          const user = next.users.find((item) => item.email.toLowerCase() === clean)
+          if (user) rememberUser(user)
+          readyRef.current = true
+          setReady(true)
+          setState(next)
+          return 'signed-in'
+        }
+        return null
+      }
       if (stateRef.current.users.some((user) => user.email === clean)) return 'exists'
       const user: User = {
         id: uid('u'),
@@ -329,8 +475,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const key = `verify:${email.trim().toLowerCase()}`
       update((current) => ({ ...current, codes: { ...current.codes, [key]: pin() } }))
     },
-    requestReset: (email) => {
-      const user = userByEmail(email)
+    requestReset: async (email) => {
+      const address = email.trim().toLowerCase()
+      if (remote && supabase) {
+        const { error } = await supabase.auth.resetPasswordForEmail(address)
+        if (error) say('The reset email could not be sent. Demo accounts use padma1234.', 'রিসেট ইমেইল যায়নি। ডেমো অ্যাকাউন্টের পাসওয়ার্ড padma1234।')
+        else say('If Supabase email is on, the reset link is on its way. Demo accounts can still use padma1234.', 'Supabase-এ ইমেইল চালু থাকলে রিসেট লিংক যাবে। ডেমো অ্যাকাউন্টে padma1234 ব্যবহার করা যাবে।')
+        return !error
+      }
+      const user = userByEmail(address)
       if (!user) return false
       const key = `reset:${user.email}`
       update((current) => ({ ...current, codes: { ...current.codes, [key]: pin() } }))
@@ -738,6 +891,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       update((current) => withAudit(current, user.name, 'Exported a report CSV', 'reports.csv'))
     },
     resetDemo: () => {
+      if (remote && supabase) {
+        void supabase.auth.getSession().then(async ({ data }) => {
+          const next = await pullCampus(data.session)
+          next.prefs = stateRef.current.prefs
+          setState(next)
+          say('Reloaded from the campus database.', 'ক্যাম্পাস ডেটাবেস থেকে আবার লোড হয়েছে।')
+        })
+        return
+      }
       const fresh = buildSeed()
       setState(fresh)
       say('Preview data restored.', 'প্রিভিউ ডেটা ফিরিয়ে আনা হয়েছে।')

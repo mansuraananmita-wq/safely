@@ -36,8 +36,8 @@ export default function PublicStatus() {
       <h1 className="mt-2 max-w-2xl font-display text-5xl leading-tight">{tx('What the campus can see.', 'ক্যাম্পাস যা দেখতে পায়।')}</h1>
       <p className="mt-4 max-w-2xl text-ink/70">
         {tx(
-          'Harassment, confidential, and anonymous reports are left out. Safety notes are counted only inside the security desk. These figures are the preview saved in this browser.',
-          'হয়রানি, গোপন, এবং বেনামি রিপোর্ট বাদ দেওয়া হয়েছে। নিরাপত্তার নোট শুধু নিরাপত্তা ডেস্কে গোনা হয়। এই হিসাব এই ব্রাউজারে সেভ করা প্রিভিউ।',
+          'Harassment, confidential, anonymous, and safety reports are left out. The figures come from the campus database when Supabase is connected, and from this browser otherwise.',
+          'হয়রানি, গোপন, বেনামি, এবং নিরাপত্তার রিপোর্ট বাদ দেওয়া হয়েছে। Supabase যুক্ত থাকলে হিসাব ক্যাম্পাস ডেটাবেস থেকে আসে, না থাকলে এই ব্রাউজার থেকে।',
         )}
       </p>
       <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

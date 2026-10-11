@@ -6,7 +6,7 @@ import { SignOutDialog } from '../../components/AccountTools'
 import { Button, Empty, Field, Modal, buttonClass, useTitle } from '../../components/ui'
 import { DEMO_ACCOUNTS, PLACES, reportPoint } from '../../data'
 import { homePath, isOpen, roleLabel } from '../../logic'
-import { useApp } from '../../store'
+import { consumeSignedIn, useApp } from '../../store'
 import { useNavigate } from 'react-router-dom'
 
 export function MapPage() {
@@ -335,10 +335,11 @@ export function ProfilePage() {
         <h2 className="font-display text-2xl">{tx('Switch demo account', 'ডেমো অ্যাকাউন্ট বদলান')}</h2>
         {DEMO_ACCOUNTS.map((account) => (
           <button key={account.email} type="button" className="block w-full rounded-xl px-2 py-2 text-left text-sm hover:bg-teal-50" onClick={() => {
-            const error = loginDirect(account.email)
-            if (error) return
-            const user = state.users.find((item) => item.email === account.email)
-            if (user) navigate(homePath(user.role))
+            void loginDirect(account.email).then((error) => {
+              if (error) return
+              const user = consumeSignedIn()
+              if (user) navigate(homePath(user.role))
+            })
           }}>
             <span className="font-semibold">{account.email}</span>
             <span className="block text-xs text-ink/55">{tx(account.noteEn, account.noteBn)}</span>

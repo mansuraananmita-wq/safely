@@ -19,8 +19,9 @@ import { homePath, isMember } from './logic'
 import { useApp } from './store'
 
 function Guard({ mode }: { mode: 'member' | 'desk' }) {
-  const { currentUser } = useApp()
+  const { currentUser, ready, tx } = useApp()
   const location = useLocation()
+  if (!ready) return <p className="px-4 py-10 text-sm">{tx('Loading the campus desk.', 'ক্যাম্পাস ডেস্ক লোড হচ্ছে।')}</p>
   if (!currentUser || currentUser.suspended) return <Navigate to="/login" replace state={{ from: location.pathname }} />
   if (mode === 'member' && !isMember(currentUser.role)) return <Navigate to={homePath(currentUser.role)} replace />
   if (mode === 'desk' && isMember(currentUser.role)) return <Navigate to="/app" replace />

@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { DEMO_ACCOUNTS } from '../data'
 import { homePath } from '../logic'
-import { useApp } from '../store'
+import { consumeSignedIn, useApp } from '../store'
 import type { Role } from '../types'
 import { Button, Field, Logo, useTitle } from '../components/ui'
 
@@ -14,7 +14,7 @@ function Frame({ title, lede, children }: { title: string; lede: string; childre
         <Logo light />
         <div>
           <p className="max-w-sm font-display text-4xl leading-tight">{tx('The campus desk, with the noise taken out.', 'ক্যাম্পাস ডেস্ক, অতিরিক্ত শোরগোল ছাড়া।')}</p>
-          <p className="mt-4 max-w-sm text-sm text-paper/75">{tx('Padma University preview. Nothing leaves this browser.', 'পদ্মা বিশ্ববিদ্যালয়ের প্রিভিউ। কিছুই এই ব্রাউজারের বাইরে যায় না।')}</p>
+          <p className="mt-4 max-w-sm text-sm text-paper/75">{tx('Padma University. With Supabase connected, reports are stored in the campus database.', 'পদ্মা বিশ্ববিদ্যালয়। Supabase যুক্ত থাকলে রিপোর্ট ক্যাম্পাস ডেটাবেসে থাকে।')}</p>
         </div>
       </aside>
       <div className="px-5 py-8 sm:px-10">
@@ -34,7 +34,7 @@ function goHome(role: Role, from: string | undefined) {
 }
 
 export function Login() {
-  const { tx, login, loginDirect, state } = useApp()
+  const { tx, login, loginDirect, remote } = useApp()
   const navigate = useNavigate()
   const location = useLocation()
   const [params] = useSearchParams()
@@ -45,29 +45,33 @@ export function Login() {
   useTitle(tx('Sign in', 'সাইন ইন'))
   const from = (location.state as { from?: string } | null)?.from
 
-  const finish = (address: string, direct: boolean) => {
-    const result = direct ? loginDirect(address) : login(address, password)
+  const finish = async (address: string, direct: boolean) => {
+    const result = await (direct ? loginDirect(address) : login(address, password))
     if (result) {
       const copy = {
         unknown: tx('No Padma account uses that email.', 'এই ইমেইলে কোনো পদ্মা অ্যাকাউন্ট নেই।'),
         suspended: tx('This account is suspended.', 'এই অ্যাকাউন্ট স্থগিত।'),
         unverified: tx('Verify the university email before signing in.', 'সাইন ইনের আগে বিশ্ববিদ্যালয় ইমেইল যাচাই করুন।'),
-        password: tx('Use at least 8 characters. This preview accepts any such password.', 'কমপক্ষে ৮ অক্ষর দিন। এই প্রিভিউ সেই পাসওয়ার্ডই নেয়।'),
+        password: remote
+          ? tx('That password does not match. Demo accounts use padma1234.', 'পাসওয়ার্ড মেলেনি। ডেমো অ্যাকাউন্টের পাসওয়ার্ড padma1234।')
+          : tx('Use at least 8 characters. This preview accepts any such password.', 'কমপক্ষে ৮ অক্ষর দিন। এই প্রিভিউ সেই পাসওয়ার্ডই নেয়।'),
       }[result]
       setError(copy)
       return
     }
-    const user = state.users.find((item) => item.email.toLowerCase() === address.trim().toLowerCase())
+    const user = consumeSignedIn()
     if (user) navigate(goHome(user.role, from))
   }
 
   return (
-    <Frame title={tx('Sign in', 'সাইন ইন')} lede={tx('Use your Padma University email. Demo desks are listed below and skip the password.', 'পদ্মা বিশ্ববিদ্যালয়ের ইমেইল ব্যবহার করুন। নিচের ডেমো ডেস্কে পাসওয়ার্ড লাগে না।')}>
+    <Frame title={tx('Sign in', 'সাইন ইন')} lede={remote
+      ? tx('Use your Padma University email. Demo buttons sign in with the password padma1234.', 'পদ্মা বিশ্ববিদ্যালয়ের ইমেইল ব্যবহার করুন। ডেমো বোতাম padma1234 পাসওয়ার্ডে ঢোকে।')
+      : tx('Use your Padma University email. Demo desks are listed below and skip the password.', 'পদ্মা বিশ্ববিদ্যালয়ের ইমেইল ব্যবহার করুন। নিচের ডেমো ডেস্কে পাসওয়ার্ড লাগে না।')}>
       <form className="space-y-4" onSubmit={(event: FormEvent) => { event.preventDefault(); finish(email, false) }}>
         <Field label={tx('University email', 'বিশ্ববিদ্যালয় ইমেইল')}>
           <input className="input" type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required />
         </Field>
-        <Field label={tx('Password', 'পাসওয়ার্ড')} hint={tx('Any password of 8 or more characters works in this preview.', 'এই প্রিভিউতে ৮ বা তার বেশি অক্ষরের যেকোনো পাসওয়ার্ড চলে।')}>
+        <Field label={tx('Password', 'পাসওয়ার্ড')} hint={remote ? tx('Demo password: padma1234', 'ডেমো পাসওয়ার্ড: padma1234') : tx('Any password of 8 or more characters works in this preview.', 'এই প্রিভিউতে ৮ বা তার বেশি অক্ষরের যেকোনো পাসওয়ার্ড চলে।')}>
           <div className="flex gap-2">
             <input className="input" type={show ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
             <Button variant="secondary" onClick={() => setShow((value) => !value)}>{show ? tx('Hide', 'লুকান') : tx('Show', 'দেখুন')}</Button>
@@ -113,15 +117,20 @@ export function Register() {
   const [error, setError] = useState('')
   useTitle(tx('Create an account', 'অ্যাকাউন্ট খুলুন'))
 
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault()
     if (form.password.length < 8) return setError(tx('Use at least 8 characters.', 'কমপক্ষে ৮ অক্ষর দিন।'))
     if (form.password !== form.confirm) return setError(tx('Those passwords do not match.', 'পাসওয়ার্ড দুটি মেলেনি।'))
     if (!form.privacy) return setError(tx('Read the privacy note and confirm it.', 'গোপনীয়তার নোট পড়ে নিশ্চিত করুন।'))
-    const result = register(form)
+    const result = await register({ ...form, password: form.password })
     if (result === 'domain') return setError(tx('Use a @padma.edu email.', '@padma.edu ইমেইল ব্যবহার করুন।'))
     if (result === 'exists') return setError(tx('That email is already registered.', 'এই ইমেইল আগেই নিবন্ধিত।'))
     if (result === 'role') return setError(tx('Department accounts are issued by the university.', 'বিভাগীয় অ্যাকাউন্ট বিশ্ববিদ্যালয় দেয়।'))
+    if (result === 'signed-in') {
+      const user = consumeSignedIn()
+      navigate(homePath(user?.role ?? form.role))
+      return
+    }
     navigate(`/verify?email=${encodeURIComponent(form.email.trim().toLowerCase())}`)
   }
 
@@ -214,9 +223,9 @@ export function Forgot() {
   useTitle(tx('Reset password', 'পাসওয়ার্ড রিসেট'))
   const inbox = state.codes[`reset:${email.trim().toLowerCase()}`] ?? ''
 
-  const ask = (event: FormEvent) => {
+  const ask = async (event: FormEvent) => {
     event.preventDefault()
-    if (!requestReset(email)) {
+    if (!(await requestReset(email))) {
       setError(tx('No Padma account uses that email.', 'এই ইমেইলে কোনো পদ্মা অ্যাকাউন্ট নেই।'))
       return
     }
