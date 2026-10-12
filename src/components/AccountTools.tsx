@@ -5,11 +5,11 @@ import { useApp } from '../store'
 import { Button, Modal, buttonClass, cx } from './ui'
 
 export function SignOutDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { tx, logout } = useApp()
+  const { tx, logout, remote } = useApp()
   const navigate = useNavigate()
   return (
     <Modal open={open} title={tx('Sign out?', 'সাইন আউট করবেন?')} onClose={onClose}>
-      <p className="text-sm">{tx('You will leave this account on this browser. Reports saved in the preview stay here.', 'এই ব্রাউজারে এই অ্যাকাউন্ট থেকে বের হবেন। প্রিভিউতে সেভ করা রিপোর্ট থাকবে।')}</p>
+      <p className="text-sm">{remote ? tx('You will leave this account. Campus reports stay in the database.', 'এই অ্যাকাউন্ট থেকে বের হবেন। ক্যাম্পাসের রিপোর্ট ডেটাবেসে থাকবে।') : tx('You will leave this account on this browser. Reports saved in the preview stay here.', 'এই ব্রাউজারে এই অ্যাকাউন্ট থেকে বের হবেন। প্রিভিউতে সেভ করা রিপোর্ট থাকবে।')}</p>
       <div className="mt-4 flex flex-wrap gap-2">
         <Button
           variant="danger"

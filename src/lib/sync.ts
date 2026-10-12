@@ -4,6 +4,13 @@ import { supabase } from './supabase'
 import type { Activity, Announcement, AppNotification, AppState, AuditEntry, Category, Department, LostItem, Photo, Report, User } from '../types'
 
 let signedIn: User | null = null
+let pullError: string | null = null
+
+export function takePullError(): string | null {
+  const value = pullError
+  pullError = null
+  return value
+}
 
 export function rememberUser(user: User | null) {
   signedIn = user
@@ -147,8 +154,18 @@ async function rows(table: string, query?: { column: string; value: string }) {
   let request = supabase.from(table).select('*')
   if (query) request = request.eq(query.column, query.value)
   const { data, error } = await request
-  if (error) return { data: [], error: error.message }
+  if (error) {
+    if (!pullError) pullError = error.message
+    return { data: [], error: error.message }
+  }
   return { data: (data ?? []) as Record<string, unknown>[], error: null }
+}
+
+export async function allocateReportId(): Promise<string | null> {
+  if (!supabase) return null
+  const { data, error } = await supabase.rpc('next_report_id')
+  if (error || typeof data !== 'string') return null
+  return data
 }
 
 export async function pullCampus(session: Session | null): Promise<AppState> {
@@ -186,6 +203,7 @@ export async function pullCampus(session: Session | null): Promise<AppState> {
 
   if (!session) {
     const { data, error } = await supabase.from('public_reports').select('*')
+    if (error && !pullError) pullError = error.message
     if (!error && data) {
       empty.reports = (data as Record<string, unknown>[]).map((row) => reportFrom(row, Array.isArray(row.activities) ? (row.activities as Record<string, unknown>[]).map(activityFrom) : [], []))
     }
@@ -326,6 +344,7 @@ export async function pushDiff(prev: AppState, next: AppState): Promise<string |
       role: user.role,
       department_id: user.departmentId ?? null,
       unit: user.unit,
+      identifier: user.identifier,
       suspended: user.suspended,
       notify_in_app: user.notifyInApp,
       notify_email: user.notifyEmail,

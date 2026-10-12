@@ -34,7 +34,7 @@ function goHome(role: Role, from: string | undefined) {
 }
 
 export function Login() {
-  const { tx, login, loginDirect, remote } = useApp()
+  const { tx, login, loginDirect } = useApp()
   const navigate = useNavigate()
   const location = useLocation()
   const [params] = useSearchParams()
@@ -49,12 +49,10 @@ export function Login() {
     const result = await (direct ? loginDirect(address) : login(address, password))
     if (result) {
       const copy = {
-        unknown: tx('No Padma account uses that email.', 'এই ইমেইলে কোনো পদ্মা অ্যাকাউন্ট নেই।'),
+        unknown: tx('No account uses that email.', 'এই ইমেইলে কোনো অ্যাকাউন্ট নেই।'),
         suspended: tx('This account is suspended.', 'এই অ্যাকাউন্ট স্থগিত।'),
-        unverified: tx('Verify the university email before signing in.', 'সাইন ইনের আগে বিশ্ববিদ্যালয় ইমেইল যাচাই করুন।'),
-        password: remote
-          ? tx('That password does not match. Demo accounts use padma1234.', 'পাসওয়ার্ড মেলেনি। ডেমো অ্যাকাউন্টের পাসওয়ার্ড padma1234।')
-          : tx('Use at least 8 characters. This preview accepts any such password.', 'কমপক্ষে ৮ অক্ষর দিন। এই প্রিভিউ সেই পাসওয়ার্ডই নেয়।'),
+        unverified: tx('Confirm your email before signing in.', 'সাইন ইনের আগে ইমেইল নিশ্চিত করুন।'),
+        password: tx('That email or password does not match.', 'ইমেইল বা পাসওয়ার্ড মেলেনি।'),
       }[result]
       setError(copy)
       return
@@ -64,14 +62,12 @@ export function Login() {
   }
 
   return (
-    <Frame title={tx('Sign in', 'সাইন ইন')} lede={remote
-      ? tx('Use your Padma University email. Demo buttons sign in with the password padma1234.', 'পদ্মা বিশ্ববিদ্যালয়ের ইমেইল ব্যবহার করুন। ডেমো বোতাম padma1234 পাসওয়ার্ডে ঢোকে।')
-      : tx('Use your Padma University email. Demo desks are listed below and skip the password.', 'পদ্মা বিশ্ববিদ্যালয়ের ইমেইল ব্যবহার করুন। নিচের ডেমো ডেস্কে পাসওয়ার্ড লাগে না।')}>
+    <Frame title={tx('Sign in', 'সাইন ইন')} lede={tx('Use the email and password you chose when you created your account.', 'অ্যাকাউন্ট খোলার সময় যে ইমেইল ও পাসওয়ার্ড দিয়েছেন, সেটা ব্যবহার করুন।')}>
       <form className="space-y-4" onSubmit={(event: FormEvent) => { event.preventDefault(); finish(email, false) }}>
-        <Field label={tx('University email', 'বিশ্ববিদ্যালয় ইমেইল')}>
+        <Field label={tx('Email', 'ইমেইল')}>
           <input className="input" type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required />
         </Field>
-        <Field label={tx('Password', 'পাসওয়ার্ড')} hint={remote ? tx('Demo password: padma1234', 'ডেমো পাসওয়ার্ড: padma1234') : tx('Any password of 8 or more characters works in this preview.', 'এই প্রিভিউতে ৮ বা তার বেশি অক্ষরের যেকোনো পাসওয়ার্ড চলে।')}>
+        <Field label={tx('Password', 'পাসওয়ার্ড')} hint={tx('At least 8 characters.', 'কমপক্ষে ৮ অক্ষর।')}>
           <div className="flex gap-2">
             <input className="input" type={show ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
             <Button variant="secondary" onClick={() => setShow((value) => !value)}>{show ? tx('Hide', 'লুকান') : tx('Show', 'দেখুন')}</Button>
@@ -111,7 +107,7 @@ export function Login() {
 }
 
 export function Register() {
-  const { tx, register } = useApp()
+  const { tx, register, remote } = useApp()
   const navigate = useNavigate()
   const [form, setForm] = useState({ name: '', email: '', role: 'student' as Role, unit: '', identifier: '', password: '', confirm: '', privacy: false })
   const [error, setError] = useState('')
@@ -123,7 +119,7 @@ export function Register() {
     if (form.password !== form.confirm) return setError(tx('Those passwords do not match.', 'পাসওয়ার্ড দুটি মেলেনি।'))
     if (!form.privacy) return setError(tx('Read the privacy note and confirm it.', 'গোপনীয়তার নোট পড়ে নিশ্চিত করুন।'))
     const result = await register({ ...form, password: form.password })
-    if (result === 'domain') return setError(tx('Use a @padma.edu email.', '@padma.edu ইমেইল ব্যবহার করুন।'))
+    if (result === 'email') return setError(tx('Enter a valid email address.', 'সঠিক ইমেইল লিখুন।'))
     if (result === 'exists') return setError(tx('That email is already registered.', 'এই ইমেইল আগেই নিবন্ধিত।'))
     if (result === 'role') return setError(tx('Department accounts are issued by the university.', 'বিভাগীয় অ্যাকাউন্ট বিশ্ববিদ্যালয় দেয়।'))
     if (result === 'signed-in') {
@@ -131,17 +127,18 @@ export function Register() {
       navigate(homePath(user?.role ?? form.role))
       return
     }
+    if (remote) return setError(tx('Account created. Open the confirmation email, then sign in.', 'অ্যাকাউন্ট তৈরি হয়েছে। নিশ্চিতকরণ ইমেইল খুলে তারপর সাইন ইন করুন।'))
     navigate(`/verify?email=${encodeURIComponent(form.email.trim().toLowerCase())}`)
   }
 
   return (
-    <Frame title={tx('Create an account', 'অ্যাকাউন্ট খুলুন')} lede={tx('Students, teachers, and staff can register. Department and admin desks are issued by the university.', 'শিক্ষার্থী, শিক্ষক ও কর্মকর্তারা নিবন্ধন করতে পারেন। বিভাগ ও অ্যাডমিন অ্যাকাউন্ট বিশ্ববিদ্যালয় দেয়।')}>
+    <Frame title={tx('Create an account', 'অ্যাকাউন্ট খুলুন')} lede={tx('Use your own email and a password you choose. Students, teachers, and staff can open an account.', 'নিজের ইমেইল ও নিজের পাসওয়ার্ড দিন। শিক্ষার্থী, শিক্ষক ও কর্মকর্তারা অ্যাকাউন্ট খুলতে পারেন।')}>
       <form className="space-y-4" onSubmit={submit}>
         <Field label={tx('Full name', 'পূর্ণ নাম')}>
           <input className="input" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required />
         </Field>
-        <Field label={tx('University email', 'বিশ্ববিদ্যালয় ইমেইল')} hint="@padma.edu">
-          <input className="input" type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required />
+        <Field label={tx('Email', 'ইমেইল')}>
+          <input className="input" type="email" autoComplete="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required />
         </Field>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label={tx('Role', 'ভূমিকা')}>
@@ -158,7 +155,7 @@ export function Register() {
         <Field label={tx('Department or office', 'বিভাগ বা দপ্তর')}>
           <input className="input" value={form.unit} onChange={(event) => setForm({ ...form, unit: event.target.value })} required />
         </Field>
-        <Field label={tx('Password', 'পাসওয়ার্ড')}>
+        <Field label={tx('Password', 'পাসওয়ার্ড')} hint={tx('At least 8 characters. This password is only yours.', 'কমপক্ষে ৮ অক্ষর। এই পাসওয়ার্ড শুধু আপনার।')}>
           <input className="input" type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required />
         </Field>
         <Field label={tx('Confirm password', 'পাসওয়ার্ড নিশ্চিত করুন')}>
@@ -166,7 +163,7 @@ export function Register() {
         </Field>
         <label className="flex gap-2 text-sm">
           <input type="checkbox" checked={form.privacy} onChange={(event) => setForm({ ...form, privacy: event.target.checked })} />
-          <span>{tx('I understand Safely is not an emergency service, harassment reports are restricted, and this preview keeps data in the browser.', 'আমি বুঝেছি সেইফলি জরুরি সেবা নয়, হয়রানির রিপোর্ট সীমিত, এবং এই প্রিভিউ ডেটা ব্রাউজারে রাখে।')}</span>
+          <span>{remote ? tx('I understand Safely is not an emergency service, and harassment reports stay restricted.', 'আমি বুঝেছি সেইফলি জরুরি সেবা নয়, এবং হয়রানির রিপোর্ট সীমিত থাকে।') : tx('I understand Safely is not an emergency service, harassment reports are restricted, and this preview keeps data in the browser.', 'আমি বুঝেছি সেইফলি জরুরি সেবা নয়, হয়রানির রিপোর্ট সীমিত, এবং এই প্রিভিউ ডেটা ব্রাউজারে রাখে।')}</span>
         </label>
         {error ? <p className="text-sm text-clay">{error}</p> : null}
         <Button type="submit" className="w-full">{tx('Create account', 'অ্যাকাউন্ট তৈরি')}</Button>
@@ -212,7 +209,7 @@ export function Verify() {
 }
 
 export function Forgot() {
-  const { tx, requestReset, completeReset, state } = useApp()
+  const { tx, requestReset, completeReset, state, remote } = useApp()
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
@@ -226,7 +223,7 @@ export function Forgot() {
   const ask = async (event: FormEvent) => {
     event.preventDefault()
     if (!(await requestReset(email))) {
-      setError(tx('No Padma account uses that email.', 'এই ইমেইলে কোনো পদ্মা অ্যাকাউন্ট নেই।'))
+      setError(tx('No account uses that email.', 'এই ইমেইলে কোনো অ্যাকাউন্ট নেই।'))
       return
     }
     setError('')
@@ -243,15 +240,17 @@ export function Forgot() {
   }
 
   return (
-    <Frame title={tx('Reset password', 'পাসওয়ার্ড রিসেট')} lede={tx('We will show the reset code in the demo inbox until email delivery is connected.', 'ইমেইল ডেলিভারি যুক্ত হওয়ার আগে রিসেট কোড ডেমো ইনবক্সে দেখা যাবে।')}>
+    <Frame title={tx('Reset password', 'পাসওয়ার্ড রিসেট')} lede={remote ? tx('We will email a reset link to the address you enter.', 'আপনার ইমেইলে একটি রিসেট লিংক যাবে।') : tx('We will show the reset code in the demo inbox until email delivery is connected.', 'ইমেইল ডেলিভারি যুক্ত হওয়ার আগে রিসেট কোড ডেমো ইনবক্সে দেখা যাবে।')}>
       {!sent ? (
         <form className="space-y-4" onSubmit={ask}>
-          <Field label={tx('University email', 'বিশ্ববিদ্যালয় ইমেইল')}>
+          <Field label={tx('Email', 'ইমেইল')}>
             <input className="input" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
           </Field>
           {error ? <p className="text-sm text-clay">{error}</p> : null}
-          <Button type="submit">{tx('Send reset code', 'রিসেট কোড পাঠান')}</Button>
+          <Button type="submit">{tx('Send reset link', 'রিসেট লিংক পাঠান')}</Button>
         </form>
+      ) : remote ? (
+        <p className="text-sm text-ink/75">{tx('If that email has an account, the reset link is on its way. Open it to choose a new password.', 'এই ইমেইলে অ্যাকাউন্ট থাকলে রিসেট লিংক যাবে। নতুন পাসওয়ার্ড দিতে লিংকটি খুলুন।')}</p>
       ) : (
         <form className="space-y-4" onSubmit={finish}>
           <div className="panel p-4">

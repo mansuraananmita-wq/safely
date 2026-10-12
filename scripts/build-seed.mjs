@@ -18,8 +18,8 @@ const AUTH = {
   'u-old': 'a1111111-1111-4111-8111-111111111114',
 }
 
-function sqlText(value) {
-  if (value === null || value === undefined || value === '') return 'null'
+function sqlText(value, empty = 'null') {
+  if (value === null || value === undefined || value === '') return empty
   return `'${String(value).replaceAll("'", "''")}'`
 }
 
@@ -60,7 +60,7 @@ for (const user of seed.users) {
   const authId = AUTH[user.id]
   if (!authId) throw new Error(`Missing auth id for ${user.id}`)
   lines.push(
-    `select public.seed_demo_account(${sqlText(authId)}::uuid, ${sqlText(user.id)}, ${sqlText(user.email)}, ${sqlText(user.name)}, ${sqlText(user.role)}, ${sqlText(user.departmentId ?? '')}, ${sqlText(user.unit)}, ${sqlText(user.identifier)}, ${sqlBool(user.suspended)}, ${sqlBool(user.notifyInApp)}, ${sqlBool(user.notifyEmail)}, ${sqlBool(user.notifyPush)});`,
+    `select public.seed_demo_account(${sqlText(authId)}::uuid, ${sqlText(user.id)}, ${sqlText(user.email)}, ${sqlText(user.name)}, ${sqlText(user.role)}, ${sqlText(user.departmentId ?? '')}, ${sqlText(user.unit, "''")}, ${sqlText(user.identifier, "''")}, ${sqlBool(user.suspended)}, ${sqlBool(user.notifyInApp)}, ${sqlBool(user.notifyEmail)}, ${sqlBool(user.notifyPush)});`,
   )
 }
 lines.push('')
@@ -69,11 +69,11 @@ for (const report of seed.reports) {
     `insert into public.reports (id, title, description, category, subcategory, location_id, location_detail, lat, lng, photos, confidential, anonymous, status, priority, department_id, assignee, reporter_id, created_at, updated_at, due_at, resolved_at, closed_at, rating, feedback, resolution_note, resolution_photo, info_requested, reject_reason, blocks_access, contact_window) values (${[
       sqlText(report.id),
       sqlText(report.title),
-      sqlText(report.description),
+      sqlText(report.description, "''"),
       sqlText(report.category),
       sqlText(report.subcategory),
       sqlText(report.locationId),
-      sqlText(report.locationDetail),
+      sqlText(report.locationDetail, "''"),
       report.lat ?? 'null',
       report.lng ?? 'null',
       sqlJson(report.photos ?? []),
@@ -96,7 +96,7 @@ for (const report of seed.reports) {
       sqlBool(report.infoRequested),
       sqlText(report.rejectReason),
       sqlBool(report.blocksAccess),
-      sqlText(report.contactWindow),
+      sqlText(report.contactWindow, "''"),
     ].join(', ')}) on conflict (id) do nothing;`,
   )
   for (const activity of report.activities) {
@@ -125,7 +125,7 @@ for (const item of seed.announcements) {
 lines.push('')
 for (const item of seed.lostFound) {
   lines.push(
-    `insert into public.lost_found (id, title, place, detail, kind, contact, reporter_id, status, created_at) values (${sqlText(item.id)}, ${sqlText(item.title)}, ${sqlText(item.place)}, ${sqlText(item.detail)}, ${sqlText(item.kind)}, ${sqlText(item.contact)}, ${sqlText(item.reporterId)}, ${sqlText(item.status)}, ${sqlText(item.createdAt)}) on conflict (id) do nothing;`,
+    `insert into public.lost_found (id, title, place, detail, kind, contact, reporter_id, status, created_at) values (${sqlText(item.id)}, ${sqlText(item.title)}, ${sqlText(item.place)}, ${sqlText(item.detail, "''")}, ${sqlText(item.kind)}, ${sqlText(item.contact)}, ${sqlText(item.reporterId)}, ${sqlText(item.status)}, ${sqlText(item.createdAt)}) on conflict (id) do nothing;`,
   )
 }
 lines.push('')

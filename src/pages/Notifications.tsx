@@ -20,7 +20,7 @@ function noticeTitle(item: AppNotification) {
 }
 
 export function NotificationsPage() {
-  const { currentUser, state, tx, lang, markRead, markAllRead } = useApp()
+  const { currentUser, state, tx, lang, remote, markRead, markAllRead } = useApp()
   useTitle(tx('Notifications', 'নোটিফিকেশন'))
   const items = state.notifications
     .filter((item) => item.userId === currentUser?.id)
@@ -38,7 +38,7 @@ export function NotificationsPage() {
         </div>
         {unread > 0 ? <Button variant="secondary" onClick={markAllRead}>{tx('Mark all as read', 'সব পড়া হয়েছে')}</Button> : null}
       </div>
-      <p className="mb-4 text-sm text-ink/60">{tx('In-app alerts are live in this preview. Email and phone push start when the server is connected.', 'এই প্রিভিউতে অ্যাপের ভেতরের নোটিশ চালু। ইমেইল ও ফোন পুশ সার্ভার যুক্ত হলে শুরু হবে।')}</p>
+      <p className="mb-4 text-sm text-ink/60">{remote ? tx('Alerts in the app come from the campus database. Email and phone push are not sent yet.', 'অ্যাপের নোটিশ ক্যাম্পাস ডেটাবেস থেকে আসে। ইমেইল ও ফোন পুশ এখনও যায় না।') : tx('In-app alerts are live in this preview. Email and phone push start when the server is connected.', 'এই প্রিভিউতে অ্যাপের ভেতরের নোটিশ চালু। ইমেইল ও ফোন পুশ সার্ভার যুক্ত হলে শুরু হবে।')}</p>
       {items.length === 0 ? <Empty title={tx('Nothing waiting', 'কিছু অপেক্ষা করছে না')} body={tx('Status changes, assignments, and campus alerts will land here.', 'স্ট্যাটাস, বরাদ্দ, এবং ক্যাম্পাস সতর্কতা এখানে আসবে।')} /> : (
         <ul className="space-y-2">
           {items.map((item) => {

@@ -1,7 +1,8 @@
 import type { CategoryId, Lang, Priority, Report, Role, Status, User } from './types'
 
 export function uid(prefix = ''): string {
-  return prefix + Math.random().toString(36).slice(2, 10)
+  const body = globalThis.crypto?.randomUUID?.().replaceAll('-', '').slice(0, 12) ?? Math.random().toString(36).slice(2, 14)
+  return prefix + body
 }
 
 export function hoursBetween(from: string, to: string): number {

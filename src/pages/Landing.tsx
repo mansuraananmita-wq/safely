@@ -10,7 +10,7 @@ import type { Status } from '../types'
 const flow: Status[] = ['submitted', 'under_review', 'assigned', 'in_progress', 'resolved', 'closed']
 
 export default function Landing() {
-  const { tx, lang, state } = useApp()
+  const { tx, lang, state, remote } = useApp()
   useTitle(tx('Campus desk', 'ক্যাম্পাস ডেস্ক'))
   return (
     <div>
@@ -170,7 +170,7 @@ export default function Landing() {
         <div className="mx-auto flex max-w-6xl flex-wrap items-end justify-between gap-4">
           <div>
             <Logo />
-            <p className="mt-2 max-w-md text-sm text-ink/60">{tx('Preview only. Reports stay in this browser until the university server is connected. Call 999 for an emergency.', 'শুধু প্রিভিউ। বিশ্ববিদ্যালয়ের সার্ভার যুক্ত হওয়ার আগে রিপোর্ট এই ব্রাউজারে থাকে। জরুরি প্রয়োজনে ৯৯৯।')}</p>
+            <p className="mt-2 max-w-md text-sm text-ink/60">{remote ? tx('Reports are stored in the campus database. Call 999 for an emergency.', 'রিপোর্ট ক্যাম্পাস ডেটাবেসে থাকে। জরুরি প্রয়োজনে ৯৯৯।') : tx('Preview only. Reports stay in this browser until the university server is connected. Call 999 for an emergency.', 'শুধু প্রিভিউ। বিশ্ববিদ্যালয়ের সার্ভার যুক্ত হওয়ার আগে রিপোর্ট এই ব্রাউজারে থাকে। জরুরি প্রয়োজনে ৯৯৯।')}</p>
           </div>
           <p className="text-sm text-ink/50">Safely · Padma University</p>
         </div>

@@ -66,6 +66,7 @@ export function NewReportPage() {
   const [params, setParams] = useSearchParams()
   const draftId = params.get('draft') ?? ''
   const [step, setStep] = useState(0)
+  const [sending, setSending] = useState(false)
   const [form, setForm] = useState<FormState>(empty)
   useTitle(tx('New report', 'নতুন রিপোর্ট'))
 
@@ -106,13 +107,27 @@ export function NewReportPage() {
   const counts = Object.fromEntries(PLACES.map((item) => [item.id, state.reports.filter((report) => report.locationId === item.id && isMapPin(report)).length]))
   const places = [...PLACES].sort((a, b) => (counts[b.id] ?? 0) - (counts[a.id] ?? 0))
 
-  const stepReady = [
-    Boolean(form.category && form.subcategory && form.title.trim().length >= 8 && form.description.trim().length >= 20),
-    true,
-    Boolean(form.locationId && form.locationDetail.trim().length >= 3 && form.lat != null && form.lng != null),
-    ((!sensitive && !form.confidential) || form.privacyAck) && (!form.anonymous || form.anonAck),
-    true,
-  ][step]
+  const gaps = (): string[] => {
+    const items: string[] = []
+    const title = form.title.trim().length
+    const description = form.description.trim().length
+    if (step === 0) {
+      if (title < 8) items.push(tx(`Title (${title}/8 characters)`, `শিরোনাম (${title}/৮ অক্ষর)`))
+      if (!form.category) items.push(tx('Category', 'বিভাগ'))
+      else if (!form.subcategory) items.push(tx('Subcategory', 'উপবিভাগ'))
+      if (description < 20) items.push(tx(`Description (${description}/20 characters)`, `বিবরণ (${description}/২০ অক্ষর)`))
+    }
+    if (step === 2) {
+      if (!form.locationId) items.push(tx('Campus building', 'ক্যাম্পাস ভবন'))
+      if (form.locationDetail.trim().length < 3) items.push(tx('Exact location', 'ঠিকানা'))
+      if (form.lat == null || form.lng == null) items.push(tx('Map pin', 'ম্যাপের পিন'))
+    }
+    if (step === 3) {
+      if ((sensitive || form.confidential) && !form.privacyAck) items.push(tx('The confidential confirmation', 'গোপন রিপোর্টের নিশ্চিতকরণ'))
+      if (form.anonymous && !form.anonAck) items.push(tx('The anonymous confirmation', 'বেনামি নিশ্চিতকরণ'))
+    }
+    return items
+  }
 
   const payload = (): ReportInput | null => {
     if (!form.category) return null
@@ -219,7 +234,7 @@ export function NewReportPage() {
       <div className="mt-6 space-y-4">
         {step === 0 ? (
           <div className="space-y-4">
-            <Field label={tx('Report title', 'রিপোর্টের শিরোনাম')} hint={tx('At least 8 characters. Say the problem in one line.', 'কমপক্ষে ৮ অক্ষর। এক লাইনে সমস্যাটি বলুন।')}>
+            <Field label={tx('Report title', 'রিপোর্টের শিরোনাম')} hint={tx(`At least 8 characters (${form.title.trim().length}/8). Say the problem in one line.`, `কমপক্ষে ৮ অক্ষর (${form.title.trim().length}/৮)। এক লাইনে সমস্যাটি বলুন।`)}>
               <input className="input" maxLength={120} value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} />
             </Field>
             <div>
@@ -250,7 +265,7 @@ export function NewReportPage() {
                 </div>
               </div>
             ) : null}
-            <Field label={tx('Description', 'বিবরণ')} hint={tx('At least 20 characters. Leave out gossip and other people’s full names if you can.', 'কমপক্ষে ২০ অক্ষর। সম্ভব হলে গুজব ও অন্যের পুরো নাম বাদ দিন।')}>
+            <Field label={tx('Description', 'বিবরণ')} hint={tx(`At least 20 characters (${form.description.trim().length}/20). Leave out gossip and other people’s full names if you can.`, `কমপক্ষে ২০ অক্ষর (${form.description.trim().length}/২০)। সম্ভব হলে গুজব ও অন্যের পুরো নাম বাদ দিন।`)}>
               <textarea className="input min-h-36" maxLength={2000} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
             </Field>
             <Field label={tx('Impact', 'প্রভাব')}>
@@ -378,28 +393,44 @@ export function NewReportPage() {
         ) : null}
       </div>
 
-      <div className="mt-6 flex flex-wrap gap-2">
+      <div className="sticky bottom-20 z-20 -mx-4 mt-6 border-t border-line bg-paper/95 px-4 py-3 backdrop-blur md:bottom-0">
+      {gaps().length > 0 ? <p className="mb-3 text-sm text-clay">{tx('Still needed before you can continue:', 'এগোনোর আগে এগুলো দরকার:')} {gaps().join(' · ')}</p> : null}
+      <div className="flex flex-wrap gap-2">
         {step > 0 ? <Button variant="secondary" onClick={() => setStep((value) => value - 1)}>{tx('Back', 'পেছনে')}</Button> : null}
-        {step < 4 ? <Button disabled={!stepReady} onClick={() => setStep((value) => value + 1)}>{tx('Continue', 'এগিয়ে যান')}</Button> : null}
+        {step < 4 ? <Button onClick={() => {
+          const missing = gaps()
+          if (missing.length) {
+            toast(tx(`Still needed: ${missing.join(', ')}.`, `এখনও দরকার: ${missing.join(', ')}।`))
+            return
+          }
+          setStep((value) => value + 1)
+        }}>{tx('Continue', 'এগিয়ে যান')}</Button> : null}
         {step > 0 ? (
           <Button variant="ghost" onClick={() => {
             const body = payload()
             if (!body) return
-            const id = saveDraft(body)
-            if (id) {
+            void saveDraft(body).then((id) => {
+              if (!id) return
               setForm((current) => ({ ...current, id }))
               setParams({ draft: id })
-            }
+            })
           }}>{tx('Save draft', 'খসড়া সেভ')}</Button>
         ) : null}
         {step === 4 ? (
-          <Button disabled={!form.category || !form.subcategory || !form.locationId || form.locationDetail.trim().length < 3 || form.title.trim().length < 8} onClick={() => {
+          <Button disabled={sending} onClick={() => {
             const body = payload()
-            if (!body) return
-            const id = submitReport(body)
-            if (id) navigate(`/app/reports/${id}`, { state: { submitted: true } })
+            if (!body || form.title.trim().length < 8 || form.description.trim().length < 20 || !form.subcategory || !form.locationId || form.locationDetail.trim().length < 3) {
+              toast(tx('Go back and finish the title, description, category, and place.', 'পেছনে গিয়ে শিরোনাম, বিবরণ, বিভাগ, এবং স্থান শেষ করুন।'))
+              return
+            }
+            setSending(true)
+            void submitReport(body).then((id) => {
+              setSending(false)
+              if (id) navigate(`/app/reports/${id}`, { state: { submitted: true } })
+            })
           }}>{tx('Submit report', 'রিপোর্ট জমা দিন')}</Button>
         ) : null}
+      </div>
       </div>
     </div>
   )

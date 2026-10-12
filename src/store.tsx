@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { buildSeed } from './data'
+import type { Session } from '@supabase/supabase-js'
 import { DEMO_PASSWORD, isRemote, supabase } from './lib/supabase'
-import { consumeSignedIn, pullCampus, pushDiff, rememberUser } from './lib/sync'
+import { consumeSignedIn, allocateReportId, pullCampus, pushDiff, rememberUser, takePullError } from './lib/sync'
 import { allowedTransitions, assignmentBlocked, canView, isOpen, nextReportId, uid } from './logic'
 import type {
   Activity,
@@ -179,7 +180,7 @@ type Api = {
   login: (email: string, password: string) => Promise<'unknown' | 'suspended' | 'unverified' | 'password' | null>
   loginDirect: (email: string) => Promise<'unknown' | 'suspended' | 'unverified' | 'password' | null>
   logout: () => void
-  register: (input: { name: string; email: string; role: Role; unit: string; identifier: string; password: string }) => Promise<'domain' | 'exists' | 'role' | 'signed-in' | null>
+  register: (input: { name: string; email: string; role: Role; unit: string; identifier: string; password: string }) => Promise<'email' | 'exists' | 'role' | 'signed-in' | null>
   verify: (email: string, code: string) => boolean
   resend: (email: string) => void
   requestReset: (email: string) => Promise<boolean>
@@ -187,8 +188,8 @@ type Api = {
   setLang: (lang: Lang) => void
   setTextSize: (size: 'default' | 'large') => void
   setContrast: (on: boolean) => void
-  saveDraft: (input: ReportInput) => string | null
-  submitReport: (input: ReportInput) => string | null
+  saveDraft: (input: ReportInput) => Promise<string | null>
+  submitReport: (input: ReportInput) => Promise<string | null>
   deleteDraft: (id: string) => void
   addComment: (reportId: string, body: string, visibility: 'public' | 'internal') => void
   setStatus: (reportId: string, status: Status, note: string, resolutionPhoto?: Photo) => boolean
@@ -208,7 +209,8 @@ type Api = {
   updateDepartment: (id: string, patch: Partial<Pick<Department, 'lead' | 'email'>>) => void
   updateCategory: (id: string, patch: Partial<Pick<Category, 'active' | 'slaHours'>>) => void
   extendDue: (reportId: string) => void
-  updateProfile: (patch: Partial<Pick<User, 'name' | 'unit' | 'notifyInApp' | 'notifyEmail' | 'notifyPush'>>) => void
+  updateProfile: (patch: Partial<Pick<User, 'name' | 'unit' | 'identifier' | 'notifyInApp' | 'notifyEmail' | 'notifyPush'>>) => Promise<string | null>
+  changePassword: (password: string) => Promise<boolean>
   recordExport: () => void
   resetDemo: () => void
 }
@@ -219,9 +221,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const remote = isRemote
   const [state, setState] = useState<AppState>(() => (remote ? shell() : load()))
   const [ready, setReady] = useState(!remote)
+  const [dbError, setDbError] = useState<string | null>(null)
   const [toasts, setToasts] = useState<Toast[]>([])
   const stateRef = useRef(state)
   const readyRef = useRef(!remote)
+  const epoch = useRef(0)
+  const writing = useRef(0)
   stateRef.current = state
 
   useEffect(() => {
@@ -244,29 +249,39 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!remote || !supabase) return
+    const client = supabase
     let alive = true
-    void supabase.auth.getSession().then(async ({ data }) => {
-      const next = await pullCampus(data.session)
-      if (!alive) return
-      next.prefs = stateRef.current.prefs
-      readyRef.current = true
-      setReady(true)
-      setState(next)
-    }).catch(() => {
-      if (!alive) return
-      readyRef.current = true
-      setReady(true)
-    })
-    const { data: subscription } = supabase.auth.onAuthStateChange((event) => {
-      if (event !== 'SIGNED_OUT') return
-      void pullCampus(null).then((next) => {
+    const apply = (session: Session | null) => {
+      const seen = epoch.current
+      if (writing.current > 0) return
+      void pullCampus(session).then((next) => {
+        if (!alive || seen !== epoch.current || writing.current > 0) return
         next.prefs = stateRef.current.prefs
+        readyRef.current = true
+        setReady(true)
+        setDbError(takePullError())
+        stateRef.current = next
         setState(next)
+      }).catch((error: unknown) => {
+        if (!alive) return
+        readyRef.current = true
+        setReady(true)
+        setDbError(error instanceof Error ? error.message : 'The campus database did not respond.')
       })
+    }
+    const { data: subscription } = client.auth.onAuthStateChange((event, session) => {
+      if (event !== 'INITIAL_SESSION' && event !== 'SIGNED_IN' && event !== 'SIGNED_OUT' && event !== 'TOKEN_REFRESHED') return
+      window.setTimeout(() => apply(session), 0)
     })
+    const onFocus = () => {
+      if (document.visibilityState === 'hidden') return
+      void client.auth.getSession().then(({ data }) => apply(data.session))
+    }
+    document.addEventListener('visibilitychange', onFocus)
     return () => {
       alive = false
       subscription.subscription.unsubscribe()
+      document.removeEventListener('visibilitychange', onFocus)
     }
   }, [remote])
 
@@ -293,15 +308,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const say = (en: string, bn: string) => toast(stateRef.current.prefs.lang === 'bn' ? bn : en)
 
-  const update = (fn: (current: AppState) => AppState) => setState((prev) => {
+  const update = (fn: (current: AppState) => AppState): Promise<string | null> => {
+    const prev = stateRef.current
     const next = fn(prev)
-    if (remote && readyRef.current && supabase) {
-      void pushDiff(prev, next).then((error) => {
-        if (error) toast(stateRef.current.prefs.lang === 'bn' ? 'ক্যাম্পাস ডেটাবেস এই পরিবর্তন নেয়নি।' : 'The campus database rejected that change.')
-      })
-    }
-    return next
-  })
+    epoch.current += 1
+    stateRef.current = next
+    setState(next)
+    if (!(remote && readyRef.current && supabase)) return Promise.resolve(null)
+    const seen = epoch.current
+    writing.current += 1
+    return pushDiff(prev, next).then((error) => {
+      writing.current = Math.max(0, writing.current - 1)
+      if (!error) return null
+      if (epoch.current === seen) {
+        stateRef.current = prev
+        setState(prev)
+      }
+      const detail = error.length > 180 ? `${error.slice(0, 180)}…` : error
+      toast(stateRef.current.prefs.lang === 'bn' ? `ক্যাম্পাস ডেটাবেস এই পরিবর্তন নেয়নি। ${detail}` : `The campus database rejected that change. ${detail}`)
+      return error
+    })
+  }
 
   const userByEmail = (email: string) =>
     stateRef.current.users.find((user) => user.email.toLowerCase() === email.trim().toLowerCase())
@@ -332,12 +359,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       await supabase.auth.signOut()
       return 'suspended'
     }
-    if (!user.verified) {
-      await supabase.auth.signOut()
-      return 'unverified'
-    }
     rememberUser(user)
     readyRef.current = true
+    epoch.current += 1
+    stateRef.current = next
     setReady(true)
     setState(next)
     return null
@@ -410,9 +435,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     },
     register: async ({ name, email, role, unit, identifier, password }) => {
       const clean = email.trim().toLowerCase()
-      if (!clean.endsWith('@padma.edu')) return 'domain'
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) return 'email'
       if (role !== 'student' && role !== 'teacher' && role !== 'staff') return 'role'
-      if (password.trim().length < 8) return 'role'
+      if (password.trim().length < 8) {
+        say('Use at least 8 characters.', 'কমপক্ষে ৮ অক্ষর দিন।')
+        return 'email'
+      }
       if (remote && supabase) {
         const { data, error } = await supabase.auth.signUp({
           email: clean,
@@ -429,6 +457,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const user = next.users.find((item) => item.email.toLowerCase() === clean)
           if (user) rememberUser(user)
           readyRef.current = true
+          epoch.current += 1
+          stateRef.current = next
           setReady(true)
           setState(next)
           return 'signed-in'
@@ -443,18 +473,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         role,
         unit: unit.trim(),
         identifier: identifier.trim(),
-        verified: false,
+        verified: true,
         suspended: false,
         notifyInApp: true,
         notifyEmail: true,
         notifyPush: false,
       }
+      rememberUser(user)
       update((current) => ({
         ...current,
         users: [...current.users, user],
-        codes: { ...current.codes, [`verify:${clean}`]: pin() },
+        sessionUserId: user.id,
       }))
-      return null
+      return 'signed-in'
     },
     verify: (email, code) => {
       const key = `verify:${email.trim().toLowerCase()}`
@@ -479,8 +510,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const address = email.trim().toLowerCase()
       if (remote && supabase) {
         const { error } = await supabase.auth.resetPasswordForEmail(address)
-        if (error) say('The reset email could not be sent. Demo accounts use padma1234.', 'রিসেট ইমেইল যায়নি। ডেমো অ্যাকাউন্টের পাসওয়ার্ড padma1234।')
-        else say('If Supabase email is on, the reset link is on its way. Demo accounts can still use padma1234.', 'Supabase-এ ইমেইল চালু থাকলে রিসেট লিংক যাবে। ডেমো অ্যাকাউন্টে padma1234 ব্যবহার করা যাবে।')
+        if (error) say('The reset email could not be sent.', 'রিসেট ইমেইল যায়নি।')
+        else say('If that email has an account, a reset link is on its way.', 'এই ইমেইলে অ্যাকাউন্ট থাকলে রিসেট লিংক যাবে।')
         return !error
       }
       const user = userByEmail(address)
@@ -502,7 +533,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setLang: (lang) => update((current) => ({ ...current, prefs: { ...current.prefs, lang } })),
     setTextSize: (textSize) => update((current) => ({ ...current, prefs: { ...current.prefs, textSize } })),
     setContrast: (contrast) => update((current) => ({ ...current, prefs: { ...current.prefs, contrast } })),
-    saveDraft: (input) => {
+    saveDraft: async (input) => {
       const current = stateRef.current
       const user = current.users.find((item) => item.id === current.sessionUserId)
       if (!user) return null
@@ -512,12 +543,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
       const existing = input.id ? current.reports.find((report) => report.id === input.id) : undefined
       if (existing && (existing.status !== 'draft' || existing.reporterId !== user.id)) return null
-      const report = buildReport(current, user, input, 'draft')
-      update((prev) => replaceReport(prev, buildReport(prev, user, { ...input, id: report.id }, 'draft')))
-      say('Draft saved in this browser.', 'খসড়া এই ব্রাউজারে সেভ হয়েছে।')
+      const issued = input.id || !remote ? input : { ...input, id: (await allocateReportId()) ?? undefined }
+      const report = buildReport(current, user, issued, 'draft')
+      const error = await update((prev) => replaceReport(prev, buildReport(prev, user, { ...issued, id: report.id }, 'draft')))
+      if (error) return null
+      say(remote ? 'Draft saved to the campus database.' : 'Draft saved in this browser.', remote ? 'খসড়া ক্যাম্পাস ডেটাবেসে সেভ হয়েছে।' : 'খসড়া এই ব্রাউজারে সেভ হয়েছে।')
       return report.id
     },
-    submitReport: (input) => {
+    submitReport: async (input) => {
       const current = stateRef.current
       const user = current.users.find((item) => item.id === current.sessionUserId)
       if (!user) return null
@@ -532,15 +565,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         (report) => report.reporterId === user.id && report.status !== 'draft' && new Date(report.createdAt).getTime() > dayAgo,
       )
       if (recent.length >= 5) {
-        say('This preview accepts five reports a day from one account.', 'এই প্রিভিউতে একটি অ্যাকাউন্ট থেকে দিনে পাঁচটি রিপোর্ট যায়।')
+        say('One account can file five reports a day.', 'একটি অ্যাকাউন্ট থেকে দিনে পাঁচটি রিপোর্ট যায়।')
         return null
       }
-      const created = buildReport(current, user, input, 'submitted')
+      const issued = input.id || !remote ? input : { ...input, id: (await allocateReportId()) ?? undefined }
+      const created = buildReport(current, user, issued, 'submitted')
       const submitted: Report = {
         ...created,
         activities: [...created.activities, activity('Safely', 'public', 'system', created.anonymous ? 'Anonymous report submitted.' : 'Report submitted.')],
       }
-      update((prev) => {
+      const error = await update((prev) => {
         let next = replaceReport(prev, submitted)
         const audience = deskAudience(next, submitted).filter((item) => item.id !== user.id)
         const href = `/admin/reports/${submitted.id}`
@@ -552,6 +586,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
         return next
       })
+      if (error) return null
       say(`Submitted ${submitted.id}.`, `${submitted.id} জমা হয়েছে।`)
       return submitted.id
     },
@@ -880,10 +915,36 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     },
     updateProfile: (patch) => {
       const userId = stateRef.current.sessionUserId
-      update((current) => ({
+      return update((current) => ({
         ...current,
-        users: current.users.map((user) => (user.id === userId ? { ...user, ...patch, name: patch.name?.trim() || user.name } : user)),
+        users: current.users.map((user) => {
+          if (user.id !== userId) return user
+          return {
+            ...user,
+            ...patch,
+            name: patch.name !== undefined ? (patch.name.trim() || user.name) : user.name,
+            unit: patch.unit !== undefined ? patch.unit.trim() : user.unit,
+            identifier: patch.identifier !== undefined ? patch.identifier.trim() : user.identifier,
+          }
+        }),
       }))
+    },
+    changePassword: async (next) => {
+      if (next.trim().length < 8) {
+        say('Use at least 8 characters.', 'কমপক্ষে ৮ অক্ষর দিন।')
+        return false
+      }
+      if (!remote || !supabase) {
+        say('Choose a password when you create the account. This browser preview does not keep a separate password.', 'অ্যাকাউন্ট খোলার সময় পাসওয়ার্ড দিন। এই ব্রাউজার প্রিভিউ আলাদা পাসওয়ার্ড রাখে না।')
+        return false
+      }
+      const { error } = await supabase.auth.updateUser({ password: next })
+      if (error) {
+        say(error.message, error.message)
+        return false
+      }
+      say('Password updated.', 'পাসওয়ার্ড আপডেট হয়েছে।')
+      return true
     },
     recordExport: () => {
       const user = stateRef.current.users.find((item) => item.id === stateRef.current.sessionUserId)
@@ -895,6 +956,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         void supabase.auth.getSession().then(async ({ data }) => {
           const next = await pullCampus(data.session)
           next.prefs = stateRef.current.prefs
+          epoch.current += 1
+          stateRef.current = next
           setState(next)
           say('Reloaded from the campus database.', 'ক্যাম্পাস ডেটাবেস থেকে আবার লোড হয়েছে।')
         })
@@ -908,6 +971,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   return (
     <Ctx.Provider value={api}>
+      {dbError ? <p className="bg-clay/10 px-4 py-2 text-sm text-clay">{dbError}</p> : null}
       {children}
       <div className="no-print fixed bottom-24 right-4 z-[70] flex w-[min(100%-2rem,22rem)] flex-col gap-2 md:bottom-4">
         {toasts.map((item) => (

@@ -296,7 +296,7 @@ begin
     nullif(new.raw_user_meta_data->>'department_id', ''),
     coalesce(new.raw_user_meta_data->>'unit', ''),
     coalesce(new.raw_user_meta_data->>'identifier', ''),
-    new.email_confirmed_at is not null,
+    true,
     coalesce((new.raw_user_meta_data->>'suspended')::boolean, false)
   )
   on conflict (auth_user_id) do nothing;
@@ -390,7 +390,6 @@ begin
     or new.suspended is distinct from old.suspended
     or new.department_id is distinct from old.department_id
     or new.email is distinct from old.email
-    or new.identifier is distinct from old.identifier
     or new.verified is distinct from old.verified
     or new.auth_user_id is distinct from old.auth_user_id
     or new.id is distinct from old.id then
@@ -661,3 +660,44 @@ end;
 $$;
 
 revoke all on function public.seed_demo_account(uuid, text, text, text, text, text, text, text, boolean, boolean, boolean, boolean) from public, anon, authenticated;
+
+-- Report ids are issued by the database so two people cannot take the same SF number.
+
+create sequence if not exists public.report_id_seq as integer;
+
+do $$
+declare
+  floor_id integer := 10520;
+  used_id integer := 0;
+  current_id integer := 1;
+begin
+  select coalesce(max((regexp_replace(id, '\D', '', 'g'))::integer), 0)
+    into used_id
+  from public.reports
+  where id ~ '^SF-[0-9]+$';
+  select last_value into current_id from public.report_id_seq;
+  perform setval('public.report_id_seq', greatest(floor_id, used_id, current_id));
+end $$;
+
+create or replace function public.next_report_id()
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  next_id text;
+begin
+  if auth.uid() is null then
+    raise exception 'Not signed in';
+  end if;
+  loop
+    next_id := 'SF-' || nextval('public.report_id_seq')::text;
+    exit when not exists (select 1 from public.reports where id = next_id);
+  end loop;
+  return next_id;
+end;
+$$;
+
+revoke all on function public.next_report_id() from public, anon;
+grant execute on function public.next_report_id() to authenticated;

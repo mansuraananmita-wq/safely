@@ -9,7 +9,7 @@ import type { Photo, Status } from '../../types'
 
 export function ReviewPage() {
   const { id } = useParams()
-  const { currentUser, state, tx, lang, setStatus, addComment, requestInfo, extendDue } = useApp()
+  const { currentUser, state, tx, lang, remote, setStatus, addComment, requestInfo, extendDue } = useApp()
   const report = state.reports.find((item) => item.id === id)
   const [status, setNext] = useState<Status | ''>('')
   const [note, setNote] = useState('')
@@ -45,7 +45,7 @@ export function ReviewPage() {
         </div>
       </div>
       <div className="no-print space-y-3">
-        {report.anonymous ? <div className="rounded-2xl bg-plum/10 p-4 text-sm text-plum">{report.reporterId ? tx('The name is hidden. Status updates still reach the reporter’s own account in this preview.', 'নাম লুকানো। এই প্রিভিউতে স্ট্যাটাস রিপোর্টকারীর নিজের অ্যাকাউন্টে যায়।') : tx('No reply channel was collected.', 'উত্তরের কোনো পথ রাখা হয়নি।')}</div> : null}
+        {report.anonymous ? <div className="rounded-2xl bg-plum/10 p-4 text-sm text-plum">{report.reporterId ? (remote ? tx('The name is hidden. Status updates still reach the reporter’s own account.', 'নাম লুকানো। স্ট্যাটাস রিপোর্টকারীর নিজের অ্যাকাউন্টে যায়।') : tx('The name is hidden. Status updates still reach the reporter’s own account in this preview.', 'নাম লুকানো। এই প্রিভিউতে স্ট্যাটাস রিপোর্টকারীর নিজের অ্যাকাউন্টে যায়।')) : tx('No reply channel was collected.', 'উত্তরের কোনো পথ রাখা হয়নি।')}</div> : null}
         {operations ? <AssignOffice report={report} /> : null}
 
         {transitions.length > 0 ? (

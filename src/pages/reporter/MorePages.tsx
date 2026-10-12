@@ -4,9 +4,9 @@ import { GooglePlaceMap } from '../../components/GooglePlaceMap'
 import { ReportCard } from '../../components/ReportCard'
 import { SignOutDialog } from '../../components/AccountTools'
 import { Button, Empty, Field, Modal, buttonClass, useTitle } from '../../components/ui'
-import { DEMO_ACCOUNTS, PLACES, reportPoint } from '../../data'
-import { homePath, isOpen, roleLabel } from '../../logic'
-import { consumeSignedIn, useApp } from '../../store'
+import { PLACES, reportPoint } from '../../data'
+import { isOpen, roleLabel } from '../../logic'
+import { useApp } from '../../store'
 import { useNavigate } from 'react-router-dom'
 
 export function MapPage() {
@@ -204,112 +204,134 @@ function Choice({ pressed, onClick, children }: { pressed: boolean; onClick: () 
   )
 }
 
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean).slice(0, 2)
+  const letters = parts.map((part) => part[0]?.toUpperCase() ?? '').join('')
+  return letters || 'S'
+}
+
 export function ProfilePage() {
-  const { currentUser, state, tx, lang, toast, updateProfile, setLang, setTextSize, setContrast, loginDirect, resetDemo } = useApp()
+  const { currentUser, state, tx, lang, toast, remote, updateProfile, changePassword, setLang, setTextSize, setContrast, resetDemo } = useApp()
   const navigate = useNavigate()
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(currentUser?.name ?? '')
   const [unit, setUnit] = useState(currentUser?.unit ?? '')
+  const [identifier, setIdentifier] = useState(currentUser?.identifier ?? '')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [confirm, setConfirm] = useState(false)
   const [signOut, setSignOut] = useState(false)
   useEffect(() => {
     setName(currentUser?.name ?? '')
     setUnit(currentUser?.unit ?? '')
+    setIdentifier(currentUser?.identifier ?? '')
     setEditing(false)
   }, [currentUser?.id])
-  useTitle(tx('Profile and settings', 'প্রোফাইল ও সেটিংস'))
+  useTitle(tx('Profile', 'প্রোফাইল'))
   if (!currentUser) return null
+  const filed = state.reports.filter((report) => report.reporterId === currentUser.id && report.status !== 'draft')
+  const openCount = filed.filter((report) => isOpen(report.status)).length
+  const resolvedCount = filed.filter((report) => report.status === 'resolved' || report.status === 'closed').length
   const notices = [
     ['notifyInApp', tx('In the app', 'অ্যাপের ভেতরে'), tx('Status changes appear in the notification center.', 'স্ট্যাটাস বদলালে নোটিফিকেশন সেন্টারে দেখা যাবে।')] as const,
-    ['notifyEmail', tx('Email', 'ইমেইল'), tx('Saved for when mail delivery is connected.', 'ইমেইল চালু হলে এই পছন্দ ব্যবহার হবে।')] as const,
-    ['notifyPush', tx('Phone push', 'ফোন পুশ'), tx('Saved for when phone alerts are connected.', 'ফোন অ্যালার্ট চালু হলে এই পছন্দ ব্যবহার হবে।')] as const,
+    ['notifyEmail', tx('Email', 'ইমেইল'), tx('Used when mail delivery is turned on.', 'ইমেইল চালু থাকলে এই পছন্দ কাজ করে।')] as const,
+    ['notifyPush', tx('Phone push', 'ফোন পুশ'), tx('Used when phone alerts are turned on.', 'ফোন অ্যালার্ট চালু থাকলে এই পছন্দ কাজ করে।')] as const,
   ]
+  const save = (event: FormEvent) => {
+    event.preventDefault()
+    const nextName = name.trim()
+    const nextUnit = unit.trim()
+    if (nextName.length < 2 || nextUnit.length < 2) {
+      toast(tx('Add your name and department.', 'নাম ও বিভাগ লিখুন।'))
+      return
+    }
+    void updateProfile({ name: nextName, unit: nextUnit, identifier: identifier.trim() }).then((error) => {
+      if (error) return
+      setEditing(false)
+      toast(remote ? tx('Profile saved.', 'প্রোফাইল সেভ হয়েছে।') : tx('Profile saved in this browser.', 'প্রোফাইল এই ব্রাউজারে সেভ হয়েছে।'))
+    })
+  }
   return (
-    <div className="mx-auto max-w-2xl space-y-5">
-      <div>
-        <h1 className="font-display text-4xl">{tx('Profile and settings', 'প্রোফাইল ও সেটিংস')}</h1>
-        <p className="mt-1 text-sm text-ink/60">{tx('Your name, language, reading options, and alerts for this browser.', 'এই ব্রাউজারে আপনার নাম, ভাষা, পড়ার অপশন, এবং অ্যালার্ট।')}</p>
-      </div>
-
-      <section className="panel space-y-4 p-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="font-display text-2xl">{currentUser.name}</h2>
-            <p className="text-sm text-ink/60">{roleLabel(currentUser.role, lang)} · {currentUser.unit}</p>
-            <p className="mt-1 text-sm text-ink/60">{currentUser.email} · {currentUser.identifier}</p>
+    <div className="mx-auto max-w-3xl space-y-5">
+      <section className="overflow-hidden rounded-3xl border border-line bg-white">
+        <div className="bg-teal-900 px-5 py-7 text-paper sm:px-7">
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="grid h-16 w-16 place-items-center rounded-full bg-white/15 font-display text-2xl" aria-hidden="true">{initials(currentUser.name)}</div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-paper/70">{tx('Your account', 'আপনার অ্যাকাউন্ট')}</p>
+              <h1 className="mt-1 truncate font-display text-4xl">{currentUser.name}</h1>
+              <p className="mt-1 text-sm text-paper/80">{roleLabel(currentUser.role, lang)} · {currentUser.unit}</p>
+            </div>
+            {!editing ? <Button variant="secondary" className="sm:ml-auto" onClick={() => setEditing(true)}>{tx('Edit profile', 'প্রোফাইল সম্পাদনা')}</Button> : null}
           </div>
-          {!editing ? <Button variant="secondary" onClick={() => setEditing(true)}>{tx('Edit profile', 'প্রোফাইল সম্পাদনা')}</Button> : null}
         </div>
+        <dl className="grid grid-cols-3 divide-x divide-line border-b border-line text-center">
+          <div className="px-3 py-4">
+            <dt className="text-xs text-ink/55">{tx('Filed', 'জমা')}</dt>
+            <dd className="font-display text-3xl">{filed.length}</dd>
+          </div>
+          <div className="px-3 py-4">
+            <dt className="text-xs text-ink/55">{tx('Open', 'খোলা')}</dt>
+            <dd className="font-display text-3xl">{openCount}</dd>
+          </div>
+          <div className="px-3 py-4">
+            <dt className="text-xs text-ink/55">{tx('Resolved', 'সমাধান')}</dt>
+            <dd className="font-display text-3xl">{resolvedCount}</dd>
+          </div>
+        </dl>
         {editing ? (
-          <form
-            className="space-y-3 border-t border-line pt-4"
-            onSubmit={(event) => {
-              event.preventDefault()
-              const nextName = name.trim()
-              const nextUnit = unit.trim()
-              if (nextName.length < 2 || nextUnit.length < 2) {
-                toast(tx('Add your name and department.', 'নাম ও বিভাগ লিখুন।'))
-                return
-              }
-              updateProfile({ name: nextName, unit: nextUnit })
-              setEditing(false)
-              toast(tx('Profile saved in this browser.', 'প্রোফাইল এই ব্রাউজারে সেভ হয়েছে।'))
-            }}
-          >
+          <form className="space-y-3 p-5" onSubmit={save}>
             <Field label={tx('Name', 'নাম')}><input className="input" value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" /></Field>
             <Field label={tx('Department or office', 'বিভাগ বা দপ্তর')}><input className="input" value={unit} onChange={(event) => setUnit(event.target.value)} /></Field>
-            <p className="text-xs text-ink/55">{tx('Email and campus ID stay with the university account.', 'ইমেইল ও ক্যাম্পাস আইডি বিশ্ববিদ্যালয়ের অ্যাকাউন্টের সাথে থাকে।')}</p>
+            <Field label={tx('ID', 'আইডি')} hint={tx('Campus ID, staff ID, or another ID you use.', 'ক্যাম্পাস আইডি, কর্মকর্তা আইডি, বা আপনার ব্যবহৃত আইডি।')}><input className="input" value={identifier} onChange={(event) => setIdentifier(event.target.value)} /></Field>
+            <p className="text-xs text-ink/55">{tx('Email stays with this sign-in and cannot be changed here.', 'ইমেইল এই সাইন-ইনের সাথে থাকে, এখান থেকে বদলানো যায় না।')}</p>
             <div className="flex flex-wrap gap-2">
               <Button type="submit">{tx('Save profile', 'প্রোফাইল সেভ')}</Button>
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setName(currentUser.name)
-                  setUnit(currentUser.unit)
-                  setEditing(false)
-                }}
-              >
-                {tx('Cancel', 'বাতিল')}
-              </Button>
+              <Button variant="secondary" onClick={() => { setName(currentUser.name); setUnit(currentUser.unit); setIdentifier(currentUser.identifier); setEditing(false) }}>{tx('Cancel', 'বাতিল')}</Button>
             </div>
           </form>
-        ) : null}
+        ) : (
+          <dl className="grid gap-4 p-5 sm:grid-cols-2">
+            <div>
+              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-ink/45">{tx('Email', 'ইমেইল')}</dt>
+              <dd className="mt-1 break-all text-sm">{currentUser.email}</dd>
+            </div>
+            <div>
+              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-ink/45">{tx('ID', 'আইডি')}</dt>
+              <dd className="mt-1 text-sm">{currentUser.identifier || tx('Not added yet', 'এখনও যোগ হয়নি')}</dd>
+            </div>
+          </dl>
+        )}
       </section>
 
-      <section className="panel space-y-4 p-4">
-        <h2 className="font-display text-2xl">{tx('Language', 'ভাষা')}</h2>
-        <div className="flex flex-wrap gap-2">
-          <Choice pressed={lang === 'en'} onClick={() => setLang('en')}>English</Choice>
-          <Choice pressed={lang === 'bn'} onClick={() => setLang('bn')}>বাংলা</Choice>
+      <section className="panel space-y-5 p-5">
+        <h2 className="font-display text-2xl">{tx('Preferences', 'পছন্দ')}</h2>
+        <div>
+          <p className="text-sm font-semibold">{tx('Language', 'ভাষা')}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Choice pressed={lang === 'en'} onClick={() => setLang('en')}>English</Choice>
+            <Choice pressed={lang === 'bn'} onClick={() => setLang('bn')}>বাংলা</Choice>
+          </div>
         </div>
-      </section>
-
-      <section className="panel space-y-4 p-4">
-        <h2 className="font-display text-2xl">{tx('Text size', 'অক্ষরের আকার')}</h2>
-        <p className="text-sm text-ink/70">{tx('This sample line shows the size used across Safely.', 'এই নমুনা লাইনে সেইফলি জুড়ে ব্যবহৃত আকার দেখা যাচ্ছে।')}</p>
-        <div className="flex flex-wrap gap-2">
-          <Choice pressed={state.prefs.textSize === 'default'} onClick={() => setTextSize('default')}>{tx('Default', 'সাধারণ')}</Choice>
-          <Choice pressed={state.prefs.textSize === 'large'} onClick={() => setTextSize('large')}>{tx('Large', 'বড়')}</Choice>
+        <div className="border-t border-line pt-4">
+          <p className="text-sm font-semibold">{tx('Text size', 'অক্ষরের আকার')}</p>
+          <p className="mt-1 text-sm text-ink/70">{tx('This sample line shows the size used across Safely.', 'এই নমুনা লাইনে সেইফলি জুড়ে ব্যবহৃত আকার দেখা যাচ্ছে।')}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Choice pressed={state.prefs.textSize === 'default'} onClick={() => setTextSize('default')}>{tx('Default', 'সাধারণ')}</Choice>
+            <Choice pressed={state.prefs.textSize === 'large'} onClick={() => setTextSize('large')}>{tx('Large', 'বড়')}</Choice>
+          </div>
         </div>
-      </section>
-
-      <section className="panel space-y-3 p-4">
-        <h2 className="font-display text-2xl">{tx('High contrast', 'বেশি কনট্রাস্ট')}</h2>
-        <label className="flex items-start justify-between gap-4">
-          <span className="text-sm text-ink/70">{tx('Use black text, a white page, and stronger borders.', 'কালো লেখা, সাদা পাতা, এবং ঘন বর্ডার ব্যবহার হয়।')}</span>
-          <input
-            type="checkbox"
-            role="switch"
-            className="mt-1 h-5 w-5"
-            checked={state.prefs.contrast}
-            aria-label={tx('High contrast', 'বেশি কনট্রাস্ট')}
-            onChange={(event) => setContrast(event.target.checked)}
-          />
+        <label className="flex items-start justify-between gap-4 border-t border-line pt-4">
+          <span>
+            <span className="block text-sm font-semibold">{tx('High contrast', 'বেশি কনট্রাস্ট')}</span>
+            <span className="mt-1 block text-sm text-ink/60">{tx('Black text, a white page, and stronger borders.', 'কালো লেখা, সাদা পাতা, এবং ঘন বর্ডার।')}</span>
+          </span>
+          <input type="checkbox" role="switch" className="mt-1 h-5 w-5" checked={state.prefs.contrast} aria-label={tx('High contrast', 'বেশি কনট্রাস্ট')} onChange={(event) => setContrast(event.target.checked)} />
         </label>
       </section>
 
-      <section className="panel space-y-3 p-4">
-        <h2 className="font-display text-2xl">{tx('Notification preferences', 'নোটিফিকেশনের পছন্দ')}</h2>
+      <section className="panel space-y-3 p-5">
+        <h2 className="font-display text-2xl">{tx('Notifications', 'নোটিফিকেশন')}</h2>
         {notices.map(([key, label, hint]) => (
           <label key={key} className="flex items-start justify-between gap-4 border-t border-line pt-3 first:border-t-0 first:pt-0">
             <span>
@@ -323,37 +345,46 @@ export function ProfilePage() {
               checked={currentUser[key]}
               aria-label={label}
               onChange={(event) => {
-                updateProfile({ [key]: event.target.checked })
-                toast(tx('Notification preference saved.', 'নোটিফিকেশনের পছন্দ সেভ হয়েছে।'))
+                void updateProfile({ [key]: event.target.checked }).then((error) => {
+                  if (!error) toast(tx('Notification preference saved.', 'নোটিফিকেশনের পছন্দ সেভ হয়েছে।'))
+                })
               }}
             />
           </label>
         ))}
       </section>
 
-      <section className="panel space-y-2 p-4">
-        <h2 className="font-display text-2xl">{tx('Switch demo account', 'ডেমো অ্যাকাউন্ট বদলান')}</h2>
-        {DEMO_ACCOUNTS.map((account) => (
-          <button key={account.email} type="button" className="block w-full rounded-xl px-2 py-2 text-left text-sm hover:bg-teal-50" onClick={() => {
-            void loginDirect(account.email).then((error) => {
-              if (error) return
-              const user = consumeSignedIn()
-              if (user) navigate(homePath(user.role))
+      {remote ? (
+        <section className="panel space-y-3 p-5">
+          <h2 className="font-display text-2xl">{tx('Password', 'পাসওয়ার্ড')}</h2>
+          <p className="text-sm text-ink/70">{tx('Choose a new password for this account. It replaces the one you use to sign in.', 'এই অ্যাকাউন্টের নতুন পাসওয়ার্ড দিন। সাইন ইনের পাসওয়ার্ড এটি দিয়ে বদলে যাবে।')}</p>
+          <form className="space-y-3" onSubmit={(event) => {
+            event.preventDefault()
+            if (password !== confirmPassword) {
+              toast(tx('Those passwords do not match.', 'পাসওয়ার্ড দুটি মেলেনি।'))
+              return
+            }
+            void changePassword(password).then((ok) => {
+              if (!ok) return
+              setPassword('')
+              setConfirmPassword('')
             })
           }}>
-            <span className="font-semibold">{account.email}</span>
-            <span className="block text-xs text-ink/55">{tx(account.noteEn, account.noteBn)}</span>
-          </button>
-        ))}
-      </section>
-      <div className="flex flex-wrap gap-2">
-        <Button variant="danger" onClick={() => setConfirm(true)}>{tx('Restore preview data', 'প্রিভিউ ডেটা ফেরান')}</Button>
+            <Field label={tx('New password', 'নতুন পাসওয়ার্ড')}><input className="input" type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} /></Field>
+            <Field label={tx('Confirm password', 'পাসওয়ার্ড নিশ্চিত করুন')}><input className="input" type="password" autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} /></Field>
+            <Button type="submit">{tx('Update password', 'পাসওয়ার্ড আপডেট')}</Button>
+          </form>
+        </section>
+      ) : null}
+
+      <div className="flex flex-wrap items-center gap-2">
         <Button variant="secondary" onClick={() => setSignOut(true)}>{tx('Sign out', 'সাইন আউট')}</Button>
+        <Button variant="ghost" onClick={() => setConfirm(true)}>{remote ? tx('Reload campus data', 'ক্যাম্পাস ডেটা আবার লোড') : tx('Restore preview data', 'প্রিভিউ ডেটা ফেরান')}</Button>
       </div>
-      <Modal open={confirm} title={tx('Restore the original preview?', 'আসল প্রিভিউ ফেরাবেন?')} onClose={() => setConfirm(false)}>
-        <p className="text-sm">{tx('Reports you filed in this browser will be replaced by the sample campus.', 'এই ব্রাউজারে আপনি যে রিপোর্ট দিয়েছেন, সেগুলো নমুনা ক্যাম্পাস দিয়ে বদলে যাবে।')}</p>
+      <Modal open={confirm} title={remote ? tx('Reload from the campus database?', 'ক্যাম্পাস ডেটাবেস থেকে আবার লোড করবেন?') : tx('Restore the original preview?', 'আসল প্রিভিউ ফেরাবেন?')} onClose={() => setConfirm(false)}>
+        <p className="text-sm">{remote ? tx('This loads the current campus records again. It does not delete them.', 'এতে ক্যাম্পাসের বর্তমান রেকর্ড আবার লোড হয়। কিছু মুছে যায় না।') : tx('Reports you filed in this browser will be replaced by the sample campus.', 'এই ব্রাউজারে আপনি যে রিপোর্ট দিয়েছেন, সেগুলো নমুনা ক্যাম্পাস দিয়ে বদলে যাবে।')}</p>
         <div className="mt-4 flex gap-2">
-          <Button variant="danger" onClick={() => { resetDemo(); setConfirm(false); navigate('/') }}>{tx('Restore', 'ফেরান')}</Button>
+          <Button variant="danger" onClick={() => { resetDemo(); setConfirm(false); navigate('/') }}>{remote ? tx('Reload', 'আবার লোড') : tx('Restore', 'ফেরান')}</Button>
           <Button variant="secondary" onClick={() => setConfirm(false)}>{tx('Cancel', 'বাতিল')}</Button>
         </div>
       </Modal>
