@@ -1,6 +1,6 @@
 # Safely
 
-Safely is the campus problem desk for Padma University. A student, teacher, or staff member files one report. An officer assigns it to an office, and the person who filed it follows the status. Harassment and other confidential cases stay with Security or Student Affairs. Nothing is assigned on its own.
+Safely is a campus problem desk. A student, teacher, or staff member files one report. An officer assigns it to an office, and the person who filed it follows the status. Harassment and other confidential cases stay with Security or Student Affairs. Nothing is assigned on its own.
 
 Safely is not an emergency service. If someone is in danger, call **999**. The SOS button does not dial 999.
 
@@ -105,7 +105,7 @@ These are written up in [BACKEND.md](BACKEND.md):
 - An email provider, if status changes should send mail
 - FCM or APNs, if the phone should get push alerts
 - A public host for the website
-- Real building coordinates, when the university supplies them
+- Real building coordinates, when the campus supplies them
 
 ## Layout
 
