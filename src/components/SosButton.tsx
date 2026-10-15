@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { preferLiveFix, sendDecision, watchLiveLocation, type LiveFix } from '../lib/sos'
+import { networkLocation, preferLiveFix, sendDecision, watchLiveLocation, type LiveFix } from '../lib/sos'
 import { useApp } from '../store'
 import { Button, Modal } from './ui'
 
@@ -16,39 +16,38 @@ export function SosButton({ large = false }: { large?: boolean }) {
   const sentRef = useRef<{ id: string; accuracy: number } | null>(null)
   const sendRef = useRef(sendSos)
   const refineRef = useRef(refineSosLocation)
+  const stopWatch = useRef<(() => void) | null>(null)
   sendRef.current = sendSos
   refineRef.current = refineSosLocation
   const [fix, setFix] = useState<LiveFix | null>(null)
   const [trackingId, setTrackingId] = useState<string | null>(null)
   const mine = (state.emergencyContacts ?? []).filter((item) => item.userId === currentUser?.id)
 
+  const acceptFix = (next: LiveFix) => {
+    const chosen = preferLiveFix(fixRef.current, next)
+    fixRef.current = chosen
+    setFix(chosen)
+  }
+
+  useEffect(() => () => stopWatch.current?.(), [])
+
   useEffect(() => {
-    if (!open) return
-    deniedRef.current = false
-    return watchLiveLocation((next) => {
-      const chosen = preferLiveFix(fixRef.current, next)
-      fixRef.current = chosen
-      setFix(chosen)
-    }, () => {
-      deniedRef.current = true
-    })
-  }, [open])
+    if (!trackingId || !fix) return
+    const sent = sentRef.current
+    if (!sent || sent.id !== trackingId) return
+    if (fix.accuracy + 20 >= sent.accuracy) return
+    sentRef.current = { id: sent.id, accuracy: fix.accuracy }
+    void refineRef.current(sent.id, { lat: fix.lat, lng: fix.lng, accuracy: fix.accuracy })
+  }, [trackingId, fix])
 
   useEffect(() => {
     if (!trackingId) return
-    const started = Date.now()
-    const stop = watchLiveLocation((next) => {
-      const sent = sentRef.current
-      if (!sent || sent.id !== trackingId || Date.now() - started > 90_000) return
-      if (next.accuracy + 20 >= sent.accuracy) return
-      sentRef.current = { id: sent.id, accuracy: next.accuracy }
-      void refineRef.current(sent.id, next)
-    })
-    const timer = window.setTimeout(() => setTrackingId(null), 90_000)
-    return () => {
-      stop()
-      window.clearTimeout(timer)
-    }
+    const timer = window.setTimeout(() => {
+      stopWatch.current?.()
+      stopWatch.current = null
+      setTrackingId(null)
+    }, 90_000)
+    return () => window.clearTimeout(timer)
   }, [trackingId])
 
   useEffect(() => {
@@ -108,11 +107,22 @@ export function SosButton({ large = false }: { large?: boolean }) {
     setResult(null)
     setLeft(3)
     setPhase('count')
+    stopWatch.current?.()
+    stopWatch.current = watchLiveLocation(acceptFix, () => {
+      deniedRef.current = true
+    })
+    void networkLocation().then((place) => {
+      if (place && !cancelRef.current) acceptFix(place)
+    })
     setOpen(true)
   }
 
   const cancel = () => {
     cancelRef.current = true
+    if (!sentRef.current) {
+      stopWatch.current?.()
+      stopWatch.current = null
+    }
     setOpen(false)
     setPhase('count')
   }
@@ -174,15 +184,12 @@ export function SosButton({ large = false }: { large?: boolean }) {
         ) : null}
         {phase === 'sending' ? (
           <p className="text-sm">
-            {fix && fix.accuracy <= 100
+            {fix
               ? tx(
-                  `Sending the live location ${fix.lat.toFixed(6)}, ${fix.lng.toFixed(6)}.`,
-                  `লাইভ লোকেশন ${fix.lat.toFixed(6)}, ${fix.lng.toFixed(6)} পাঠানো হচ্ছে।`,
+                  `Sending ${fix.lat.toFixed(6)}, ${fix.lng.toFixed(6)}.${fix.accuracy > 1000 ? ' A closer device fix will move this pin.' : ''}`,
+                  `${fix.lat.toFixed(6)}, ${fix.lng.toFixed(6)} পাঠানো হচ্ছে।${fix.accuracy > 1000 ? ' ডিভাইসের আরও কাছের ফিক্স এলে এই পিন সরে যাবে।' : ''}`,
                 )
-              : tx(
-                  'Waiting for a close GPS fix. A rough network location is not sent as your live position.',
-                  'কাছের জিপিএস ফিক্সের অপেক্ষা। মোটা নেটওয়ার্ক লোকেশনকে লাইভ লোকেশন হিসেবে পাঠানো হচ্ছে না।',
-                )}
+              : tx('Still reading your location.', 'লোকেশন এখনও পড়া হচ্ছে।')}
           </p>
         ) : null}
         {phase === 'blocked' ? (

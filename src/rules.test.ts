@@ -89,13 +89,14 @@ describe('sos live location', () => {
     expect(sosMessage('Amina Rahman', null)).toContain('Location was not available.')
   })
 
-  it('waits for a close fix and does not send a 50 km network guess immediately', () => {
-    const coarse = { lat: 24.7399, lng: 88.2099, accuracy: 50_000, at: 1 }
-    expect(sendDecision(null, 1_000, false)).toBe('wait')
-    expect(sendDecision(coarse, 1_000, false)).toBe('wait')
-    expect(sendDecision(coarse, 12_000, false)).toBe('send')
-    expect(sendDecision({ lat: 24.07, lng: 90.22, accuracy: 12, at: 2 }, 500, false)).toBe('send')
-    expect(sendDecision(null, 20_000, false)).toBe('blocked')
-    expect(sendDecision(null, 500, true)).toBe('blocked')
+  it('sends a device or network fix and lets a closer reading replace it', () => {
+    const city = { lat: 23.7942, lng: 90.4097, accuracy: 8_000, at: 1_000 }
+    const wifi = { lat: 24.071, lng: 90.219, accuracy: 300, at: 2_000 }
+    expect(sendDecision(wifi, 0, false)).toBe('send')
+    expect(sendDecision(city, 1_000, false)).toBe('wait')
+    expect(sendDecision(city, 4_000, false)).toBe('send')
+    expect(sendDecision(null, 1_000, true)).toBe('wait')
+    expect(sendDecision(null, 6_000, true)).toBe('blocked')
+    expect(preferLiveFix(city, wifi)).toEqual(wifi)
   })
 })

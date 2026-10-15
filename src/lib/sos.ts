@@ -33,7 +33,6 @@ export function watchLiveLocation(onFix: (fix: LiveFix) => void, onDenied?: () =
     onDenied?.()
     return () => {}
   }
-  const options: PositionOptions = { enableHighAccuracy: true, maximumAge: 0, timeout: 25000 }
   const take = (position: GeolocationPosition) => {
     onFix({
       lat: position.coords.latitude,
@@ -42,17 +41,32 @@ export function watchLiveLocation(onFix: (fix: LiveFix) => void, onDenied?: () =
       at: position.timestamp || Date.now(),
     })
   }
-  const fail = (error: GeolocationPositionError) => {
+  const denied = (error: GeolocationPositionError) => {
     if (error.code === error.PERMISSION_DENIED) onDenied?.()
   }
-  const watch = navigator.geolocation.watchPosition(take, fail, options)
+  navigator.geolocation.getCurrentPosition(take, denied, { enableHighAccuracy: false, maximumAge: 120_000, timeout: 10_000 })
+  const watch = navigator.geolocation.watchPosition(take, () => {}, { enableHighAccuracy: true, maximumAge: 0, timeout: 20_000 })
   return () => navigator.geolocation.clearWatch(watch)
 }
 
+export async function networkLocation(): Promise<LiveFix | null> {
+  try {
+    const response = await fetch('https://get.geojs.io/v1/ip/geo.json')
+    if (!response.ok) return null
+    const body = await response.json() as { latitude?: string; longitude?: string }
+    const lat = Number(body.latitude)
+    const lng = Number(body.longitude)
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+    return { lat, lng, accuracy: 8_000, at: Date.now() }
+  } catch {
+    return null
+  }
+}
+
 export function sendDecision(fix: LiveFix | null, waitedMs: number, denied: boolean): 'wait' | 'send' | 'blocked' {
-  if (fix && fix.accuracy <= 100) return 'send'
-  if (denied) return 'blocked'
-  if (fix && waitedMs >= 12000) return 'send'
-  if (!fix && waitedMs >= 20000) return 'blocked'
+  if (fix && fix.accuracy <= 1_000) return 'send'
+  if (fix && waitedMs >= 4_000) return 'send'
+  if (!fix && denied && waitedMs >= 6_000) return 'blocked'
+  if (!fix && waitedMs >= 15_000) return 'blocked'
   return 'wait'
 }
