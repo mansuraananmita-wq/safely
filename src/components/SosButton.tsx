@@ -1,17 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
-import { networkLocation, preferLiveFix, sendDecision, watchLiveLocation, type LiveFix } from '../lib/sos'
+import { isPreciseFix, preferLiveFix, watchLiveLocation, type LiveFix } from '../lib/sos'
 import { useApp } from '../store'
 import { Button, Modal } from './ui'
+import { GooglePlaceMap } from './GooglePlaceMap'
 
 export function SosButton({ large = false }: { large?: boolean }) {
   const { currentUser, state, tx, sendSos, refineSosLocation } = useApp()
   const [open, setOpen] = useState(false)
   const [left, setLeft] = useState(3)
-  const [phase, setPhase] = useState<'count' | 'sending' | 'blocked' | 'done'>('count')
+  const [phase, setPhase] = useState<'locating' | 'count' | 'sending' | 'blocked' | 'done'>('locating')
   const [result, setResult] = useState<'sent' | 'desk' | 'sms-failed' | 'soon' | 'empty' | 'rejected' | null>(null)
   const cancelRef = useRef(false)
   const startedRef = useRef(false)
-  const deniedRef = useRef(false)
+  const [denied, setDenied] = useState(false)
   const fixRef = useRef<LiveFix | null>(null)
   const sentRef = useRef<{ id: string; accuracy: number } | null>(null)
   const sendRef = useRef(sendSos)
@@ -25,6 +26,7 @@ export function SosButton({ large = false }: { large?: boolean }) {
 
   const acceptFix = (next: LiveFix) => {
     const chosen = preferLiveFix(fixRef.current, next)
+    if (!chosen) return
     fixRef.current = chosen
     setFix(chosen)
   }
@@ -51,6 +53,21 @@ export function SosButton({ large = false }: { large?: boolean }) {
   }, [trackingId])
 
   useEffect(() => {
+    if (!open || phase !== 'locating') return
+    const timer = window.setTimeout(() => {
+      if (isPreciseFix(fixRef.current)) return
+      setPhase('blocked')
+    }, denied ? 8_000 : 20_000)
+    return () => window.clearTimeout(timer)
+  }, [open, phase, denied])
+
+  useEffect(() => {
+    if (!open || phase !== 'locating' || !isPreciseFix(fix)) return
+    setLeft(3)
+    setPhase('count')
+  }, [open, phase, fix])
+
+  useEffect(() => {
     if (!open || phase !== 'count' || left <= 0) return
     const timer = window.setTimeout(() => setLeft((value) => value - 1), 1000)
     return () => window.clearTimeout(timer)
@@ -64,36 +81,20 @@ export function SosButton({ large = false }: { large?: boolean }) {
 
   useEffect(() => {
     if (!open || phase !== 'sending') return
-    let stopped = false
-    const started = Date.now()
-    const finish = (outcome: 'sent' | 'desk' | 'sms-failed' | 'soon' | 'empty' | 'rejected', id: string | null, accuracy: number) => {
+    if (cancelRef.current) return
+    const place = fixRef.current
+    if (!isPreciseFix(place)) {
+      setPhase('blocked')
+      return
+    }
+    const reading = { lat: place.lat, lng: place.lng, accuracy: place.accuracy }
+    void sendRef.current(reading).then((outcome) => {
       if (cancelRef.current) return
-      if (id) {
-        sentRef.current = { id, accuracy }
-        setTrackingId(id)
-      }
-      setResult(outcome)
+      sentRef.current = outcome.id ? { id: outcome.id, accuracy: place.accuracy } : null
+      if (outcome.id) setTrackingId(outcome.id)
+      setResult(outcome.status)
       setPhase('done')
-    }
-    const attempt = () => {
-      if (stopped || cancelRef.current) return
-      const decision = sendDecision(fixRef.current, Date.now() - started, deniedRef.current)
-      if (decision === 'wait') return
-      stopped = true
-      if (decision === 'blocked') {
-        setPhase('blocked')
-        return
-      }
-      const place = fixRef.current
-      const reading = place ? { lat: place.lat, lng: place.lng, accuracy: place.accuracy } : null
-      void sendRef.current(reading).then((outcome) => finish(outcome.status, outcome.id, place?.accuracy ?? 99_999))
-    }
-    attempt()
-    const timer = window.setInterval(attempt, 300)
-    return () => {
-      stopped = true
-      window.clearInterval(timer)
-    }
+    })
   }, [open, phase])
 
   if (!currentUser) return null
@@ -101,19 +102,14 @@ export function SosButton({ large = false }: { large?: boolean }) {
   const start = () => {
     cancelRef.current = false
     startedRef.current = false
-    deniedRef.current = false
+    setDenied(false)
     fixRef.current = null
     setFix(null)
     setResult(null)
     setLeft(3)
-    setPhase('count')
+    setPhase('locating')
     stopWatch.current?.()
-    stopWatch.current = watchLiveLocation(acceptFix, () => {
-      deniedRef.current = true
-    })
-    void networkLocation().then((place) => {
-      if (place && !cancelRef.current) acceptFix(place)
-    })
+    stopWatch.current = watchLiveLocation(acceptFix, () => setDenied(true))
     setOpen(true)
   }
 
@@ -145,12 +141,17 @@ export function SosButton({ large = false }: { large?: boolean }) {
           ? tx('The alert was not saved. Try again in a moment.', 'সতর্কতা সেভ হয়নি। একটু পরে আবার চেষ্টা করুন।')
           : tx('The campus desk has the alert. Phone texts start after Twilio is connected. See BACKEND.md.', 'ক্যাম্পাস ডেস্ক সতর্কতা পেয়েছে। Twilio যুক্ত হলে ফোন বার্তা যাবে। BACKEND.md দেখুন।')
 
-  const liveLine = fix
-    ? tx(
-        `Live location ${fix.lat.toFixed(6)}, ${fix.lng.toFixed(6)} · ${Math.round(fix.accuracy)} m`,
-        `লাইভ লোকেশন ${fix.lat.toFixed(6)}, ${fix.lng.toFixed(6)} · ${Math.round(fix.accuracy)} মি`,
-      )
-    : tx('Finding your live location… Allow location if the browser asks.', 'আপনার লাইভ লোকেশন খোঁজা হচ্ছে… ব্রাউজার চাইলে লোকেশন অনুমতি দিন।')
+  const pin = isPreciseFix(fix) ? (
+    <GooglePlaceMap
+      lat={fix.lat}
+      lng={fix.lng}
+      zoom={18}
+      compact
+      eager
+      label={tx('This pin will be sent', 'এই পিন যাবে')}
+      note={tx(`Within ${Math.round(fix.accuracy)} m of you`, `আপনার ${Math.round(fix.accuracy)} মিটারের মধ্যে`)}
+    />
+  ) : null
 
   return (
     <>
@@ -164,10 +165,22 @@ export function SosButton({ large = false }: { large?: boolean }) {
         SOS
       </button>
       <Modal open={open} title={tx('SOS', 'এসওএস')} onClose={() => { if (phase === 'sending') return; cancel() }}>
+        {phase === 'locating' ? (
+          <div className="space-y-4">
+            <p className="text-sm font-semibold">{tx('Reading your live location…', 'আপনার লাইভ লোকেশন পড়া হচ্ছে…')}</p>
+            <p className="text-sm text-ink/75">
+              {tx(
+                'The desk receives the pin only when it is close enough to find you. Allow location if Chrome asks. A city or IP location is not sent.',
+                'পিনটা আপনাকে খুঁজে পাওয়ার মতো কাছে এলেই ডেস্ক পায়। Chrome চাইলে লোকেশন অনুমতি দিন। শহর বা আইপি লোকেশন পাঠানো হয় না।',
+              )}
+            </p>
+            <Button variant="secondary" className="w-full" onClick={cancel} autoFocus>{tx('Cancel', 'বাতিল')}</Button>
+          </div>
+        ) : null}
         {phase === 'count' ? (
           <div className="space-y-4">
             <p className="font-display text-6xl text-clay">{left}</p>
-            <p className="text-sm font-semibold">{liveLine}</p>
+            {pin}
             <p className="text-sm text-ink/75">
               {mine.length
                 ? tx(
@@ -183,18 +196,18 @@ export function SosButton({ large = false }: { large?: boolean }) {
           </div>
         ) : null}
         {phase === 'sending' ? (
-          <p className="text-sm">
-            {fix
-              ? tx(
-                  `Sending ${fix.lat.toFixed(6)}, ${fix.lng.toFixed(6)}.${fix.accuracy > 1000 ? ' A closer device fix will move this pin.' : ''}`,
-                  `${fix.lat.toFixed(6)}, ${fix.lng.toFixed(6)} পাঠানো হচ্ছে।${fix.accuracy > 1000 ? ' ডিভাইসের আরও কাছের ফিক্স এলে এই পিন সরে যাবে।' : ''}`,
-                )
-              : tx('Still reading your location.', 'লোকেশন এখনও পড়া হচ্ছে।')}
-          </p>
+          <div className="space-y-4">
+            {pin}
+            <p className="text-sm">
+              {isPreciseFix(fix)
+                ? tx(`Sending ${fix.lat.toFixed(6)}, ${fix.lng.toFixed(6)}.`, `${fix.lat.toFixed(6)}, ${fix.lng.toFixed(6)} পাঠানো হচ্ছে।`)
+                : tx('Still reading your location.', 'লোকেশন এখনও পড়া হচ্ছে।')}
+            </p>
+          </div>
         ) : null}
         {phase === 'blocked' ? (
           <div className="space-y-4">
-            <p className="text-sm">{tx('The browser did not share a live location. Allow location for this site, then press SOS again. You can still alert the desk without a map.', 'ব্রাউজার লাইভ লোকেশন দেয়নি। এই সাইটে লোকেশন অনুমতি দিন, তারপর আবার SOS চাপুন। ম্যাপ ছাড়াও ডেস্ককে জানানো যায়।')}</p>
+            <p className="text-sm">{tx('A close location did not arrive, so nothing was sent. Click the lock in the address bar, set Location to Allow, and turn on Windows location for Chrome. Then press SOS again.', 'কাছের লোকেশন আসেনি, তাই কিছু পাঠানো হয়নি। ঠিকানার তালা চিহ্নে Location Allow করুন, এবং Windows-এ Chrome-এর লোকেশন চালু করুন। তারপর আবার SOS চাপুন।')}</p>
             <Button className="w-full" onClick={sendWithoutLocation}>{tx('Alert the desk without a map', 'ম্যাপ ছাড়া ডেস্ককে জানান')}</Button>
             <Button variant="secondary" className="w-full" onClick={cancel}>{tx('Cancel', 'বাতিল')}</Button>
           </div>
@@ -202,7 +215,7 @@ export function SosButton({ large = false }: { large?: boolean }) {
         {phase === 'done' ? (
           <div className="space-y-4">
             <p className="text-sm">{outcome}</p>
-            {fix ? <p className="text-sm font-semibold">{liveLine}</p> : null}
+            {pin}
             <Button className="w-full" onClick={cancel}>{tx('Close', 'বন্ধ')}</Button>
           </div>
         ) : null}

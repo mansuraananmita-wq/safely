@@ -42,7 +42,7 @@ export function SosPage() {
         <p className="mt-2 max-w-2xl text-sm text-ink/70">
           {desk
             ? tx('Help messages land here with the sender’s location. The desk does not need a phone number.', 'সাহায্যের বার্তা পাঠানো ব্যক্তির লোকেশনসহ এখানে আসে। ডেস্কের ফোন নম্বর লাগে না।')
-            : tx('Press SOS, then you have 3 seconds to cancel. If you do not cancel, the campus desk gets a help message with your location. Saved numbers are extra. This button does not call 999.', 'SOS চাপলে ৩ সেকেন্ড সময় পাবেন বাতিল করতে। বাতিল না করলে ক্যাম্পাস ডেস্ক লোকেশনসহ সাহায্যের বার্তা পায়। সেভ করা নম্বর অতিরিক্ত। এই বোতাম ৯৯৯-এ কল করে না।')}
+            : tx('SOS waits for a close device location, shows that pin, then gives you 3 seconds to cancel. A city or IP pin is not sent. Saved numbers are extra. This button does not call 999.', 'SOS কাছের ডিভাইস লোকেশনের জন্য অপেক্ষা করে, পিন দেখায়, তারপর বাতিলের জন্য ৩ সেকেন্ড দেয়। শহর বা আইপি পিন যায় না। সেভ করা নম্বর অতিরিক্ত। এই বোতাম ৯৯৯-এ কল করে না।')}
         </p>
       </div>
       {desk ? <SosInbox /> : null}

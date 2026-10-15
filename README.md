@@ -93,7 +93,7 @@ Demo people in the app are Amina Rahman, Dr. Karim Hassan, and Nusrat Jahan. Wit
 
 ## SOS
 
-Press SOS, then wait three seconds or press Cancel. Cancel sends nothing. If the countdown finishes, the app sends the device location. A laptop without GPS sends the Wi-Fi or network location, and a closer fix moves the desk pin when it arrives. The campus desk sees the message and the map in the dashboard and on `/admin/sos`. Marking an alert as solved removes it from the open count on the SOS button. Saved personal numbers are optional extra SMS recipients.
+Press SOS. The app asks the device for a fresh precise location and ignores a city or IP guess. When a reading is within 150 metres, the pin appears on a map and a 3-second countdown starts. Cancel sends nothing. If the countdown finishes, the campus desk gets that pin. If no close reading arrives, nothing is sent until the person chooses to alert the desk without a map. The desk sees the message on the dashboard and on `/admin/sos`. Marking an alert as solved removes it from the open count on the SOS button. Saved personal numbers are optional extra SMS recipients.
 
 One account can send one SOS per minute. 999, 112, and 911 cannot be saved as contacts.
 

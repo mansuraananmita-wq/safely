@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { assignmentBlocked, deskReports, isPublicFeed, officeCanRead, QUEUE_OFFICES } from './logic'
-import { preferLiveFix, normalizePhone, sendDecision, sosMessage } from './lib/sos'
+import { isPreciseFix, preferLiveFix, normalizePhone, sendDecision, sosMessage } from './lib/sos'
 import type { Report, User } from './types'
 
 function user(partial: Partial<User> & Pick<User, 'id' | 'role'>): User {
@@ -89,14 +89,22 @@ describe('sos live location', () => {
     expect(sosMessage('Amina Rahman', null)).toContain('Location was not available.')
   })
 
-  it('sends a device or network fix and lets a closer reading replace it', () => {
+  it('sends a close device fix and never a city or IP pin', () => {
+    const precise = { lat: 23.8103, lng: 90.4125, accuracy: 18, at: 2_000 }
+    const neighbourhood = { lat: 24.071, lng: 90.219, accuracy: 300, at: 2_000 }
     const city = { lat: 23.7942, lng: 90.4097, accuracy: 8_000, at: 1_000 }
-    const wifi = { lat: 24.071, lng: 90.219, accuracy: 300, at: 2_000 }
-    expect(sendDecision(wifi, 0, false)).toBe('send')
-    expect(sendDecision(city, 1_000, false)).toBe('wait')
-    expect(sendDecision(city, 4_000, false)).toBe('send')
+    const ip = { lat: 24.7399, lng: 88.2099, accuracy: 50_000, at: 1_000 }
+    expect(isPreciseFix(precise)).toBe(true)
+    expect(isPreciseFix(neighbourhood)).toBe(false)
+    expect(sendDecision(precise, 0, false)).toBe('send')
+    expect(sendDecision(neighbourhood, 4_000, false)).toBe('wait')
+    expect(sendDecision(neighbourhood, 20_000, false)).toBe('blocked')
+    expect(sendDecision(city, 20_000, false)).toBe('blocked')
+    expect(sendDecision(ip, 0, false)).toBe('wait')
     expect(sendDecision(null, 1_000, true)).toBe('wait')
-    expect(sendDecision(null, 6_000, true)).toBe('blocked')
-    expect(preferLiveFix(city, wifi)).toEqual(wifi)
+    expect(sendDecision(null, 8_000, true)).toBe('blocked')
+    expect(preferLiveFix(city, precise)).toEqual(precise)
+    expect(preferLiveFix(precise, ip)).toEqual(precise)
+    expect(preferLiveFix(null, neighbourhood)).toBeNull()
   })
 })

@@ -54,7 +54,7 @@ export function SosInbox({ limit, linked = false }: { limit?: number; linked?: b
 function SosCard({ item, desk }: { item: SosAlert; desk: boolean }) {
   const { tx, lang, resolveSos } = useApp()
   const hasPlace = typeof item.lat === 'number' && typeof item.lng === 'number'
-  const rough = typeof item.accuracyM === 'number' && item.accuracyM > 100
+  const rough = typeof item.accuracyM === 'number' && item.accuracyM > 150
   return (
     <li className="rounded-2xl border border-line bg-white p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -72,7 +72,7 @@ function SosCard({ item, desk }: { item: SosAlert; desk: boolean }) {
       {item.resolvedAt ? <p className="mt-2 text-sm font-semibold text-moss">{tx('Solved', 'সমাধান হয়েছে')}</p> : null}
       {hasPlace ? (
         <div className="mt-3">
-          <GooglePlaceMap lat={item.lat!} lng={item.lng!} label={item.senderName} note={rough ? tx('Approximate network location. A closer GPS fix replaces this pin.', 'আনুমানিক নেটওয়ার্ক লোকেশন। কাছের জিপিএস এলে এই পিন বদলায়।') : tx('Location sent with the help message', 'সাহায্যের বার্তার সাথে পাঠানো লোকেশন')} eager />
+          <GooglePlaceMap lat={item.lat!} lng={item.lng!} label={item.senderName} note={rough ? tx('This older pin is too wide to find someone. A new SOS only sends a close device location.', 'এই পুরোনো পিন কাউকে খুঁজে পাওয়ার মতো কাছের নয়। নতুন SOS শুধু কাছের ডিভাইস লোকেশন পাঠায়।') : tx('Location sent with the help message', 'সাহায্যের বার্তার সাথে পাঠানো লোকেশন')} eager />
         </div>
       ) : (
         <p className="mt-3 text-sm text-clay">{tx('Location was not available.', 'লোকেশন পাওয়া যায়নি।')}</p>
