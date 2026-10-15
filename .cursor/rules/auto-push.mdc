@@ -1,0 +1,14 @@
+---
+description: Commit and push after every change
+alwaysApply: true
+---
+After you finish making changes to the project:
+1. Run `git add -A`
+2. Run `git commit -m "<short, clear description of the change>"`
+3. Run `git push`
+
+Rules:
+- Do this at the end of every task, without me having to ask.
+- Run these as terminal commands so I get the Allow prompt. I will click Allow myself.
+- Do not skip the push step.
+- Never commit .env files, API keys, or secrets. If you see any, stop and tell me.
