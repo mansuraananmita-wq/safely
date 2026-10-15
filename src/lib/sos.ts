@@ -14,8 +14,8 @@ export function normalizePhone(raw: string): string | null {
 
 export type LiveFix = { lat: number; lng: number; accuracy: number; at: number }
 
-/** A pin wider than this can land in another neighbourhood. It is not sent. */
-export const LIVE_MAX_M = 150
+/** Wider than this is a city or IP guess, not the device GPS or Wi-Fi fix. */
+export const LIVE_MAX_M = 1_000
 
 export function isPreciseFix(fix: LiveFix | null): fix is LiveFix {
   return !!fix && fix.accuracy > 0 && fix.accuracy <= LIVE_MAX_M
@@ -42,13 +42,11 @@ export function watchLiveLocation(onFix: (fix: LiveFix) => void, onDenied?: () =
     return () => {}
   }
   const take = (position: GeolocationPosition) => {
-    const at = position.timestamp || Date.now()
-    if (Date.now() - at > 15_000) return
     const next = {
       lat: position.coords.latitude,
       lng: position.coords.longitude,
       accuracy: position.coords.accuracy,
-      at,
+      at: position.timestamp || Date.now(),
     }
     if (!isPreciseFix(next)) return
     onFix(next)
@@ -56,15 +54,14 @@ export function watchLiveLocation(onFix: (fix: LiveFix) => void, onDenied?: () =
   const denied = (error: GeolocationPositionError) => {
     if (error.code === error.PERMISSION_DENIED) onDenied?.()
   }
-  const precise = { enableHighAccuracy: true, maximumAge: 0, timeout: 20_000 }
-  navigator.geolocation.getCurrentPosition(take, denied, precise)
-  const watch = navigator.geolocation.watchPosition(take, denied, precise)
+  navigator.geolocation.getCurrentPosition(take, denied, { enableHighAccuracy: false, maximumAge: 0, timeout: 10_000 })
+  const watch = navigator.geolocation.watchPosition(take, denied, { enableHighAccuracy: true, maximumAge: 0, timeout: 25_000 })
   return () => navigator.geolocation.clearWatch(watch)
 }
 
 export function sendDecision(fix: LiveFix | null, waitedMs: number, denied: boolean): 'wait' | 'send' | 'blocked' {
   if (isPreciseFix(fix)) return 'send'
   if (denied && waitedMs >= 8_000) return 'blocked'
-  if (waitedMs >= 20_000) return 'blocked'
+  if (waitedMs >= 25_000) return 'blocked'
   return 'wait'
 }

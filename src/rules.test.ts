@@ -104,22 +104,26 @@ describe('sos live location', () => {
     expect(sosMessage('Amina Rahman', null)).toContain('Location was not available.')
   })
 
-  it('sends a close device fix and never a city or IP pin', () => {
+  it('sends a GPS or Wi-Fi fix and never a city or IP pin', () => {
     const precise = { lat: 23.8103, lng: 90.4125, accuracy: 18, at: 2_000 }
-    const neighbourhood = { lat: 24.071, lng: 90.219, accuracy: 300, at: 2_000 }
+    const wifi = { lat: 24.724182, lng: 89.315582, accuracy: 90, at: 2_000 }
+    const neighbourhood = { lat: 24.071, lng: 90.219, accuracy: 500, at: 2_000 }
     const city = { lat: 23.7942, lng: 90.4097, accuracy: 8_000, at: 1_000 }
     const ip = { lat: 24.7399, lng: 88.2099, accuracy: 50_000, at: 1_000 }
     expect(isPreciseFix(precise)).toBe(true)
-    expect(isPreciseFix(neighbourhood)).toBe(false)
+    expect(isPreciseFix(wifi)).toBe(true)
+    expect(isPreciseFix(neighbourhood)).toBe(true)
+    expect(isPreciseFix(city)).toBe(false)
     expect(sendDecision(precise, 0, false)).toBe('send')
-    expect(sendDecision(neighbourhood, 4_000, false)).toBe('wait')
-    expect(sendDecision(neighbourhood, 20_000, false)).toBe('blocked')
-    expect(sendDecision(city, 20_000, false)).toBe('blocked')
-    expect(sendDecision(ip, 0, false)).toBe('wait')
+    expect(sendDecision(wifi, 0, false)).toBe('send')
+    expect(sendDecision(neighbourhood, 0, false)).toBe('send')
+    expect(sendDecision(city, 4_000, false)).toBe('wait')
+    expect(sendDecision(city, 25_000, false)).toBe('blocked')
+    expect(sendDecision(ip, 25_000, false)).toBe('blocked')
     expect(sendDecision(null, 1_000, true)).toBe('wait')
     expect(sendDecision(null, 8_000, true)).toBe('blocked')
-    expect(preferLiveFix(city, precise)).toEqual(precise)
+    expect(preferLiveFix(city, wifi)).toEqual(wifi)
+    expect(preferLiveFix(wifi, precise)).toEqual(precise)
     expect(preferLiveFix(precise, ip)).toEqual(precise)
-    expect(preferLiveFix(null, neighbourhood)).toBeNull()
   })
 })

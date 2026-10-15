@@ -57,7 +57,7 @@ export function SosButton({ large = false }: { large?: boolean }) {
     const timer = window.setTimeout(() => {
       if (isPreciseFix(fixRef.current)) return
       setPhase('blocked')
-    }, denied ? 8_000 : 20_000)
+    }, denied ? 8_000 : 25_000)
     return () => window.clearTimeout(timer)
   }, [open, phase, denied])
 

@@ -54,7 +54,7 @@ export function SosInbox({ limit, linked = false }: { limit?: number; linked?: b
 function SosCard({ item, desk }: { item: SosAlert; desk: boolean }) {
   const { tx, lang, resolveSos } = useApp()
   const hasPlace = typeof item.lat === 'number' && typeof item.lng === 'number'
-  const rough = typeof item.accuracyM === 'number' && item.accuracyM > 150
+  const rough = typeof item.accuracyM === 'number' && item.accuracyM > 1_000
   return (
     <li className="rounded-2xl border border-line bg-white p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
