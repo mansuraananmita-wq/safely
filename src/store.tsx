@@ -3,7 +3,7 @@ import { buildSeed } from './data'
 import type { Session } from '@supabase/supabase-js'
 import { DEMO_PASSWORD, isRemote, supabase } from './lib/supabase'
 import { consumeSignedIn, allocateReportId, pullCampus, pushDiff, rememberUser, takePullError } from './lib/sync'
-import { allowedTransitions, assignmentBlocked, canView, isMember, isOpen, nextReportId, uid } from './logic'
+import { allowedTransitions, assignmentBlocked, canView, isOpen, nextReportId, uid } from './logic'
 import { normalizePhone, sosMessage } from './lib/sos'
 import type {
   Activity,
@@ -1005,7 +1005,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         smsDetail: '',
         createdAt,
       }
-      const desk = current.users.filter((item) => (item.role === 'admin' || item.role === 'security') && !item.suspended && item.id !== user.id)
+      const desk = current.users.filter((item) => item.role === 'admin' && !item.suspended && item.id !== user.id)
       const notes = desk.map((item) => ({
         id: uid('n'),
         userId: item.id,
@@ -1018,15 +1018,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const saved = await update((state) => withAudit({
         ...state,
         sosAlerts: [alert, ...(state.sosAlerts ?? [])].slice(0, 100),
-        notifications: [...notes, {
-          id: uid('n'),
-          userId: user.id,
-          title: 'SOS help request',
-          body: message,
-          href: isMember(user.role) ? '/app/sos' : '/admin/sos',
-          read: false,
-          createdAt,
-        }, ...state.notifications].slice(0, 200),
+        notifications: [...notes, ...state.notifications].slice(0, 200),
       }, user.name, 'Sent an SOS alert', id))
       if (saved) return { status: 'rejected', id: null }
       if (!remote || !supabase) return { status: 'desk', id }

@@ -835,3 +835,10 @@ create policy sos_alerts_update on public.sos_alerts for update to authenticated
 
 grant select, insert, update, delete on public.emergency_contacts to authenticated;
 grant select, insert, update on public.sos_alerts to authenticated;
+
+delete from public.notifications n
+where n.title = 'SOS help request'
+  and not exists (
+    select 1 from public.profiles p
+    where p.id = n.user_id and p.role = 'admin'
+  );

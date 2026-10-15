@@ -1,6 +1,7 @@
 import { Bell, LogOut } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { inboxNotifications } from '../logic'
 import { useApp } from '../store'
 import { SosButton } from './SosButton'
 import { Button, Modal, buttonClass, cx } from './ui'
@@ -32,7 +33,7 @@ export function AccountTools({ bellTo, profileTo }: { bellTo: string; profileTo:
   const { currentUser, state, tx, lang, setLang } = useApp()
   const [open, setOpen] = useState(false)
   const [signOut, setSignOut] = useState(false)
-  const unread = state.notifications.filter((item) => item.userId === currentUser?.id && !item.read).length
+  const unread = inboxNotifications(currentUser, state.notifications).filter((item) => !item.read).length
   const desk = currentUser?.role === 'admin' || currentUser?.role === 'security'
   const sosCount = desk ? (state.sosAlerts ?? []).filter((item) => !item.resolvedAt).length : 0
 

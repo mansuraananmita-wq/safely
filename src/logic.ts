@@ -139,6 +139,11 @@ export function isMember(role: Role): boolean {
   return role === 'student' || role === 'teacher' || role === 'staff'
 }
 
+export function inboxNotifications<T extends { userId: string; title: string }>(user: { id: string; role: Role } | null | undefined, items: T[]): T[] {
+  if (!user) return []
+  return items.filter((item) => item.userId === user.id && (item.title !== 'SOS help request' || user.role === 'admin'))
+}
+
 const STATUS_LABELS: Record<Status, [string, string]> = {
   draft: ['Draft', 'খসড়া'],
   submitted: ['Submitted', 'জমা হয়েছে'],

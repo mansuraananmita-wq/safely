@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { assignmentBlocked, deskReports, isPublicFeed, officeCanRead, QUEUE_OFFICES } from './logic'
+import { assignmentBlocked, deskReports, inboxNotifications, isPublicFeed, officeCanRead, QUEUE_OFFICES } from './logic'
 import { isPreciseFix, preferLiveFix, normalizePhone, sendDecision, sosMessage } from './lib/sos'
 import type { Report, User } from './types'
 
@@ -68,6 +68,21 @@ describe('report privacy', () => {
     const waiting = report({ id: 'w', category: 'harassment', status: 'submitted', confidential: true })
     expect(deskReports(user({ id: 'u-sec', role: 'security' }), [waiting, cleaning]).map((item) => item.id)).toEqual(['w'])
     expect(deskReports(user({ id: 'u-aff', role: 'department', departmentId: 'd-affairs' }), [waiting]).map((item) => item.id)).toEqual(['w'])
+  })
+})
+
+describe('sos notifications', () => {
+  const notes = [
+    { userId: 'u-amina', title: 'SOS help request', body: 'help' },
+    { userId: 'u-amina', title: 'Your report has been received.', body: 'report' },
+    { userId: 'u-sec', title: 'SOS help request', body: 'help' },
+    { userId: 'u-admin', title: 'SOS help request', body: 'help' },
+  ]
+
+  it('keeps an SOS bell notice on the admin account only', () => {
+    expect(inboxNotifications(user({ id: 'u-amina', role: 'student' }), notes).map((item) => item.title)).toEqual(['Your report has been received.'])
+    expect(inboxNotifications(user({ id: 'u-sec', role: 'security' }), notes)).toEqual([])
+    expect(inboxNotifications(user({ id: 'u-admin', role: 'admin' }), notes).map((item) => item.title)).toEqual(['SOS help request'])
   })
 })
 

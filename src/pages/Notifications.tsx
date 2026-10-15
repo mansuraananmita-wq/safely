@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Button, Empty, useTitle } from '../components/ui'
-import { timeAgo } from '../logic'
+import { inboxNotifications, timeAgo } from '../logic'
 import { useApp } from '../store'
 import type { AppNotification, NoticeKind } from '../types'
 
@@ -22,8 +22,7 @@ function noticeTitle(item: AppNotification) {
 export function NotificationsPage() {
   const { currentUser, state, tx, lang, remote, markRead, markAllRead } = useApp()
   useTitle(tx('Notifications', 'নোটিফিকেশন'))
-  const items = state.notifications
-    .filter((item) => item.userId === currentUser?.id)
+  const items = inboxNotifications(currentUser, state.notifications)
     .slice()
     .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
   const unread = items.filter((item) => !item.read).length
