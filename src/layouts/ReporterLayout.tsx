@@ -1,4 +1,4 @@
-import { Bell, ClipboardList, Home, KeyRound, LifeBuoy, Map, Megaphone, MoreHorizontal, Plus, UserRound } from 'lucide-react'
+import { Bell, ClipboardList, Home, KeyRound, LifeBuoy, Map, Megaphone, MoreHorizontal, Plus, Siren, UserRound } from 'lucide-react'
 import { useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { AccountTools } from '../components/AccountTools'
@@ -14,6 +14,7 @@ const items = [
   { to: '/app/alerts', icon: Megaphone, en: 'Alerts', bn: 'সতর্কতা', shortEn: 'Alerts', shortBn: 'সতর্কতা' },
   { to: '/app/lost', icon: KeyRound, en: 'Lost & found', bn: 'হারানো ও পাওয়া', shortEn: 'Lost', shortBn: 'হারানো' },
   { to: '/app/help', icon: LifeBuoy, en: 'Help', bn: 'সহায়তা', shortEn: 'Help', shortBn: 'সহায়তা' },
+  { to: '/app/sos', icon: Siren, en: 'SOS', bn: 'এসওএস', shortEn: 'SOS', shortBn: 'এসওএস' },
   { to: '/app/profile', icon: UserRound, en: 'Profile', bn: 'প্রোফাইল', shortEn: 'Profile', shortBn: 'প্রোফাইল' },
 ]
 
@@ -38,15 +39,15 @@ export function ReporterLayout() {
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-white focus:px-3 focus:py-2">
         {tx('Skip to content', 'মূল অংশে যান')}
       </a>
-      <header className="no-print sticky top-0 z-30 border-b border-line/80 bg-paper/90 backdrop-blur">
+      <header className="no-print sticky top-0 z-30 border-b border-line bg-white/95 shadow-sm backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
           <Logo />
           <AccountTools bellTo="/app/notifications" profileTo="/app/profile" />
         </div>
       </header>
       <div className="mx-auto grid max-w-6xl md:grid-cols-[200px_1fr] lg:grid-cols-[220px_1fr]">
-        <aside className="no-print hidden px-3 py-6 md:block">
-          <nav className="space-y-1" aria-label={tx('Sections', 'বিভাগ')}>
+        <aside className="no-print hidden md:block">
+          <nav className="sticky top-20 space-y-1 px-3 py-6" aria-label={tx('Sections', 'বিভাগ')}>
             {items.map((item) => (
               <NavLink key={item.to} to={item.to} end={item.end} className={({ isActive }) => navClass(isActive)}>
                 <item.icon className="h-4 w-4" />
@@ -55,7 +56,7 @@ export function ReporterLayout() {
             ))}
           </nav>
         </aside>
-        <main id="main" className="min-w-0 px-4 py-6 pb-28 md:pb-10">
+        <main id="main" className="min-w-0 px-4 py-6 pb-36 md:pb-12">
           <Outlet />
         </main>
       </div>
@@ -74,7 +75,7 @@ export function ReporterLayout() {
           </div>
         </div>
       ) : null}
-      <nav className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-line bg-card/95 backdrop-blur md:hidden" aria-label={tx('Sections', 'বিভাগ')} style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}>
+      <nav className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 shadow-[0_-10px_30px_-18px_rgba(16,40,68,0.55)] backdrop-blur md:hidden" aria-label={tx('Sections', 'বিভাগ')} style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}>
         <div className="grid grid-cols-5 px-1 pt-1">
           {bottom.slice(0, 2).map((item) => (
             <NavLink key={item.to} to={item.to} end={item.end} onClick={() => setMoreOpen(false)} className={({ isActive }) => cx('grid place-items-center gap-0.5 rounded-xl px-1 py-1 text-[11px] leading-tight', isActive ? 'bg-teal-50 font-semibold text-teal-800' : 'text-ink/55')}>

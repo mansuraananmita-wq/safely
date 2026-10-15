@@ -60,7 +60,7 @@ export function NotificationsPage() {
                   <Link to={item.href} onClick={() => markRead(item.id)} className="min-w-0 flex-1 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-teal-700">
                     <div className="flex items-center gap-2">
                       {!item.read ? <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-clay" title={tx('Unread', 'অপঠিত')} /> : null}
-                      <p className="font-semibold">{title}</p>
+                      <p className="font-semibold">{title === 'SOS help request' ? tx('SOS help request', 'এসওএস সাহায্যের বার্তা') : title}</p>
                     </div>
                     {!item.read ? <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-clay">{tx('Unread', 'অপঠিত')}</p> : null}
                     <p className="mt-1 text-sm text-ink/70">{body}</p>

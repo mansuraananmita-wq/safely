@@ -688,6 +688,7 @@ export const DEMO_ACCOUNTS: { email: string; noteEn: string; noteBn: string }[] 
   { email: 'maintenance@padma.edu', noteEn: 'Maintenance queue', noteBn: 'রক্ষণাবেক্ষণ সারি' },
   { email: 'electrical@padma.edu', noteEn: 'Electrical queue', noteBn: 'বিদ্যুৎ সারি' },
   { email: 'water@padma.edu', noteEn: 'Water and sanitation queue', noteBn: 'পানি ও স্যানিটেশন সারি' },
+  { email: 'facilities@padma.edu', noteEn: 'Facilities and cleaning queue', noteBn: 'পরিচ্ছন্নতা সারি' },
   { email: 'it@padma.edu', noteEn: 'IT queue', noteBn: 'আইটি সারি' },
   { email: 'studentaffairs@padma.edu', noteEn: 'Student affairs · sensitive reports', noteBn: 'শিক্ষার্থী বিষয়ক · সংবেদনশীল রিপোর্ট' },
 ]
@@ -720,6 +721,8 @@ export function buildSeed(): AppState {
     categories: CATEGORIES.map((category) => ({ ...category })),
     departments: DEPARTMENTS.map((department) => ({ ...department })),
     codes: {},
+    emergencyContacts: [],
+    sosAlerts: [],
     sessionUserId: null,
     prefs: { lang: 'en', textSize: 'default', contrast: false },
   }

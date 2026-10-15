@@ -101,7 +101,7 @@ export function assignmentBlocked(report: Pick<Report, 'confidential' | 'categor
   return departmentId !== 'd-sec' && departmentId !== 'd-affairs'
 }
 
-export const QUEUE_OFFICES = ['d-maint', 'd-elec', 'd-water', 'd-it', 'd-sec', 'd-affairs'] as const
+export const QUEUE_OFFICES = ['d-maint', 'd-elec', 'd-water', 'd-clean', 'd-it', 'd-sec', 'd-affairs'] as const
 
 export function officeCanRead(departmentId: string, report: Report): boolean {
   if (report.status === 'draft' || report.departmentId !== departmentId) return false

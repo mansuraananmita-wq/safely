@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart';
+import 'package:safely_mobile/remote_config.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class Member {
   const Member({required this.id, required this.name, required this.email, required this.unit, required this.role});
@@ -101,8 +103,11 @@ class CampusStore extends ChangeNotifier {
 
   Member? member;
   bool bangla = false;
+  String? error;
   final List<Report> _reports = [];
   int _next = 10530;
+
+  bool get remote => remoteReady && Supabase.instance.isInitialized;
 
   List<Report> get reports => List.unmodifiable(_reports);
 
@@ -112,13 +117,39 @@ class CampusStore extends ChangeNotifier {
     return _reports.where((report) => report.reporterId == id).toList();
   }
 
-  void login(Member next) {
-    member = next;
-    notifyListeners();
+  Future<void> login(Member next) async {
+    error = null;
+    if (!remote) {
+      member = next;
+      notifyListeners();
+      return;
+    }
+    try {
+      final auth = await Supabase.instance.client.auth.signInWithPassword(
+        email: next.email,
+        password: 'padma1234',
+      );
+      if (auth.user == null) {
+        error = 'Sign-in did not start.';
+        notifyListeners();
+        return;
+      }
+      await refresh();
+    } catch (caught) {
+      error = caught.toString();
+      notifyListeners();
+    }
   }
 
-  void logout() {
+  Future<void> logout() async {
     member = null;
+    error = null;
+    if (remote) {
+      await Supabase.instance.client.auth.signOut();
+      _reports
+        ..clear()
+        ..addAll(_seed());
+    }
     notifyListeners();
   }
 
@@ -136,7 +167,7 @@ class CampusStore extends ChangeNotifier {
     return null;
   }
 
-  Report submit({
+  Future<Report?> submit({
     required String title,
     required String description,
     required String category,
@@ -144,24 +175,155 @@ class CampusStore extends ChangeNotifier {
     required String locationDetail,
     required double lat,
     required double lng,
-  }) {
-    final report = Report(
-      id: 'SF-$_next',
-      title: title.trim(),
-      description: description.trim(),
-      category: category,
-      locationId: locationId,
-      locationDetail: locationDetail.trim(),
-      lat: lat,
-      lng: lng,
-      status: 'submitted',
-      reporterId: member!.id,
-      createdAt: DateTime.now(),
+  }) async {
+    final who = member;
+    if (who == null) return null;
+    if (!remote) {
+      final report = Report(
+        id: 'SF-$_next',
+        title: title.trim(),
+        description: description.trim(),
+        category: category,
+        locationId: locationId,
+        locationDetail: locationDetail.trim(),
+        lat: lat,
+        lng: lng,
+        status: 'submitted',
+        reporterId: who.id,
+        createdAt: DateTime.now(),
+      );
+      _next += 1;
+      _reports.insert(0, report);
+      notifyListeners();
+      return report;
+    }
+    try {
+      final client = Supabase.instance.client;
+      final issued = await client.rpc('next_report_id');
+      final id = issued is String ? issued : 'SF-${DateTime.now().millisecondsSinceEpoch}';
+      final now = DateTime.now().toUtc();
+      final due = now.add(Duration(hours: _sla(category)));
+      await client.from('reports').insert({
+        'id': id,
+        'title': title.trim(),
+        'description': description.trim(),
+        'category': category,
+        'location_id': locationId,
+        'location_detail': locationDetail.trim(),
+        'lat': lat,
+        'lng': lng,
+        'status': 'submitted',
+        'priority': category == 'safety' ? 'high' : 'medium',
+        'reporter_id': who.id,
+        'created_at': now.toIso8601String(),
+        'updated_at': now.toIso8601String(),
+        'due_at': due.toIso8601String(),
+        'confidential': false,
+        'anonymous': false,
+        'photos': <Map<String, String>>[],
+        'info_requested': false,
+        'blocks_access': false,
+        'contact_window': '',
+      });
+      try {
+        await client.from('report_activities').insert({
+          'id': 'a${now.microsecondsSinceEpoch}',
+          'report_id': id,
+          'at': now.toIso8601String(),
+          'actor': who.name,
+          'visibility': 'public',
+          'kind': 'system',
+          'message': 'Submitted from the phone app.',
+        });
+        final admins = await client.from('profiles').select('id').eq('role', 'admin');
+        if (admins.isNotEmpty) {
+          await client.from('notifications').insert([
+            for (final row in admins)
+              {
+                'id': 'n${now.microsecondsSinceEpoch}${row['id']}',
+                'user_id': row['id'],
+                'title': 'New report from the phone app',
+                'body': '$id is with the campus desk.',
+                'href': '/admin/reports/$id',
+                'read': false,
+                'created_at': now.toIso8601String(),
+                'kind': 'received',
+              },
+          ]);
+        }
+      } catch (_) {}
+      final report = Report(
+        id: id,
+        title: title.trim(),
+        description: description.trim(),
+        category: category,
+        locationId: locationId,
+        locationDetail: locationDetail.trim(),
+        lat: lat,
+        lng: lng,
+        status: 'submitted',
+        reporterId: who.id,
+        createdAt: now.toLocal(),
+      );
+      _reports.insert(0, report);
+      error = null;
+      notifyListeners();
+      return report;
+    } catch (caught) {
+      error = caught.toString();
+      notifyListeners();
+      return null;
+    }
+  }
+
+  Future<void> refresh() async {
+    final client = Supabase.instance.client;
+    final email = client.auth.currentUser?.email;
+    if (email == null) return;
+    final profile = await client.from('profiles').select().eq('email', email).maybeSingle();
+    if (profile == null) return;
+    member = Member(
+      id: profile['id'] as String,
+      name: profile['name'] as String? ?? '',
+      email: profile['email'] as String? ?? email,
+      unit: profile['unit'] as String? ?? '',
+      role: profile['role'] as String? ?? '',
     );
-    _next += 1;
-    _reports.insert(0, report);
+    final rows = await client.from('reports').select().eq('reporter_id', member!.id).order('created_at', ascending: false);
+    _reports
+      ..clear()
+      ..addAll([
+        for (final row in rows as List)
+          Report(
+            id: row['id'] as String,
+            title: row['title'] as String? ?? '',
+            description: row['description'] as String? ?? '',
+            category: row['category'] as String? ?? 'other',
+            locationId: row['location_id'] as String? ?? '',
+            locationDetail: row['location_detail'] as String? ?? '',
+            lat: (row['lat'] as num?)?.toDouble() ?? 0,
+            lng: (row['lng'] as num?)?.toDouble() ?? 0,
+            status: row['status'] as String? ?? 'submitted',
+            reporterId: row['reporter_id'] as String? ?? member!.id,
+            createdAt: DateTime.tryParse(row['created_at'] as String? ?? '')?.toLocal() ?? DateTime.now(),
+          ),
+      ]);
     notifyListeners();
-    return report;
+  }
+
+  int _sla(String category) {
+    switch (category) {
+      case 'safety':
+        return 12;
+      case 'cleanliness':
+        return 36;
+      case 'lighting':
+      case 'water':
+      case 'classroom':
+        return 48;
+      default:
+        return 72;
+    }
   }
 
   static List<Report> _seed() {

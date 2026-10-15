@@ -25,7 +25,7 @@ export function buttonClass(variant: Variant = 'primary', className = ''): strin
 }
 
 export function navClass(active: boolean): string {
-  return cx('flex items-center gap-2 rounded-xl px-3 py-2 text-sm', active ? 'bg-teal-800 font-semibold text-white' : 'text-ink/75 hover:bg-white')
+  return cx('flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm', active ? 'bg-white font-semibold text-teal-900 shadow-card ring-1 ring-line' : 'text-ink/70 hover:bg-white/80')
 }
 
 export function Button({ variant = 'primary', className, type, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant }) {

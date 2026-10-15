@@ -2,9 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:safely_mobile/campus.dart';
 import 'package:safely_mobile/live_map.dart';
+import 'package:safely_mobile/remote_config.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (remoteReady) {
+    await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseAnonKey);
+  }
   runApp(SafelyApp(store: CampusStore()));
 }
 
@@ -85,7 +90,14 @@ class LoginScreen extends StatelessWidget {
             Text('Safely', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             Text(
-              tx('Padma University phone app for students, teachers, and staff. The operations desk stays on the website.', 'পদ্মা বিশ্ববিদ্যালয়ের ফোন অ্যাপ, শিক্ষার্থী, শিক্ষক ও কর্মকর্তাদের জন্য। অপারেশন ডেস্ক ওয়েবসাইটে থাকে।'),
+              tx(
+                remoteReady
+                    ? 'Padma University phone app. A report saved here also appears on the campus website.'
+                    : 'Padma University phone app for students, teachers, and staff. Start it with the campus script so reports reach the website.',
+                remoteReady
+                    ? 'পদ্মা বিশ্ববিদ্যালয়ের ফোন অ্যাপ। এখানে সেভ করা রিপোর্ট ক্যাম্পাস ওয়েবসাইটেও দেখা যায়।'
+                    : 'পদ্মা বিশ্ববিদ্যালয়ের ফোন অ্যাপ, শিক্ষার্থী, শিক্ষক ও কর্মকর্তাদের জন্য। ওয়েবসাইটে পৌঁছাতে ক্যাম্পাস স্ক্রিপ্ট দিয়ে চালু করুন।',
+              ),
               style: TextStyle(color: Colors.blueGrey.shade700, height: 1.4),
             ),
             const SizedBox(height: 24),
@@ -105,10 +117,16 @@ class LoginScreen extends StatelessWidget {
                     title: Text(member.name, style: const TextStyle(fontWeight: FontWeight.w600)),
                     subtitle: Text('${member.email}\n${member.role} · ${member.unit}'),
                     isThreeLine: true,
-                    onTap: () => store.login(member),
+                    onTap: () {
+                      store.login(member);
+                    },
                   ),
                 ),
               ),
+            if (store.error != null) ...[
+              const SizedBox(height: 8),
+              Text(store.error!, style: const TextStyle(color: Color(0xFFB42318))),
+            ],
             const SizedBox(height: 8),
             Text(
               tx('This is not an emergency service. If someone is in danger, call 999.', 'এটি জরুরি সেবা নয়। কেউ বিপদে থাকলে ৯৯৯-এ কল করুন।'),
@@ -151,7 +169,7 @@ class _HomeShellState extends State<HomeShell> {
         title: const Text('Safely'),
         actions: [
           TextButton(onPressed: store.toggleLanguage, child: Text(store.bangla ? 'EN' : 'বাংলা')),
-          IconButton(onPressed: store.logout, icon: const Icon(Icons.logout), tooltip: tx('Sign out', 'সাইন আউট')),
+          IconButton(onPressed: () { store.logout(); }, icon: const Icon(Icons.logout), tooltip: tx('Sign out', 'সাইন আউট')),
         ],
       ),
       body: pages[_index],
@@ -323,7 +341,7 @@ class _NewReportState extends State<NewReport> {
         lng = position.longitude;
       } catch (_) {}
     }
-    final report = store.submit(
+    final report = await store.submit(
       title: _title.text,
       description: _body.text,
       category: _category,
@@ -332,6 +350,10 @@ class _NewReportState extends State<NewReport> {
       lat: lat,
       lng: lng,
     );
+    if (report == null) {
+      setState(() => _error = store.error ?? store.tx('The report was not saved.', 'রিপোর্ট সেভ হয়নি।'));
+      return;
+    }
     widget.onDone(report.id);
   }
 

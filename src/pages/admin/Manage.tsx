@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useState, type FormEvent } from 'react'
 import { Button, Field, useTitle } from '../../components/ui'
 import { PLACES } from '../../data'
@@ -27,6 +28,7 @@ export function DepartmentsPage() {
                 {department.sensitive ? <span className="rounded-full bg-plum/10 px-2 py-1 text-xs font-semibold text-plum">{tx('Sensitive', 'সংবেদনশীল')}</span> : null}
               </div>
               <p className="mt-2 text-sm">{tx('Open', 'খোলা')} {open.length} · {tx('Overdue', 'সময়োত্তীর্ণ')} {overdue.length} · {tx('Avg. resolution', 'গড় সমাধান')} {done.length ? `${avg.toFixed(1)}d` : '—'}</p>
+              <Link to={`/admin/queues?office=${department.id}`} className="mt-3 inline-block text-sm font-semibold text-teal-800">{tx('Open this queue', 'এই সারি খুলুন')}</Link>
               {currentUser.role === 'admin' ? (
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
                   <input className="input" defaultValue={department.lead} aria-label={tx('Lead', 'প্রধান')} onBlur={(event) => updateDepartment(department.id, { lead: event.target.value })} />

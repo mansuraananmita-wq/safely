@@ -160,6 +160,29 @@ export interface AuditEntry {
   target: string
 }
 
+export interface EmergencyContact {
+  id: string
+  userId: string
+  name: string
+  phone: string
+}
+
+export type SosSmsStatus = 'pending' | 'sent' | 'partial' | 'skipped' | 'failed'
+
+export interface SosAlert {
+  id: string
+  userId: string
+  senderName: string
+  lat?: number
+  lng?: number
+  accuracyM?: number
+  message: string
+  contacts: { name: string; phone: string }[]
+  smsStatus: SosSmsStatus
+  smsDetail: string
+  createdAt: string
+}
+
 export interface Prefs {
   lang: Lang
   textSize: 'default' | 'large'
@@ -173,6 +196,8 @@ export interface AppState {
   announcements: Announcement[]
   lostFound: LostItem[]
   audit: AuditEntry[]
+  emergencyContacts: EmergencyContact[]
+  sosAlerts: SosAlert[]
   categories: Category[]
   departments: Department[]
   codes: Record<string, string>

@@ -30,7 +30,7 @@ export function ReportDetailPage() {
   return (
     <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-[1fr_280px]">
       <div className="space-y-4">
-        {just ? <div className="rounded-2xl bg-teal-50 p-4 text-sm">{tx(`Received ${report.id}. Save this ID. The desk will assign a department after review.`, `${report.id} গৃহীত হয়েছে। এই আইডি রাখুন। পর্যালোচনার পর ডেস্ক একটি বিভাগ বরাদ্দ করবে।`)}</div> : null}
+        {just ? <div className="rounded-2xl border border-moss/30 bg-moss/10 p-4 text-sm font-medium">{tx(`Received ${report.id}. Save this ID. The desk will assign a department after review.`, `${report.id} গৃহীত হয়েছে। এই আইডি রাখুন। পর্যালোচনার পর ডেস্ক একটি বিভাগ বরাদ্দ করবে।`)}</div> : null}
         {report.status === 'draft' ? <Link to={`/app/report/new?draft=${report.id}`} className="text-sm font-semibold text-teal-800">{tx('Continue this draft', 'এই খসড়া চালিয়ে যান')}</Link> : null}
         {report.infoRequested && owner ? <div className="rounded-2xl bg-amber-100 p-4 text-sm">{tx('The office asked for more information. Reply below.', 'দপ্তর আরও তথ্য চেয়েছে। নিচে উত্তর দিন।')}</div> : null}
         <ReportStory report={report} internal={false} />

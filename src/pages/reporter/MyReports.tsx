@@ -30,7 +30,7 @@ export function MyReportsPage() {
       <input className="input mt-4" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={tx('Search by title or ID', 'শিরোনাম বা আইডি দিয়ে খুঁজুন')} />
       <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
         {filters.map((item) => (
-          <button key={item} type="button" onClick={() => setFilter(item)} className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${filter === item ? 'bg-teal-800 text-white' : 'bg-white'}`}>
+          <button key={item} type="button" onClick={() => setFilter(item)} className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold ${filter === item ? 'border-teal-800 bg-teal-800 text-white' : 'border-line bg-white text-ink/70'}`}>
             {item === 'all' ? tx('All', 'সব') : item === 'open' ? tx('Open', 'খোলা') : item.replaceAll('_', ' ')}
           </button>
         ))}

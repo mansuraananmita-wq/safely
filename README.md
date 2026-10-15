@@ -1,23 +1,45 @@
 # Safely
 
-Padma University campus problem desk. Students, teachers, and staff file a report. The operations desk assigns an office and follows the status. Sensitive cases stay with a smaller desk.
+Safely is the campus problem desk for Padma University. A student, teacher, or staff member files one report. An officer assigns it to an office, and the person who filed it follows the status. Harassment and other confidential cases stay with Security or Student Affairs. Nothing is assigned on its own.
 
-The website can run as a browser preview, or against a Supabase database. The phone app still keeps its own sample data for the session and does not share reports with the website.
+Safely is not an emergency service. If someone is in danger, call **999**. The SOS button does not dial 999.
 
-Safely is not an emergency service. If someone is in danger, call **999**.
+## What it does
 
-## What is in the repo
+Campus members can:
 
-| App | Who it is for | Where it runs |
-| --- | --- | --- |
-| Website | Campus members and the operations desk | Browser, Vite + React |
-| Phone app | Students, teachers, and staff | Flutter (`mobile/`) |
+- File a report with a category, a campus place, photos, and an optional device pin
+- Follow status from submitted through review, assignment, work, resolution, and close
+- Confirm someone else’s open report at the same place instead of filing a copy
+- Send an SOS: a 3-second countdown, then a help message with the device’s live location to the campus desk
+- Save up to five personal phone numbers that also receive the SOS text once Twilio is connected
+- Read alerts, use lost and found, and switch between English and Bangla
 
-The two apps do not share reports. A report filed in the phone app does not appear on the website, and the other way around.
+The operations desk can:
 
-## Website
+- See open, overdue, and unassigned work
+- Read SOS help messages with a map, without saving an admin phone number
+- Assign a report to an office, change status, ask for information, and leave an internal note
+- Open each office queue, including Facilities and Cleaning
+- Manage users, categories, alerts, and the audit log
 
-Stack: React, TypeScript, Vite, Tailwind CSS, React Router, Supabase. Without `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`, preview data stays in `localStorage` under `safely-preview-v1`. With those values set, sign-in, reports, queues, notifications, and the audit log use the database.
+The public page `/status` shows counts for ordinary reports. Harassment, confidential, anonymous, and safety stories are left off that page and off the public campus map.
+
+## How it is built
+
+| Piece | Technology |
+| --- | --- |
+| Website | React 19, TypeScript, Vite, Tailwind CSS, React Router |
+| Maps | Leaflet and OpenStreetMap for the report pin. Google Maps embed for a place, with no API key |
+| Data | Supabase Postgres, Auth, and row-level security. Without the env keys, the website keeps a preview in `localStorage` |
+| Phone app | Flutter, in `mobile/`. The same Supabase project when started with `run.ps1` |
+| SOS texts | The Supabase Edge Function `send-sos` is deployed. SMS starts after Twilio secrets are set on the project |
+
+Roles are student, teacher, staff, department, security, and admin. Members use `/app`. The operations admin uses `/admin`. Department officers and security use their own queue.
+
+A confidential or harassment report can only be assigned to Security (`d-sec`) or Student Affairs (`d-affairs`).
+
+## Run the website
 
 ```bash
 npm install
@@ -26,11 +48,18 @@ npm run dev
 
 Open [http://localhost:5173/](http://localhost:5173/).
 
-`npm run build` typechecks and builds the site. `npm run preview` serves that build.
+`npm run test` checks the privacy rules and the SOS location message. `npm run build` typechecks and builds the site. `npm run preview` serves that build.
 
-### Sign in
+To use the campus database, copy `.env.example` to `.env.local` and set:
 
-Demo buttons skip the password in the browser preview. Against Supabase they sign in with the password `padma1234`. A manual preview sign-in still accepts any password of 8 or more characters. New accounts must use `@padma.edu`. The preview verification code is shown on the page. Supabase registration uses the password from the form.
+```bash
+VITE_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+VITE_SUPABASE_ANON_KEY=YOUR_ANON_KEY
+```
+
+Use the anon key only. Do not put the service role key or any Twilio secret in `.env.local`. Restart the dev server after changing env. The steps for creating the Supabase project and running `supabase/schema.sql` and `supabase/seed.sql` are in [BACKEND.md](BACKEND.md).
+
+Demo buttons on the sign-in page use the password `padma1234` when Supabase is connected. A new account can use any valid email and a password of at least 8 characters.
 
 | Email | Role |
 | --- | --- |
@@ -42,86 +71,47 @@ Demo buttons skip the password in the browser preview. Against Supabase they sig
 | `maintenance@padma.edu` | Maintenance queue |
 | `electrical@padma.edu` | Electrical queue |
 | `water@padma.edu` | Water and sanitation queue |
+| `facilities@padma.edu` | Facilities and cleaning queue |
 | `it@padma.edu` | IT queue |
 | `studentaffairs@padma.edu` | Student affairs, including sensitive reports |
 
-### Member pages
+## Run the phone app
 
-- Home, with a Google Map that follows this device’s live location
-- New report: category, details, campus place, optional device pin, privacy, review
-- My reports and the report page, including the pin, replies, rating, and reopen
-- Campus map of ordinary open reports
-- Alerts, lost and found, help, profile, in-app notifications
-- English and Bangla, larger text, higher contrast
+The phone app is for students, teachers, and staff. It signs in to the same database, lists that person’s reports, and files a new report onto the website desk.
 
-Harassment reports are always restricted. Anonymous reports hide the name from officers. In this preview the report still stays on the author’s account so they can track it. Confidential, anonymous, harassment, and safety stories are left off the public campus map and the public figures page.
+From `mobile/`:
 
-### Desk pages
-
-- Overview, report queue, filters, bulk priority, CSV export
-- Review: assign an office, change status, ask for information, internal note, extend the due time
-- Departments
-- Users and categories (operations admin only)
-- Alerts and the audit log (operations admin and security)
-
-Nothing is assigned to a department until an officer confirms it. Confidential reports can only be assigned to Security or Student Affairs.
-
-### Public page
-
-`/status` shows open counts, category bars, and the busiest places. Harassment, confidential, anonymous, and safety reports are excluded. With Supabase connected, those figures come from the `public_reports` view. Otherwise they are whatever this browser has saved.
-
-## Phone app
-
-Flutter app in `mobile/` for campus members. It uses Material 3, `geolocator` for the live pin, and a Google Maps embed inside a web view. No Google Maps API key is required for that embed.
-
-```bash
-cd mobile
-flutter pub get
-flutter run
+```powershell
+powershell -File .\run.ps1
 ```
 
-A phone or emulator is required. On Windows, plugin builds need Developer Mode so Flutter can create symlinks (`start ms-settings:developers`).
+The script reads `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` from the website’s `.env.local` and passes them to Flutter. Those values are not written into the app source. A phone, emulator, or desktop Flutter target is required. On Windows, plugin builds need Developer Mode so Flutter can create symlinks (`start ms-settings:developers`).
 
-Sign in by tapping a demo person. Passwords are not used.
+`flutter run` without the script keeps sample reports in memory for that session only. Those reports do not appear on the website.
 
-| Person | Email |
-| --- | --- |
-| Amina Rahman | `amina@padma.edu` |
-| Dr. Karim Hassan | `karim@padma.edu` |
-| Nusrat Jahan | `nusrat@padma.edu` |
+Demo people in the app are Amina Rahman, Dr. Karim Hassan, and Nusrat Jahan. With the script, those buttons sign in with `padma1234`.
 
-The phone app includes:
+## SOS
 
-- Home map that follows the device location
-- File a report (category, place, and the device pin when location is allowed)
-- My reports, with the pin on the report page
-- Two campus alerts
-- English and Bangla, and sign out
+Press SOS, then wait three seconds or press Cancel. Cancel sends nothing. If the countdown finishes, the app watches the device location during the wait and sends the newest fix, not an older cached point. The campus desk sees the message and the map in the dashboard and on `/admin/sos`. Saved personal numbers are optional extra SMS recipients.
 
-Reports stay in memory for that session. The desk, registration, lost and found, and the audit log are on the website.
+One account can send one SOS per minute. 999, 112, and 911 cannot be saved as contacts.
 
-## Maps
+## What still needs an outside account
 
-Campus buildings have fixed coordinates. Choosing a building drops that pin. “I am standing here” on the website, and the phone app’s submit action, replace it with the device location when the browser or phone allows it.
+These are written up in [BACKEND.md](BACKEND.md):
 
-The home screen always shows a map. If location is blocked, the pin stays on campus until it is allowed. Harassment and other restricted reports are not drawn on the public campus map. People who are allowed to open the report still see its pin.
-
-## Backend
-
-Supabase (Postgres, Auth, and row-level security) is wired up for the website. Create a project, run the two SQL files, and add the anon key. The full steps, including exactly what to paste into the SQL Editor, are in [BACKEND.md](BACKEND.md).
-
-Still not built:
-
-- A mail or phone-push delivery channel (the website stores the preference and writes in-app notifications)
-- The Flutter app talking to the same database
-- Google Maps JavaScript API (the embed does not need a key)
-- A photo storage bucket (photo names and previews are saved on the report row)
+- Twilio, if SOS should also arrive as an SMS
+- An email provider, if status changes should send mail
+- FCM or APNs, if the phone should get push alerts
+- A public host for the website
+- Real building coordinates, when the university supplies them
 
 ## Layout
 
 ```
 src/            website
-supabase/       schema.sql and seed.sql for the SQL Editor
+supabase/       schema.sql, seed.sql, and the send-sos function
 mobile/         Flutter phone app
 public/         website favicon
 ```

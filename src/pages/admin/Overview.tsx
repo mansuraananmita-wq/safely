@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useTitle } from '../../components/ui'
+import { SosInbox } from '../../components/SosInbox'
 import { deskReports, formatWhen, isOpen, isOverdue, isUnassigned, resolvedThisMonth, statusLabel } from '../../logic'
 import { useApp } from '../../store'
 import type { Status } from '../../types'
@@ -20,11 +21,11 @@ const STATUS_COLOR: Record<Status, string> = {
 
 const CATEGORY_COLOR = ['bg-teal-900', 'bg-teal-700', 'bg-marigold', 'bg-plum', 'bg-moss', 'bg-clay', 'bg-sky-700', 'bg-amber-600', 'bg-teal-800', 'bg-ink']
 
-function Metric({ to, label, value, hint }: { to: string; label: string; value: number; hint: string }) {
+function Metric({ to, label, value, hint, alert = false }: { to: string; label: string; value: number; hint: string; alert?: boolean }) {
   return (
-    <Link to={to} className="panel block p-4 hover:border-teal-700">
+    <Link to={to} className={`panel block p-4 hover:border-teal-700 ${alert ? 'border-clay' : ''}`}>
       <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink/50">{label}</p>
-      <p className="mt-2 font-display text-4xl tabular-nums leading-none">{value}</p>
+      <p className={`mt-2 font-display text-4xl tabular-nums leading-none ${alert ? 'text-clay' : ''}`}>{value}</p>
       <p className="mt-2 text-sm text-ink/60">{hint}</p>
     </Link>
   )
@@ -93,9 +94,10 @@ export function OverviewPage() {
         <h1 className="font-display text-4xl">{tx('Desk overview', 'ডেস্ক সারাংশ')}</h1>
         <p className="mt-1 text-sm text-ink/60">{scope}</p>
       </div>
+      <SosInbox limit={3} linked />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Metric to="/admin/reports?focus=open" label={tx('Total open reports', 'মোট খোলা রিপোর্ট')} value={open.length} hint={tx('Still with the desk', 'এখনও ডেস্কের কাছে')} />
-        <Metric to="/admin/reports?focus=overdue" label={tx('Overdue reports', 'সময়োত্তীর্ণ রিপোর্ট')} value={overdue.length} hint={tx('Past the target time', 'লক্ষ্য সময় পেরিয়েছে')} />
+        <Metric to="/admin/reports?focus=overdue" label={tx('Overdue reports', 'সময়োত্তীর্ণ রিপোর্ট')} value={overdue.length} hint={tx('Past the target time', 'লক্ষ্য সময় পেরিয়েছে')} alert={overdue.length > 0} />
         <Metric to="/admin/reports?focus=unassigned" label={tx('Unassigned reports', 'বরাদ্দহীন রিপোর্ট')} value={unassigned.length} hint={tx('Open, and no office yet', 'খোলা, এখনও কোনো দপ্তর নেই')} />
         <Metric to="/admin/reports?focus=resolved-month" label={tx('Resolved this month', 'এই মাসে সমাধান')} value={resolvedMonth.length} hint={monthName} />
       </div>

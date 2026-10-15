@@ -3,7 +3,8 @@ import { buildSeed } from './data'
 import type { Session } from '@supabase/supabase-js'
 import { DEMO_PASSWORD, isRemote, supabase } from './lib/supabase'
 import { consumeSignedIn, allocateReportId, pullCampus, pushDiff, rememberUser, takePullError } from './lib/sync'
-import { allowedTransitions, assignmentBlocked, canView, isOpen, nextReportId, uid } from './logic'
+import { allowedTransitions, assignmentBlocked, canView, isMember, isOpen, nextReportId, uid } from './logic'
+import { normalizePhone, sosMessage } from './lib/sos'
 import type {
   Activity,
   Announcement,
@@ -50,6 +51,8 @@ function shell(): AppState {
     announcements: [],
     lostFound: [],
     audit: [],
+    emergencyContacts: [],
+    sosAlerts: [],
     codes: {},
     sessionUserId: null,
     prefs: readPrefs() ?? seed.prefs,
@@ -62,7 +65,8 @@ function load(): AppState {
     if (!raw) return buildSeed()
     const parsed = JSON.parse(raw) as { version?: number; state?: AppState }
     if (parsed.version !== 1 || !parsed.state?.reports || !parsed.state.users || !parsed.state.categories) return buildSeed()
-    return withSampleNotices(parsed.state)
+    const state = withSampleNotices(parsed.state)
+    return { ...state, emergencyContacts: state.emergencyContacts ?? [], sosAlerts: state.sosAlerts ?? [] }
   } catch {
     return buildSeed()
   }
@@ -213,6 +217,9 @@ type Api = {
   changePassword: (password: string) => Promise<boolean>
   recordExport: () => void
   resetDemo: () => void
+  addEmergencyContact: (name: string, phone: string) => Promise<'ok' | 'name' | 'phone' | 'limit' | 'duplicate' | 'rejected'>
+  removeEmergencyContact: (id: string) => Promise<string | null>
+  sendSos: (place: { lat: number; lng: number; accuracy: number } | null) => Promise<'sent' | 'desk' | 'sms-failed' | 'soon' | 'empty' | 'rejected'>
 }
 
 const Ctx = createContext<Api | null>(null)
@@ -950,6 +957,95 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const user = stateRef.current.users.find((item) => item.id === stateRef.current.sessionUserId)
       if (!user) return
       update((current) => withAudit(current, user.name, 'Exported a report CSV', 'reports.csv'))
+    },
+    addEmergencyContact: (name, phone) => {
+      const userId = stateRef.current.sessionUserId
+      if (!userId) return Promise.resolve('rejected')
+      const cleanName = name.trim()
+      if (cleanName.length < 2) return Promise.resolve('name')
+      const normalized = normalizePhone(phone)
+      if (!normalized) return Promise.resolve('phone')
+      const mine = (stateRef.current.emergencyContacts ?? []).filter((item) => item.userId === userId)
+      if (mine.length >= 5) return Promise.resolve('limit')
+      if (mine.some((item) => item.phone === normalized)) return Promise.resolve('duplicate')
+      const contact = { id: uid('ec'), userId, name: cleanName.slice(0, 80), phone: normalized }
+      return update((current) => ({ ...current, emergencyContacts: [...(current.emergencyContacts ?? []), contact] })).then((error) => (error ? 'rejected' : 'ok'))
+    },
+    removeEmergencyContact: (id) => {
+      const userId = stateRef.current.sessionUserId
+      return update((current) => ({
+        ...current,
+        emergencyContacts: (current.emergencyContacts ?? []).filter((item) => !(item.id === id && item.userId === userId)),
+      }))
+    },
+    sendSos: async (place) => {
+      const current = stateRef.current
+      const user = current.users.find((item) => item.id === current.sessionUserId)
+      if (!user) return 'rejected'
+      const contacts = (current.emergencyContacts ?? []).filter((item) => item.userId === user.id)
+      const latest = (current.sosAlerts ?? [])
+        .filter((item) => item.userId === user.id)
+        .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))[0]
+      if (latest && Date.now() - new Date(latest.createdAt).getTime() < 60_000) return 'soon'
+      const id = uid('sos')
+      const message = sosMessage(user.name, place)
+      const createdAt = nowIso()
+      const alert = {
+        id,
+        userId: user.id,
+        senderName: user.name,
+        lat: place?.lat,
+        lng: place?.lng,
+        accuracyM: place?.accuracy,
+        message,
+        contacts: contacts.map((item) => ({ name: item.name, phone: item.phone })),
+        smsStatus: 'pending' as const,
+        smsDetail: '',
+        createdAt,
+      }
+      const desk = current.users.filter((item) => (item.role === 'admin' || item.role === 'security') && !item.suspended && item.id !== user.id)
+      const notes = desk.map((item) => ({
+        id: uid('n'),
+        userId: item.id,
+        title: 'SOS help request',
+        body: message,
+        href: '/admin/sos',
+        read: false,
+        createdAt,
+      }))
+      const saved = await update((state) => withAudit({
+        ...state,
+        sosAlerts: [alert, ...(state.sosAlerts ?? [])].slice(0, 100),
+        notifications: [...notes, {
+          id: uid('n'),
+          userId: user.id,
+          title: 'SOS help request',
+          body: message,
+          href: isMember(user.role) ? '/app/sos' : '/admin/sos',
+          read: false,
+          createdAt,
+        }, ...state.notifications].slice(0, 200),
+      }, user.name, 'Sent an SOS alert', id))
+      if (saved) return 'rejected'
+      if (!remote || !supabase) return 'desk'
+      const { data, error } = await supabase.functions.invoke('send-sos', { body: { alertId: id } })
+      const payload = (data ?? null) as { status?: string; detail?: string } | null
+      let smsStatus: 'sent' | 'partial' | 'skipped' | 'failed' = 'skipped'
+      let smsDetail = error?.message?.slice(0, 180) ?? 'The texting service did not answer.'
+      if (!error && payload?.status === 'sent') {
+        smsStatus = 'sent'
+        smsDetail = ''
+      } else if (!error && (payload?.status === 'partial' || payload?.status === 'failed' || payload?.status === 'skipped')) {
+        smsStatus = payload.status
+        smsDetail = (payload.detail ?? '').slice(0, 180)
+      }
+      await update((state) => ({
+        ...state,
+        sosAlerts: (state.sosAlerts ?? []).map((item) => (item.id === id ? { ...item, smsStatus, smsDetail } : item)),
+      }))
+      if (smsStatus === 'sent') return 'sent'
+      if (smsStatus === 'failed' || smsStatus === 'partial') return 'sms-failed'
+      return 'desk'
     },
     resetDemo: () => {
       if (remote && supabase) {

@@ -2,6 +2,7 @@ import { Bell, LogOut } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useApp } from '../store'
+import { SosButton } from './SosButton'
 import { Button, Modal, buttonClass, cx } from './ui'
 
 export function SignOutDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -32,9 +33,17 @@ export function AccountTools({ bellTo, profileTo }: { bellTo: string; profileTo:
   const [open, setOpen] = useState(false)
   const [signOut, setSignOut] = useState(false)
   const unread = state.notifications.filter((item) => item.userId === currentUser?.id && !item.read).length
+  const desk = currentUser?.role === 'admin' || currentUser?.role === 'security'
+  const sosCount = desk ? (state.sosAlerts ?? []).length : 0
 
   return (
     <div className="ml-auto flex items-center gap-2">
+      {desk ? (
+        <Link to="/admin/sos" className="relative rounded-full bg-clay px-3 py-1.5 text-sm font-semibold text-white">
+          SOS
+          {sosCount > 0 ? <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-ink px-1 text-[11px] font-bold text-white">{sosCount}</span> : null}
+        </Link>
+      ) : <SosButton />}
       <button
         type="button"
         onClick={() => setLang(lang === 'en' ? 'bn' : 'en')}

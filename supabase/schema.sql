@@ -701,3 +701,108 @@ $$;
 
 revoke all on function public.next_report_id() from public, anon;
 grant execute on function public.next_report_id() to authenticated;
+
+-- SOS. Personal numbers stay with the owner. The alert snapshot is what the desk sees.
+
+create table if not exists public.emergency_contacts (
+  id text primary key,
+  user_id text not null references public.profiles (id) on delete cascade,
+  name text not null check (char_length(name) between 2 and 80),
+  phone text not null check (phone ~ '^\+[1-9][0-9]{7,14}$'),
+  created_at timestamptz not null default now(),
+  unique (user_id, phone)
+);
+
+create table if not exists public.sos_alerts (
+  id text primary key,
+  user_id text not null references public.profiles (id) on delete cascade,
+  sender_name text not null,
+  lat double precision,
+  lng double precision,
+  accuracy_m double precision,
+  message text not null,
+  contacts jsonb not null default '[]'::jsonb,
+  sms_status text not null default 'pending' check (sms_status in ('pending', 'sent', 'partial', 'skipped', 'failed')),
+  sms_detail text not null default '',
+  created_at timestamptz not null default now()
+);
+
+create index if not exists emergency_contacts_user on public.emergency_contacts (user_id);
+create index if not exists sos_alerts_created on public.sos_alerts (created_at desc);
+
+create or replace function public.limit_emergency_contacts()
+returns trigger
+language plpgsql
+as $$
+begin
+  if (select count(*) from public.emergency_contacts where user_id = new.user_id) >= 5 then
+    raise exception 'At most 5 emergency contacts';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists emergency_contacts_limit on public.emergency_contacts;
+create trigger emergency_contacts_limit
+  before insert on public.emergency_contacts
+  for each row execute function public.limit_emergency_contacts();
+
+create or replace function public.guard_sos_alert()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.user_id is distinct from old.user_id
+    or new.sender_name is distinct from old.sender_name
+    or new.lat is distinct from old.lat
+    or new.lng is distinct from old.lng
+    or new.accuracy_m is distinct from old.accuracy_m
+    or new.message is distinct from old.message
+    or new.contacts is distinct from old.contacts
+    or new.created_at is distinct from old.created_at
+    or new.id is distinct from old.id then
+    raise exception 'An SOS alert cannot be rewritten';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists sos_alerts_guard on public.sos_alerts;
+create trigger sos_alerts_guard
+  before update on public.sos_alerts
+  for each row execute function public.guard_sos_alert();
+
+alter table public.emergency_contacts enable row level security;
+alter table public.sos_alerts enable row level security;
+
+drop policy if exists emergency_contacts_select on public.emergency_contacts;
+create policy emergency_contacts_select on public.emergency_contacts for select to authenticated
+  using (user_id = public.current_profile_id());
+drop policy if exists emergency_contacts_insert on public.emergency_contacts;
+create policy emergency_contacts_insert on public.emergency_contacts for insert to authenticated
+  with check (user_id = public.current_profile_id());
+drop policy if exists emergency_contacts_update on public.emergency_contacts;
+create policy emergency_contacts_update on public.emergency_contacts for update to authenticated
+  using (user_id = public.current_profile_id())
+  with check (user_id = public.current_profile_id());
+drop policy if exists emergency_contacts_delete on public.emergency_contacts;
+create policy emergency_contacts_delete on public.emergency_contacts for delete to authenticated
+  using (user_id = public.current_profile_id());
+
+drop policy if exists sos_alerts_select on public.sos_alerts;
+create policy sos_alerts_select on public.sos_alerts for select to authenticated
+  using (
+    user_id = public.current_profile_id()
+    or public.is_admin()
+    or public.desk_role() = 'security'
+  );
+drop policy if exists sos_alerts_insert on public.sos_alerts;
+create policy sos_alerts_insert on public.sos_alerts for insert to authenticated
+  with check (user_id = public.current_profile_id());
+drop policy if exists sos_alerts_update on public.sos_alerts;
+create policy sos_alerts_update on public.sos_alerts for update to authenticated
+  using (user_id = public.current_profile_id())
+  with check (user_id = public.current_profile_id());
+
+grant select, insert, update, delete on public.emergency_contacts to authenticated;
+grant select, insert, update on public.sos_alerts to authenticated;

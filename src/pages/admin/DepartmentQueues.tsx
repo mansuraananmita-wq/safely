@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
+import { SosInbox } from '../../components/SosInbox'
 import { Button, Empty, Field, StatusPill, useTitle } from '../../components/ui'
 import { QUEUE_OFFICES, allowedTransitions, assignedAt, formatWhen, isOverdue, isRestrictedDesk, officeCanRead, priorityLabel, restrictedVisible, statusLabel } from '../../logic'
 import { useApp } from '../../store'
@@ -8,8 +9,9 @@ import type { Report, Status } from '../../types'
 export function DepartmentQueuesPage() {
   const { currentUser, state, tx, lang } = useApp()
   const offices = visibleOffices(currentUser)
-  const [office, setOffice] = useState(offices[0] ?? '')
-  const selected = offices.includes(office) ? office : offices[0] ?? ''
+  const [params, setParams] = useSearchParams()
+  const requested = params.get('office') ?? ''
+  const selected = offices.includes(requested) ? requested : offices[0] ?? ''
   const restricted = isRestrictedDesk(currentUser)
   const assignedOnly = currentUser?.role === 'department' && !restricted
   const title = restricted ? tx('Restricted queue', 'সীমিত সারি') : assignedOnly ? tx('Assigned queue', 'বরাদ্দকৃত সারি') : tx('Department queue', 'দপ্তরের সারি')
@@ -21,7 +23,8 @@ export function DepartmentQueuesPage() {
     .sort((a, b) => Number(Boolean(a.departmentId)) - Number(Boolean(b.departmentId)) || +new Date(a.dueAt) - +new Date(b.dueAt))
 
   return (
-    <div>
+    <div className="space-y-6">
+      {currentUser.role === 'security' ? <SosInbox limit={3} linked /> : null}
       <h1 className="font-display text-4xl">{title}</h1>
       <p className="mt-2 max-w-2xl text-sm text-ink/70">
         {restricted
@@ -45,7 +48,7 @@ export function DepartmentQueuesPage() {
             const item = state.departments.find((entry) => entry.id === id)
             const count = state.reports.filter((report) => officeCanRead(id, report)).length
             return (
-              <button key={id} type="button" onClick={() => setOffice(id)} className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-semibold ${selected === id ? 'bg-teal-800 text-white' : 'bg-white text-ink'}`}>
+              <button key={id} type="button" onClick={() => setParams({ office: id })} className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-semibold ${selected === id ? 'bg-teal-800 text-white' : 'bg-white text-ink'}`}>
                 {item ? (lang === 'bn' ? item.bn : item.en) : id} · {count}
               </button>
             )

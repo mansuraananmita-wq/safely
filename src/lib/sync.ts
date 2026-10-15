@@ -1,7 +1,7 @@
 import type { Session } from '@supabase/supabase-js'
 import { buildSeed } from '../data'
 import { supabase } from './supabase'
-import type { Activity, Announcement, AppNotification, AppState, AuditEntry, Category, Department, LostItem, Photo, Report, User } from '../types'
+import type { Activity, Announcement, AppNotification, AppState, AuditEntry, Category, Department, EmergencyContact, LostItem, Photo, Report, SosAlert, User } from '../types'
 
 let signedIn: User | null = null
 let pullError: string | null = null
@@ -178,6 +178,8 @@ export async function pullCampus(session: Session | null): Promise<AppState> {
     announcements: [],
     lostFound: [],
     audit: [],
+    emergencyContacts: [],
+    sosAlerts: [],
     codes: {},
     sessionUserId: null,
   }
@@ -210,7 +212,7 @@ export async function pullCampus(session: Session | null): Promise<AppState> {
     return empty
   }
 
-  const [profiles, reports, activities, confirmations, notifications, lost, audit] = await Promise.all([
+  const [profiles, reports, activities, confirmations, notifications, lost, audit, contacts, alerts] = await Promise.all([
     rows('profiles'),
     rows('reports'),
     rows('report_activities'),
@@ -218,6 +220,8 @@ export async function pullCampus(session: Session | null): Promise<AppState> {
     rows('notifications'),
     rows('lost_found'),
     rows('audit_log'),
+    rows('emergency_contacts'),
+    rows('sos_alerts'),
   ])
 
   empty.users = profiles.data.map(userFrom)
@@ -264,9 +268,37 @@ export async function pullCampus(session: Session | null): Promise<AppState> {
     action: String(row.action),
     target: String(row.target),
   }))
+  empty.emergencyContacts = contacts.data.map(contactFrom)
+  empty.sosAlerts = alerts.data.map(sosFrom)
   const email = session.user.email?.toLowerCase()
   empty.sessionUserId = empty.users.find((user) => user.email.toLowerCase() === email)?.id ?? null
   return empty
+}
+
+function contactFrom(row: Record<string, unknown>): EmergencyContact {
+  return {
+    id: String(row.id),
+    userId: String(row.user_id),
+    name: String(row.name),
+    phone: String(row.phone),
+  }
+}
+
+function sosFrom(row: Record<string, unknown>): SosAlert {
+  const contacts = Array.isArray(row.contacts) ? row.contacts as { name?: string; phone?: string }[] : []
+  return {
+    id: String(row.id),
+    userId: String(row.user_id),
+    senderName: String(row.sender_name),
+    lat: typeof row.lat === 'number' ? row.lat : undefined,
+    lng: typeof row.lng === 'number' ? row.lng : undefined,
+    accuracyM: typeof row.accuracy_m === 'number' ? row.accuracy_m : undefined,
+    message: String(row.message),
+    contacts: contacts.filter((item) => item.phone).map((item) => ({ name: String(item.name ?? ''), phone: String(item.phone) })),
+    smsStatus: (row.sms_status as SosAlert['smsStatus']) ?? 'pending',
+    smsDetail: String(row.sms_detail ?? ''),
+    createdAt: String(row.created_at),
+  }
 }
 
 function same(left: unknown, right: unknown) {
@@ -409,6 +441,57 @@ export async function pushDiff(prev: AppState, next: AppState): Promise<string |
       note(inserted.error)
     } else {
       const updated = await supabase.from('lost_found').update({ status: item.status }).eq('id', item.id)
+      note(updated.error)
+    }
+  }
+
+  const prevContacts = new Map((prev.emergencyContacts ?? []).map((item) => [item.id, item]))
+  for (const item of next.emergencyContacts ?? []) {
+    const old = prevContacts.get(item.id)
+    if (old && same(old, item)) continue
+    if (!old) {
+      const inserted = await supabase.from('emergency_contacts').insert({
+        id: item.id,
+        user_id: item.userId,
+        name: item.name,
+        phone: item.phone,
+      })
+      note(inserted.error)
+    } else {
+      const updated = await supabase.from('emergency_contacts').update({ name: item.name, phone: item.phone }).eq('id', item.id)
+      note(updated.error)
+    }
+  }
+  for (const item of prev.emergencyContacts ?? []) {
+    if ((next.emergencyContacts ?? []).some((nextItem) => nextItem.id === item.id)) continue
+    const removed = await supabase.from('emergency_contacts').delete().eq('id', item.id)
+    note(removed.error)
+  }
+
+  const prevAlerts = new Map((prev.sosAlerts ?? []).map((item) => [item.id, item]))
+  for (const item of next.sosAlerts ?? []) {
+    const old = prevAlerts.get(item.id)
+    if (old && same(old, item)) continue
+    if (!old) {
+      const inserted = await supabase.from('sos_alerts').insert({
+        id: item.id,
+        user_id: item.userId,
+        sender_name: item.senderName,
+        lat: item.lat ?? null,
+        lng: item.lng ?? null,
+        accuracy_m: item.accuracyM ?? null,
+        message: item.message,
+        contacts: item.contacts,
+        sms_status: item.smsStatus,
+        sms_detail: item.smsDetail,
+        created_at: item.createdAt,
+      })
+      note(inserted.error)
+    } else if (old.smsStatus !== item.smsStatus || old.smsDetail !== item.smsDetail) {
+      const updated = await supabase.from('sos_alerts').update({
+        sms_status: item.smsStatus,
+        sms_detail: item.smsDetail,
+      }).eq('id', item.id)
       note(updated.error)
     }
   }

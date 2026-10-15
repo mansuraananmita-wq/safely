@@ -97,6 +97,13 @@ export function NewReportPage() {
     })
   }, [draftId, state.reports])
 
+  const requestedCategory = params.get('category') ?? ''
+  useEffect(() => {
+    if (draftId || !requestedCategory) return
+    if (!state.categories.some((item) => item.id === requestedCategory)) return
+    setForm((current) => (current.category ? current : { ...current, category: requestedCategory as CategoryId }))
+  }, [draftId, requestedCategory, state.categories])
+
   const steps = [tx('Report', 'রিপোর্ট'), tx('Photos', 'ছবি'), tx('Location', 'স্থান'), tx('Privacy', 'গোপনীয়তা'), tx('Review', 'পর্যালোচনা')]
   const subs = form.category ? SUBCATEGORIES[form.category] : []
   const category = state.categories.find((item) => item.id === form.category)
@@ -221,15 +228,25 @@ export function NewReportPage() {
   return (
     <div className="mx-auto max-w-3xl">
       <h1 className="font-display text-4xl">{tx('New report', 'নতুন রিপোর্ট')}</h1>
-      <ol className="mt-4 flex flex-wrap gap-2">
-        {steps.map((label, index) => (
-          <li key={label}>
-            <button type="button" onClick={() => index < step && setStep(index)} className={`rounded-full px-3 py-1 text-xs font-semibold ${index === step ? 'bg-teal-800 text-white' : 'bg-white text-ink/60'}`}>
-              {index + 1}. {label}
-            </button>
-          </li>
-        ))}
-      </ol>
+      <p className="mt-2 max-w-xl text-sm text-ink/65">{tx('If someone is in danger, call 999 first. This form is for the campus desk.', 'কেউ বিপদে থাকলে আগে ৯৯৯-এ কল করুন। এই ফর্ম ক্যাম্পাস ডেস্কের জন্য।')}</p>
+      <div className="mt-4">
+        <div className="mb-2 flex items-center justify-between text-xs font-semibold text-ink/55">
+          <span>{steps[step]}</span>
+          <span>{step + 1} / {steps.length}</span>
+        </div>
+        <div className="h-1.5 overflow-hidden rounded-full bg-white">
+          <div className="h-full rounded-full bg-teal-800" style={{ width: `${((step + 1) / steps.length) * 100}%` }} />
+        </div>
+        <ol className="mt-3 flex gap-1 overflow-x-auto pb-1">
+          {steps.map((label, index) => (
+            <li key={label} className="shrink-0">
+              <button type="button" onClick={() => index < step && setStep(index)} className={`rounded-full px-3 py-1 text-xs font-semibold ${index === step ? 'bg-teal-800 text-white' : index < step ? 'bg-white text-teal-800' : 'bg-white/70 text-ink/40'}`}>
+                {index + 1}. {label}
+              </button>
+            </li>
+          ))}
+        </ol>
+      </div>
 
       <div className="mt-6 space-y-4">
         {step === 0 ? (
@@ -244,7 +261,7 @@ export function NewReportPage() {
                   const Icon = categoryIcon[item.id]
                   const active = form.category === item.id
                   return (
-                    <button key={item.id} type="button" onClick={() => pickCategory(item.id)} className={`panel p-4 text-left ${active ? 'border-teal-700 bg-teal-50' : ''}`}>
+                    <button key={item.id} type="button" onClick={() => pickCategory(item.id)} className={`rounded-2xl border p-4 text-left shadow-card ${active ? 'border-teal-800 bg-teal-50 ring-2 ring-teal-800' : 'border-line bg-white'}`}>
                       <Icon className="h-4 w-4 text-teal-800" />
                       <span className="mt-2 block font-semibold">{lang === 'bn' ? item.bn : item.en}</span>
                       <span className="mt-1 block text-sm text-ink/65">{lang === 'bn' ? item.hintBn : item.hintEn}</span>
@@ -393,7 +410,7 @@ export function NewReportPage() {
         ) : null}
       </div>
 
-      <div className="sticky bottom-20 z-20 -mx-4 mt-6 border-t border-line bg-paper/95 px-4 py-3 backdrop-blur md:bottom-0">
+      <div className="sticky bottom-24 z-20 -mx-4 mt-6 rounded-t-2xl border border-line bg-white px-4 py-3 shadow-card md:bottom-4">
       {gaps().length > 0 ? <p className="mb-3 text-sm text-clay">{tx('Still needed before you can continue:', 'এগোনোর আগে এগুলো দরকার:')} {gaps().join(' · ')}</p> : null}
       <div className="flex flex-wrap gap-2">
         {step > 0 ? <Button variant="secondary" onClick={() => setStep((value) => value - 1)}>{tx('Back', 'পেছনে')}</Button> : null}

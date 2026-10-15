@@ -160,7 +160,7 @@ export function HelpPage() {
   const { tx } = useApp()
   useTitle(tx('Help', 'সহায়তা'))
   const faqs = [
-    [tx('Is this for emergencies?', 'এটা কি জরুরি সেবা?'), tx('No. If someone is in danger, call 999. Safely is for campus follow-up.', 'না। কেউ বিপদে থাকলে ৯৯৯-এ কল করুন। সেইফলি ক্যাম্পাসের ফলোআপের জন্য।')],
+    [tx('Is this for emergencies?', 'এটা কি জরুরি সেবা?'), tx('Call 999 if someone is in danger. SOS messages your saved numbers and the campus desk with your location. It does not call 999.', 'কেউ বিপদে থাকলে ৯৯৯-এ কল করুন। SOS আপনার সেভ করা নম্বরে ও ক্যাম্পাস ডেস্কে লোকেশনসহ বার্তা পাঠায়। এতে ৯৯৯-এ কল হয় না।')],
     [tx('Who sees an ordinary report?', 'সাধারণ রিপোর্ট কে দেখে?'), tx('The operations desk, the office it is assigned to, and other members can see the problem. They see your role, not a public profile.', 'অপারেশন ডেস্ক, যে দপ্তরে বরাদ্দ হয়, এবং অন্য সদস্যরা সমস্যা দেখতে পান। তারা আপনার ভূমিকা দেখেন, প্রকাশ্য প্রোফাইল নয়।')],
     [tx('Who sees a harassment report?', 'হয়রানির রিপোর্ট কে দেখে?'), tx('Campus security, student affairs, and the operations desk. Facilities offices do not.', 'ক্যাম্পাস নিরাপত্তা, শিক্ষার্থী বিষয়ক দপ্তর, এবং অপারেশন ডেস্ক। রক্ষণাবেক্ষণ দপ্তর দেখে না।')],
     [tx('What does hiding my name mean here?', 'নাম লুকানোর অর্থ কী?'), tx('Officers do not see your name. This preview still keeps the report in your account. A full anonymity design needs the backend.', 'কর্মকর্তারা আপনার নাম দেখেন না। এই প্রিভিউতে রিপোর্ট আপনার অ্যাকাউন্টে থাকে। সম্পূর্ণ বেনামির জন্য ব্যাকএন্ড দরকার।')],
@@ -174,7 +174,7 @@ export function HelpPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <h1 className="font-display text-4xl">{tx('Help', 'সহায়তা')}</h1>
-      <div className="rounded-2xl bg-clay/10 p-4 text-sm">{tx('Safely does not contact emergency services and cannot send a rescue.', 'সেইফলি জরুরি সেবায় খবর পাঠায় না এবং উদ্ধার পাঠাতে পারে না।')}</div>
+      <div className="rounded-2xl bg-clay/10 p-4 text-sm">{tx('If you can, call 999. The SOS button messages the numbers you save and the campus desk. It does not call 999 and it cannot send a rescue.', 'পারলে ৯৯৯-এ কল করুন। SOS বোতাম আপনার সেভ করা নম্বরে ও ক্যাম্পাস ডেস্কে বার্তা পাঠায়। এতে ৯৯৯-এ কল হয় না এবং উদ্ধার পাঠানো যায় না।')}</div>
       <div className="grid gap-3 sm:grid-cols-3">
         {contacts.map(([name, phone, note]) => (
           <a key={phone} href={`tel:${phone.replaceAll('-', '')}`} className="panel p-4">

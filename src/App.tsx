@@ -11,6 +11,7 @@ import Landing from './pages/Landing'
 import { NotificationsPage } from './pages/Notifications'
 import PublicStatus from './pages/PublicStatus'
 import { HomePage } from './pages/reporter/Home'
+import { SosPage } from './pages/Sos'
 import { AlertsPage, HelpPage, LostFoundPage, MapPage, ProfilePage } from './pages/reporter/MorePages'
 import { MyReportsPage } from './pages/reporter/MyReports'
 import { NewReportPage } from './pages/reporter/NewReport'
@@ -22,7 +23,7 @@ function Guard({ mode }: { mode: 'member' | 'desk' }) {
   const { currentUser, ready, tx } = useApp()
   const location = useLocation()
   if (!ready) return <p className="px-4 py-10 text-sm">{tx('Loading the campus desk.', 'ক্যাম্পাস ডেস্ক লোড হচ্ছে।')}</p>
-  if (!currentUser || currentUser.suspended) return <Navigate to="/login" replace state={{ from: location.pathname }} />
+  if (!currentUser || currentUser.suspended) return <Navigate to="/login" replace state={{ from: `${location.pathname}${location.search}` }} />
   if (mode === 'member' && !isMember(currentUser.role)) return <Navigate to={homePath(currentUser.role)} replace />
   if (mode === 'desk' && isMember(currentUser.role)) return <Navigate to="/app" replace />
   return <Outlet />
@@ -64,6 +65,7 @@ export default function App() {
           <Route path="/app/alerts" element={<AlertsPage />} />
           <Route path="/app/lost" element={<LostFoundPage />} />
           <Route path="/app/help" element={<HelpPage />} />
+          <Route path="/app/sos" element={<SosPage />} />
           <Route path="/app/profile" element={<ProfilePage />} />
           <Route path="/app/notifications" element={<NotificationsPage />} />
         </Route>
@@ -82,6 +84,7 @@ export default function App() {
           <Route path="/admin/reports/:id" element={<ReviewPage />} />
           <Route path="/admin/queues" element={<DepartmentQueuesPage />} />
           <Route path="/admin/profile" element={<ProfilePage />} />
+          <Route path="/admin/sos" element={<SosPage />} />
           <Route path="/admin/notifications" element={<NotificationsPage />} />
         </Route>
       </Route>

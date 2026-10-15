@@ -1,13 +1,22 @@
-import { ArrowRight, Lock, MapPinned, MessageSquare, ShieldAlert, ThumbsUp, Timer } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { ArrowRight, Lock, ThumbsUp, Timer } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { categoryIcon } from '../categoryUi'
 import type { LucideIcon } from 'lucide-react'
 import { Logo, StatusPill, buttonClass, cx, useTitle } from '../components/ui'
-import { statusLabel } from '../logic'
+import { homePath, isMember, statusLabel } from '../logic'
 import { useApp } from '../store'
 import type { Status } from '../types'
 
 const flow: Status[] = ['submitted', 'under_review', 'assigned', 'in_progress', 'resolved', 'closed']
+
+function ReportLink({ category, className, children }: { category?: string; className?: string; children: ReactNode }) {
+  const { currentUser } = useApp()
+  const path = category ? `/app/report/new?category=${category}` : '/app/report/new'
+  if (currentUser && isMember(currentUser.role)) return <Link to={path} className={className}>{children}</Link>
+  if (currentUser) return <Link to={homePath(currentUser.role)} className={className}>{children}</Link>
+  return <Link to="/login" state={{ from: path }} className={className}>{children}</Link>
+}
 
 export default function Landing() {
   const { tx, lang, state, remote } = useApp()
@@ -22,7 +31,7 @@ export default function Landing() {
           <Link to="/status" className="text-ink/70 hover:text-ink">{tx('Public figures', 'প্রকাশ্য হিসাব')}</Link>
         </nav>
         <Link to="/login" className={buttonClass('secondary', 'ml-auto md:ml-0')}>{tx('Sign in', 'সাইন ইন')}</Link>
-        <Link to="/register" className={cx(buttonClass('primary'), 'hidden sm:inline-flex')}>{tx('Report a problem', 'সমস্যা জানান')}</Link>
+        <ReportLink className={cx(buttonClass('primary'), 'hidden sm:inline-flex')}>{tx('Report a problem', 'সমস্যা জানান')}</ReportLink>
       </header>
       <nav className="flex gap-4 overflow-x-auto px-4 pb-2 text-sm md:hidden" aria-label={tx('Sections', 'বিভাগ')}>
         <a href="#how" className="shrink-0 text-ink/70">{tx('How it works', 'কীভাবে কাজ করে')}</a>
@@ -44,16 +53,16 @@ export default function Landing() {
               )}
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
-              <Link to="/register" className={buttonClass('primary')}>
+              <ReportLink className={buttonClass('primary')}>
                 {tx('File a campus report', 'ক্যাম্পাস রিপোর্ট দিন')}
                 <ArrowRight className="h-4 w-4" />
-              </Link>
-              <Link to="/login" className={buttonClass('secondary')}>{tx('Open a demo desk', 'ডেমো ডেস্ক খুলুন')}</Link>
+              </ReportLink>
+              <Link to="/login" className={buttonClass('secondary')}>{tx('Sign in', 'সাইন ইন')}</Link>
             </div>
             <p className="mt-4 max-w-md text-sm text-ink/55">
               {tx(
-                'Campus members use the Safely phone app. This website is the operations desk. It is not an emergency service. If someone is in danger, call 999.',
-                'ক্যাম্পাসের সদস্যরা সেইফলি ফোন অ্যাপ ব্যবহার করেন। এই ওয়েবসাইট অপারেশন ডেস্ক। এটি জরুরি সেবা নয়। কেউ বিপদে থাকলে ৯৯৯-এ কল করুন।',
+                'Nothing is sent on its own. You keep the report ID and follow each status. For danger, call 999.',
+                'কিছুই নিজে থেকে যায় না। রিপোর্ট আইডি আপনার কাছে থাকে, প্রতিটি স্ট্যাটাস আপনি দেখেন। বিপদে ৯৯৯-এ কল করুন।',
               )}
             </p>
           </div>
@@ -86,12 +95,23 @@ export default function Landing() {
           </div>
         </section>
 
+        <section className="mx-auto max-w-6xl px-4 pb-10">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-clay px-4 py-3 text-sm text-white">
+            <p className="font-semibold">{tx('If someone is in danger, call 999. Safely is the follow-up desk, not rescue.', 'কেউ বিপদে থাকলে ৯৯৯-এ কল করুন। সেইফলি ফলো-আপ ডেস্ক, উদ্ধারকারী দল নয়।')}</p>
+            <a href="tel:999" className="rounded-full bg-white px-3 py-1.5 text-sm font-semibold text-clay">{tx('Call 999', '৯৯৯ কল')}</a>
+          </div>
+        </section>
+
         <section className="mx-auto max-w-6xl px-4 pb-16">
+          <div className="mb-4 max-w-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-800">{tx('What you can report', 'যা জানাতে পারেন')}</p>
+            <h2 className="mt-2 font-display text-4xl">{tx('Pick the closest kind of problem.', 'সবচেয়ে কাছের সমস্যাটি বেছে নিন।')}</h2>
+          </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             {state.categories.map((category) => {
               const Icon = categoryIcon[category.id]
               return (
-                <Link key={category.id} to="/register" className="panel flex items-start gap-3 p-4 hover:border-teal-700">
+                <ReportLink key={category.id} category={category.id} className="panel flex items-start gap-3 p-4 hover:border-teal-700">
                   <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-teal-50 text-teal-800">
                     <Icon className="h-4 w-4" />
                   </span>
@@ -99,7 +119,7 @@ export default function Landing() {
                     <span className="block text-sm font-semibold leading-snug">{lang === 'bn' ? category.bn : category.en}</span>
                     {category.sensitive ? <span className="mt-1 block text-xs text-plum">{tx('Restricted desk', 'সীমিত ডেস্ক')}</span> : null}
                   </span>
-                </Link>
+                </ReportLink>
               )
             })}
           </div>
@@ -138,12 +158,9 @@ export default function Landing() {
 
         <section className="mx-auto grid max-w-6xl gap-4 px-4 pb-16 md:grid-cols-3">
           {([
-            [Timer, tx('Target times', 'লক্ষ্য সময়'), tx('Every category has a clock. Overdue work rises to the top of the desk.', 'প্রতিটি বিভাগের একটি সময়সীমা আছে। সময় পেরোলে কাজ ডেস্কের উপরে ওঠে।')],
-            [ThumbsUp, tx('Same problem, one report', 'এক সমস্যা, একটি রিপোর্ট'), tx('Before you file, Safely shows open reports at that place. You can add your name to one instead of starting a duplicate.', 'জমা দেওয়ার আগে সেই জায়গার খোলা রিপোর্ট দেখায়। নতুন না খুলে আপনি সেটিতে যোগ দিতে পারেন।')],
-            [MapPinned, tx('Planned work', 'পরিকল্পিত কাজ'), tx('Tank cleaning and patrol notices sit next to the form, so a known outage is not filed as a surprise.', 'ট্যাংক পরিষ্কার বা প্যাট্রোলের নোটিশ ফর্মের পাশে থাকে, যাতে জানা বিভ্রাট নতুন সমস্যা না হয়।')],
-            [ShieldAlert, tx('Safety without spectacle', 'প্রদর্শন ছাড়া নিরাপত্তা'), tx('The public map counts unsafe areas. It does not publish the story.', 'প্রকাশ্য মানচিত্র বিপজ্জনক এলাকা গোনে। ঘটনা প্রকাশ করে না।')],
-            [Lock, tx('A smaller audience', 'ছোট পরিসর'), tx('Harassment reports are confidential by default. Anonymous ones keep no reply channel.', 'হয়রানির রিপোর্ট স্বয়ংক্রিয়ভাবে গোপন। বেনামি রিপোর্টে উত্তরের পথ থাকে না।')],
-            [MessageSquare, tx('Bangla and English', 'বাংলা ও ইংরেজি'), tx('Switch language, enlarge the type, or raise contrast from any signed-in screen.', 'যেকোনো স্ক্রিন থেকে ভাষা, বড় অক্ষর, বা বেশি কনট্রাস্ট বেছে নিন।')],
+            [Timer, tx('A clock on every report', 'প্রতিটি রিপোর্টে একটি সময়'), tx('Each category has a target. Work past that time rises to the top of the desk.', 'প্রতিটি বিভাগের একটি লক্ষ্য সময় আছে। সময় পেরোলে কাজ ডেস্কের উপরে ওঠে।')],
+            [ThumbsUp, tx('One report for one problem', 'এক সমস্যা, একটি রিপোর্ট'), tx('Open reports at that building show before you file. Add your name instead of starting a copy.', 'জমা দেওয়ার আগে সেই ভবনের খোলা রিপোর্ট দেখায়। নতুন না খুলে আপনি সেটিতে যোগ দিতে পারেন।')],
+            [Lock, tx('A smaller desk for sensitive cases', 'সংবেদনশীল ঘটনার জন্য ছোট ডেস্ক'), tx('Harassment stays confidential. The public map never shows those stories.', 'হয়রানির রিপোর্ট গোপন থাকে। প্রকাশ্য মানচিত্র সেই ঘটনা দেখায় না।')],
           ] as [LucideIcon, string, string][]).map(([Icon, title, body]) => (
             <article key={title} className="panel p-5">
               <Icon className="h-5 w-5 text-teal-800" />

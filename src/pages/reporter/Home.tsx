@@ -19,38 +19,36 @@ export function HomePage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <div>
-        <p className="text-sm text-ink/60">{hello}</p>
-        <h1 className="font-display text-4xl">{currentUser?.name}</h1>
-        <p className="mt-2 text-ink/70">{currentUser?.unit}</p>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-sm text-ink/60">{hello}</p>
+          <h1 className="font-display text-4xl">{currentUser?.name}</h1>
+          <p className="mt-1 text-sm text-ink/70">{currentUser?.unit}</p>
+        </div>
+        <Link to="/app/report/new" className={buttonClass('primary')}>{tx('Report a problem', 'সমস্যা জানান')}</Link>
       </div>
-      <section>
-        <h2 className="mb-3 font-display text-2xl">{tx('Your location', 'আপনার লোকেশন')}</h2>
-        <LiveLocationMap />
-      </section>
+      <div className="grid grid-cols-3 gap-2">
+        {[
+          [tx('Open', 'খোলা'), open.length, '/app/reports'],
+          [tx('Needs you', 'আপনার দরকার'), waiting.length, '/app/reports'],
+          [tx('Drafts', 'খসড়া'), drafts.length, '/app/reports'],
+        ].map(([label, value, to]) => (
+          <Link key={String(label)} to={String(to)} className="panel p-3 hover:border-teal-700">
+            <p className="text-xs uppercase tracking-wide text-ink/45">{label}</p>
+            <p className="font-display text-3xl">{value}</p>
+          </Link>
+        ))}
+      </div>
       {alerts[0] ? (
-        <Link to="/app/alerts" className="block rounded-2xl bg-marigold/20 px-4 py-3 text-sm">
+        <Link to="/app/alerts" className="block rounded-2xl border border-marigold/30 bg-marigold/15 px-4 py-3 text-sm">
           <span className="font-semibold">{alerts[0].title}. </span>
           <span className="line-clamp-2 text-ink/75">{alerts[0].body}</span>
         </Link>
       ) : null}
-      <div className="grid grid-cols-3 gap-2">
-        {[
-          [tx('Open', 'খোলা'), open.length],
-          [tx('Needs you', 'আপনার দরকার'), waiting.length],
-          [tx('Drafts', 'খসড়া'), drafts.length],
-        ].map(([label, value]) => (
-          <div key={String(label)} className="panel p-3">
-            <p className="text-xs uppercase tracking-wide text-ink/45">{label}</p>
-            <p className="font-display text-3xl">{value}</p>
-          </div>
-        ))}
-      </div>
-      <Link to="/app/report/new" className={buttonClass('primary')}>{tx('Report a problem', 'সমস্যা জানান')}</Link>
       <section>
         <h2 className="mb-3 font-display text-2xl">{tx('Your active reports', 'আপনার চলমান রিপোর্ট')}</h2>
         <div className="space-y-3">
-          {open.length === 0 ? <p className="text-sm text-ink/60">{tx('Nothing open. A draft can wait until you are ready.', 'কিছু খোলা নেই। খসড়া প্রস্তুত না হওয়া পর্যন্ত থাকতে পারে।')}</p> : open.map((report) => <ReportCard key={report.id} report={report} base="/app/reports" />)}
+          {open.length === 0 ? <p className="rounded-2xl border border-dashed border-line bg-white px-4 py-6 text-sm text-ink/60">{tx('Nothing open. A draft can wait until you are ready.', 'কিছু খোলা নেই। খসড়া প্রস্তুত না হওয়া পর্যন্ত থাকতে পারে।')}</p> : open.map((report) => <ReportCard key={report.id} report={report} base="/app/reports" />)}
           {open.some(isOverdue) ? <p className="text-sm text-clay">{tx('A report outlined in red is past its target time. The desk can still see it.', 'লাল বর্ডারের রিপোর্ট লক্ষ্য সময় পেরিয়েছে। ডেস্ক সেটি দেখতে পায়।')}</p> : null}
         </div>
       </section>
@@ -61,9 +59,13 @@ export function HomePage() {
         </section>
       ) : null}
       <section>
+        <h2 className="mb-3 font-display text-2xl">{tx('Your location', 'আপনার লোকেশন')}</h2>
+        <LiveLocationMap />
+      </section>
+      <section>
         <div className="mb-3 flex items-end justify-between">
           <h2 className="font-display text-2xl">{tx('Open around campus', 'ক্যাম্পাসে যা খোলা')}</h2>
-          <Link to="/app/map" className="text-sm font-semibold text-teal-800">{tx('See on Google Maps', 'গুগল ম্যাপে দেখুন')}</Link>
+          <Link to="/app/map" className="text-sm font-semibold text-teal-800">{tx('Map', 'ম্যাপ')}</Link>
         </div>
         <div className="space-y-3">{nearby.map((report) => <ReportCard key={report.id} report={report} base="/app/reports" />)}</div>
       </section>
