@@ -724,8 +724,11 @@ create table if not exists public.sos_alerts (
   contacts jsonb not null default '[]'::jsonb,
   sms_status text not null default 'pending' check (sms_status in ('pending', 'sent', 'partial', 'skipped', 'failed')),
   sms_detail text not null default '',
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  resolved_at timestamptz
 );
+
+alter table public.sos_alerts add column if not exists resolved_at timestamptz;
 
 create index if not exists emergency_contacts_user on public.emergency_contacts (user_id);
 create index if not exists sos_alerts_created on public.sos_alerts (created_at desc);
@@ -754,14 +757,32 @@ as $$
 begin
   if new.user_id is distinct from old.user_id
     or new.sender_name is distinct from old.sender_name
-    or new.lat is distinct from old.lat
-    or new.lng is distinct from old.lng
-    or new.accuracy_m is distinct from old.accuracy_m
-    or new.message is distinct from old.message
     or new.contacts is distinct from old.contacts
     or new.created_at is distinct from old.created_at
     or new.id is distinct from old.id then
     raise exception 'An SOS alert cannot be rewritten';
+  end if;
+  if new.resolved_at is distinct from old.resolved_at then
+    if auth.uid() is not null and not (public.is_admin() or public.desk_role() = 'security') then
+      raise exception 'Only the desk can close an SOS';
+    end if;
+  end if;
+  if new.lat is distinct from old.lat
+    or new.lng is distinct from old.lng
+    or new.accuracy_m is distinct from old.accuracy_m
+    or new.message is distinct from old.message then
+    if public.current_profile_id() is distinct from old.user_id then
+      raise exception 'Only the sender can update the live location';
+    end if;
+    if old.resolved_at is not null then
+      raise exception 'A solved SOS keeps its last location';
+    end if;
+    if old.created_at < now() - interval '3 minutes' then
+      raise exception 'The live location window has closed';
+    end if;
+    if old.accuracy_m is not null and (new.accuracy_m is null or new.accuracy_m > old.accuracy_m) then
+      raise exception 'A later fix must be closer';
+    end if;
   end if;
   return new;
 end;
@@ -801,8 +822,16 @@ create policy sos_alerts_insert on public.sos_alerts for insert to authenticated
   with check (user_id = public.current_profile_id());
 drop policy if exists sos_alerts_update on public.sos_alerts;
 create policy sos_alerts_update on public.sos_alerts for update to authenticated
-  using (user_id = public.current_profile_id())
-  with check (user_id = public.current_profile_id());
+  using (
+    user_id = public.current_profile_id()
+    or public.is_admin()
+    or public.desk_role() = 'security'
+  )
+  with check (
+    user_id = public.current_profile_id()
+    or public.is_admin()
+    or public.desk_role() = 'security'
+  );
 
 grant select, insert, update, delete on public.emergency_contacts to authenticated;
 grant select, insert, update on public.sos_alerts to authenticated;

@@ -181,6 +181,7 @@ export interface SosAlert {
   smsStatus: SosSmsStatus
   smsDetail: string
   createdAt: string
+  resolvedAt?: string
 }
 
 export interface Prefs {

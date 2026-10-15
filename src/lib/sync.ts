@@ -298,6 +298,7 @@ function sosFrom(row: Record<string, unknown>): SosAlert {
     smsStatus: (row.sms_status as SosAlert['smsStatus']) ?? 'pending',
     smsDetail: String(row.sms_detail ?? ''),
     createdAt: String(row.created_at),
+    resolvedAt: row.resolved_at ? String(row.resolved_at) : undefined,
   }
 }
 
@@ -487,12 +488,23 @@ export async function pushDiff(prev: AppState, next: AppState): Promise<string |
         created_at: item.createdAt,
       })
       note(inserted.error)
-    } else if (old.smsStatus !== item.smsStatus || old.smsDetail !== item.smsDetail) {
-      const updated = await supabase.from('sos_alerts').update({
-        sms_status: item.smsStatus,
-        sms_detail: item.smsDetail,
-      }).eq('id', item.id)
-      note(updated.error)
+    } else {
+      const patch: Record<string, unknown> = {}
+      if (old.smsStatus !== item.smsStatus || old.smsDetail !== item.smsDetail) {
+        patch.sms_status = item.smsStatus
+        patch.sms_detail = item.smsDetail
+      }
+      if (old.lat !== item.lat || old.lng !== item.lng || old.accuracyM !== item.accuracyM || old.message !== item.message) {
+        patch.lat = item.lat ?? null
+        patch.lng = item.lng ?? null
+        patch.accuracy_m = item.accuracyM ?? null
+        patch.message = item.message
+      }
+      if ((old.resolvedAt ?? null) !== (item.resolvedAt ?? null)) patch.resolved_at = item.resolvedAt ?? null
+      if (Object.keys(patch).length) {
+        const updated = await supabase.from('sos_alerts').update(patch).eq('id', item.id)
+        note(updated.error)
+      }
     }
   }
 

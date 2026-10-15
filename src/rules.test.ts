@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { assignmentBlocked, deskReports, isPublicFeed, officeCanRead, QUEUE_OFFICES } from './logic'
-import { preferLiveFix, normalizePhone, sosMessage } from './lib/sos'
+import { preferLiveFix, normalizePhone, sendDecision, sosMessage } from './lib/sos'
 import type { Report, User } from './types'
 
 function user(partial: Partial<User> & Pick<User, 'id' | 'role'>): User {
@@ -87,5 +87,15 @@ describe('sos live location', () => {
     expect(preferLiveFix(moved, coarseAgain)).toEqual(moved)
     expect(sosMessage('Amina Rahman', moved)).toContain('https://maps.google.com/?q=23.811102,90.413204')
     expect(sosMessage('Amina Rahman', null)).toContain('Location was not available.')
+  })
+
+  it('waits for a close fix and does not send a 50 km network guess immediately', () => {
+    const coarse = { lat: 24.7399, lng: 88.2099, accuracy: 50_000, at: 1 }
+    expect(sendDecision(null, 1_000, false)).toBe('wait')
+    expect(sendDecision(coarse, 1_000, false)).toBe('wait')
+    expect(sendDecision(coarse, 12_000, false)).toBe('send')
+    expect(sendDecision({ lat: 24.07, lng: 90.22, accuracy: 12, at: 2 }, 500, false)).toBe('send')
+    expect(sendDecision(null, 20_000, false)).toBe('blocked')
+    expect(sendDecision(null, 500, true)).toBe('blocked')
   })
 })

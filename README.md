@@ -93,7 +93,7 @@ Demo people in the app are Amina Rahman, Dr. Karim Hassan, and Nusrat Jahan. Wit
 
 ## SOS
 
-Press SOS, then wait three seconds or press Cancel. Cancel sends nothing. If the countdown finishes, the app watches the device location during the wait and sends the newest fix, not an older cached point. The campus desk sees the message and the map in the dashboard and on `/admin/sos`. Saved personal numbers are optional extra SMS recipients.
+Press SOS, then wait three seconds or press Cancel. Cancel sends nothing. If the countdown finishes, the app keeps watching the device until it has a close location fix, then sends that fix. A rough network location is not treated as the live position. The campus desk sees the message and the map in the dashboard and on `/admin/sos`. Marking an alert as solved removes it from the open count on the SOS button. Saved personal numbers are optional extra SMS recipients.
 
 One account can send one SOS per minute. 999, 112, and 911 cannot be saved as contacts.
 

@@ -34,7 +34,7 @@ export function AccountTools({ bellTo, profileTo }: { bellTo: string; profileTo:
   const [signOut, setSignOut] = useState(false)
   const unread = state.notifications.filter((item) => item.userId === currentUser?.id && !item.read).length
   const desk = currentUser?.role === 'admin' || currentUser?.role === 'security'
-  const sosCount = desk ? (state.sosAlerts ?? []).length : 0
+  const sosCount = desk ? (state.sosAlerts ?? []).filter((item) => !item.resolvedAt).length : 0
 
   return (
     <div className="ml-auto flex items-center gap-2">

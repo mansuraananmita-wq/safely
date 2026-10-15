@@ -219,7 +219,9 @@ type Api = {
   resetDemo: () => void
   addEmergencyContact: (name: string, phone: string) => Promise<'ok' | 'name' | 'phone' | 'limit' | 'duplicate' | 'rejected'>
   removeEmergencyContact: (id: string) => Promise<string | null>
-  sendSos: (place: { lat: number; lng: number; accuracy: number } | null) => Promise<'sent' | 'desk' | 'sms-failed' | 'soon' | 'empty' | 'rejected'>
+  sendSos: (place: { lat: number; lng: number; accuracy: number } | null) => Promise<{ status: 'sent' | 'desk' | 'sms-failed' | 'soon' | 'empty' | 'rejected'; id: string | null }>
+  refineSosLocation: (id: string, place: { lat: number; lng: number; accuracy: number }) => Promise<string | null>
+  resolveSos: (id: string) => Promise<string | null>
 }
 
 const Ctx = createContext<Api | null>(null)
@@ -981,12 +983,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     sendSos: async (place) => {
       const current = stateRef.current
       const user = current.users.find((item) => item.id === current.sessionUserId)
-      if (!user) return 'rejected'
+      if (!user) return { status: 'rejected', id: null }
       const contacts = (current.emergencyContacts ?? []).filter((item) => item.userId === user.id)
       const latest = (current.sosAlerts ?? [])
         .filter((item) => item.userId === user.id)
         .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))[0]
-      if (latest && Date.now() - new Date(latest.createdAt).getTime() < 60_000) return 'soon'
+      if (latest && Date.now() - new Date(latest.createdAt).getTime() < 60_000) return { status: 'soon', id: null }
       const id = uid('sos')
       const message = sosMessage(user.name, place)
       const createdAt = nowIso()
@@ -1026,8 +1028,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           createdAt,
         }, ...state.notifications].slice(0, 200),
       }, user.name, 'Sent an SOS alert', id))
-      if (saved) return 'rejected'
-      if (!remote || !supabase) return 'desk'
+      if (saved) return { status: 'rejected', id: null }
+      if (!remote || !supabase) return { status: 'desk', id }
       const { data, error } = await supabase.functions.invoke('send-sos', { body: { alertId: id } })
       const payload = (data ?? null) as { status?: string; detail?: string } | null
       let smsStatus: 'sent' | 'partial' | 'skipped' | 'failed' = 'skipped'
@@ -1043,9 +1045,35 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         ...state,
         sosAlerts: (state.sosAlerts ?? []).map((item) => (item.id === id ? { ...item, smsStatus, smsDetail } : item)),
       }))
-      if (smsStatus === 'sent') return 'sent'
-      if (smsStatus === 'failed' || smsStatus === 'partial') return 'sms-failed'
-      return 'desk'
+      if (smsStatus === 'sent') return { status: 'sent', id }
+      if (smsStatus === 'failed' || smsStatus === 'partial') return { status: 'sms-failed', id }
+      return { status: 'desk', id }
+    },
+    refineSosLocation: (id, place) => {
+      const user = stateRef.current.users.find((item) => item.id === stateRef.current.sessionUserId)
+      if (!user) return Promise.resolve('rejected')
+      const current = (stateRef.current.sosAlerts ?? []).find((item) => item.id === id && item.userId === user.id && !item.resolvedAt)
+      if (!current) return Promise.resolve(null)
+      if (typeof current.accuracyM === 'number' && place.accuracy >= current.accuracyM) return Promise.resolve(null)
+      return update((state) => ({
+        ...state,
+        sosAlerts: (state.sosAlerts ?? []).map((item) => (
+          item.id === id
+            ? { ...item, lat: place.lat, lng: place.lng, accuracyM: place.accuracy, message: sosMessage(item.senderName, place) }
+            : item
+        )),
+      }))
+    },
+    resolveSos: (id) => {
+      const user = stateRef.current.users.find((item) => item.id === stateRef.current.sessionUserId)
+      if (!user || (user.role !== 'admin' && user.role !== 'security')) return Promise.resolve('rejected')
+      const current = (stateRef.current.sosAlerts ?? []).find((item) => item.id === id)
+      if (!current || current.resolvedAt) return Promise.resolve(null)
+      const solvedAt = nowIso()
+      return update((state) => withAudit({
+        ...state,
+        sosAlerts: (state.sosAlerts ?? []).map((item) => (item.id === id ? { ...item, resolvedAt: solvedAt } : item)),
+      }, user.name, 'Marked an SOS as solved', id))
     },
     resetDemo: () => {
       if (remote && supabase) {

@@ -28,9 +28,12 @@ export function preferLiveFix(previous: LiveFix | null, next: LiveFix): LiveFix 
   return previous
 }
 
-export function watchLiveLocation(onFix: (fix: LiveFix) => void): () => void {
-  if (typeof navigator === 'undefined' || !navigator.geolocation) return () => {}
-  const options: PositionOptions = { enableHighAccuracy: true, maximumAge: 0, timeout: 12000 }
+export function watchLiveLocation(onFix: (fix: LiveFix) => void, onDenied?: () => void): () => void {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) {
+    onDenied?.()
+    return () => {}
+  }
+  const options: PositionOptions = { enableHighAccuracy: true, maximumAge: 0, timeout: 25000 }
   const take = (position: GeolocationPosition) => {
     onFix({
       lat: position.coords.latitude,
@@ -39,7 +42,17 @@ export function watchLiveLocation(onFix: (fix: LiveFix) => void): () => void {
       at: position.timestamp || Date.now(),
     })
   }
-  const watch = navigator.geolocation.watchPosition(take, () => {}, options)
-  navigator.geolocation.getCurrentPosition(take, () => {}, options)
+  const fail = (error: GeolocationPositionError) => {
+    if (error.code === error.PERMISSION_DENIED) onDenied?.()
+  }
+  const watch = navigator.geolocation.watchPosition(take, fail, options)
   return () => navigator.geolocation.clearWatch(watch)
+}
+
+export function sendDecision(fix: LiveFix | null, waitedMs: number, denied: boolean): 'wait' | 'send' | 'blocked' {
+  if (fix && fix.accuracy <= 100) return 'send'
+  if (denied) return 'blocked'
+  if (fix && waitedMs >= 12000) return 'send'
+  if (!fix && waitedMs >= 20000) return 'blocked'
+  return 'wait'
 }
