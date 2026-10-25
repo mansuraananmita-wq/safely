@@ -39,7 +39,7 @@ export function ReporterLayout() {
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-white focus:px-3 focus:py-2">
         {tx('Skip to content', 'মূল অংশে যান')}
       </a>
-      <header className="no-print sticky top-0 z-30 border-b border-line bg-white/95 shadow-sm backdrop-blur">
+      <header className="no-print sticky top-0 z-30 border-b border-haze/80 bg-frost/90 shadow-sm backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
           <Logo />
           <AccountTools bellTo="/app/notifications" profileTo="/app/profile" />
@@ -63,7 +63,7 @@ export function ReporterLayout() {
       {moreOpen ? (
         <div className="no-print fixed inset-0 z-40 md:hidden">
           <button type="button" className="absolute inset-0 bg-ink/40" aria-label={tx('Close menu', 'মেনু বন্ধ')} onClick={() => setMoreOpen(false)} />
-          <div className="absolute inset-x-3 bottom-20 rounded-2xl border border-line bg-card p-2 shadow-card">
+          <div className="absolute inset-x-3 bottom-20 rounded-2xl border border-haze bg-card p-2 shadow-card">
             <nav className="space-y-1" aria-label={tx('More', 'আরও')}>
               {more.map((item) => (
                 <NavLink key={item.to} to={item.to} end={item.end} onClick={() => setMoreOpen(false)} className={({ isActive }) => navClass(isActive)}>
@@ -75,23 +75,23 @@ export function ReporterLayout() {
           </div>
         </div>
       ) : null}
-      <nav className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 shadow-[0_-10px_30px_-18px_rgba(16,40,68,0.55)] backdrop-blur md:hidden" aria-label={tx('Sections', 'বিভাগ')} style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}>
+      <nav className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-haze bg-frost/95 shadow-[0_-10px_30px_-18px_rgba(17,21,34,0.55)] backdrop-blur md:hidden" aria-label={tx('Sections', 'বিভাগ')} style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}>
         <div className="grid grid-cols-5 px-1 pt-1">
           {bottom.slice(0, 2).map((item) => (
-            <NavLink key={item.to} to={item.to} end={item.end} onClick={() => setMoreOpen(false)} className={({ isActive }) => cx('grid place-items-center gap-0.5 rounded-xl px-1 py-1 text-[11px] leading-tight', isActive ? 'bg-teal-50 font-semibold text-teal-800' : 'text-ink/55')}>
+            <NavLink key={item.to} to={item.to} end={item.end} onClick={() => setMoreOpen(false)} className={({ isActive }) => cx('grid place-items-center gap-0.5 rounded-xl px-1 py-1 text-[11px] leading-tight', isActive ? 'bg-white font-semibold text-dusk ring-1 ring-haze' : 'text-slate')}>
               <item.icon className="h-4 w-4" />
               {lang === 'bn' ? item.shortBn : item.shortEn}
             </NavLink>
           ))}
           <NavLink to="/app/report/new" onClick={() => setMoreOpen(false)} className="grid place-items-center" aria-label={tx('New report', 'নতুন রিপোর্ট')}>
             {({ isActive }) => (
-              <span className={cx('-mt-6 grid h-14 w-14 place-items-center rounded-full bg-teal-800 text-white shadow-card', isActive && 'ring-4 ring-teal-200')}>
+              <span className={cx('-mt-6 grid h-14 w-14 place-items-center rounded-full bg-dusk text-frost shadow-card', isActive && 'ring-4 ring-haze')}>
                 <Plus />
               </span>
             )}
           </NavLink>
           {bottom.slice(2).map((item) => (
-            <NavLink key={item.to} to={item.to} end={item.end} onClick={() => setMoreOpen(false)} className={({ isActive }) => cx('grid place-items-center gap-0.5 rounded-xl px-1 py-1 text-[11px] leading-tight', isActive ? 'bg-teal-50 font-semibold text-teal-800' : 'text-ink/55')}>
+            <NavLink key={item.to} to={item.to} end={item.end} onClick={() => setMoreOpen(false)} className={({ isActive }) => cx('grid place-items-center gap-0.5 rounded-xl px-1 py-1 text-[11px] leading-tight', isActive ? 'bg-white font-semibold text-dusk ring-1 ring-haze' : 'text-slate')}>
               <item.icon className="h-4 w-4" />
               {lang === 'bn' ? item.shortBn : item.shortEn}
             </NavLink>
@@ -101,7 +101,7 @@ export function ReporterLayout() {
             aria-expanded={moreOpen}
             aria-current={moreActive ? 'page' : undefined}
             onClick={() => setMoreOpen((value) => !value)}
-            className={cx('grid place-items-center gap-0.5 rounded-xl px-1 py-1 text-[11px] leading-tight', moreActive || moreOpen ? 'bg-teal-50 font-semibold text-teal-800' : 'text-ink/55')}
+            className={cx('grid place-items-center gap-0.5 rounded-xl px-1 py-1 text-[11px] leading-tight', moreActive || moreOpen ? 'bg-white font-semibold text-dusk ring-1 ring-haze' : 'text-slate')}
           >
             <MoreHorizontal className="h-4 w-4" />
             {tx('More', 'আরও')}

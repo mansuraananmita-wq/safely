@@ -54,20 +54,20 @@ export function NotificationsPage() {
                     ? tx(`${id} is marked resolved. You can rate the work.`, `${id}-এর সমাধান হয়েছে। কাজটি মূল্যায়ন করতে পারেন।`)
                     : item.body
             return (
-              <li key={item.id} className={`panel p-4 ${item.read ? '' : 'border-l-4 border-teal-700'}`}>
+              <li key={item.id} className={`panel p-4 ${item.read ? '' : 'border-l-4 border-dusk'}`}>
                 <div className="flex items-start justify-between gap-3">
-                  <Link to={item.href} onClick={() => markRead(item.id)} className="min-w-0 flex-1 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-teal-700">
+                  <Link to={item.href} onClick={() => markRead(item.id)} className="min-w-0 flex-1 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-steel">
                     <div className="flex items-center gap-2">
                       {!item.read ? <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-clay" title={tx('Unread', 'অপঠিত')} /> : null}
-                      <p className="font-semibold">{title === 'SOS help request' ? tx('SOS help request', 'এসওএস সাহায্যের বার্তা') : title}</p>
+                      <p className="font-semibold text-night">{title === 'SOS help request' ? tx('SOS help request', 'এসওএস সাহায্যের বার্তা') : title}</p>
                     </div>
                     {!item.read ? <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-clay">{tx('Unread', 'অপঠিত')}</p> : null}
-                    <p className="mt-1 text-sm text-ink/70">{body}</p>
+                    <p className="mt-1 text-sm text-steel">{body}</p>
                   </Link>
                   <div className="flex shrink-0 flex-col items-end gap-2">
-                    <span className="text-xs text-ink/50">{timeAgo(item.createdAt, lang)}</span>
+                    <span className="text-xs text-slate">{timeAgo(item.createdAt, lang)}</span>
                     {!item.read ? (
-                      <button type="button" onClick={() => markRead(item.id)} className="text-sm font-semibold text-teal-800 underline-offset-2 hover:underline">
+                      <button type="button" onClick={() => markRead(item.id)} className="text-sm font-semibold text-dusk underline-offset-2 hover:underline">
                         {tx('Mark as read', 'পড়া হয়েছে')}
                       </button>
                     ) : null}

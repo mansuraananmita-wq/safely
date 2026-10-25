@@ -254,13 +254,13 @@ export function ProfilePage() {
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <section className="overflow-hidden rounded-3xl border border-line bg-white">
-        <div className="bg-teal-900 px-5 py-7 text-paper sm:px-7">
+        <div className="bg-night px-5 py-7 text-frost sm:px-7">
           <div className="flex flex-wrap items-center gap-4">
-            <div className="grid h-16 w-16 place-items-center rounded-full bg-white/15 font-display text-2xl" aria-hidden="true">{initials(currentUser.name)}</div>
+            <div className="grid h-16 w-16 place-items-center rounded-full bg-steel font-display text-2xl text-frost" aria-hidden="true">{initials(currentUser.name)}</div>
             <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-paper/70">{tx('Your account', 'আপনার অ্যাকাউন্ট')}</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-haze">{tx('Your account', 'আপনার অ্যাকাউন্ট')}</p>
               <h1 className="mt-1 truncate font-display text-4xl">{currentUser.name}</h1>
-              <p className="mt-1 text-sm text-paper/80">{roleLabel(currentUser.role, lang)} · {currentUser.unit}</p>
+              <p className="mt-1 text-sm text-haze">{roleLabel(currentUser.role, lang)} · {currentUser.unit}</p>
             </div>
             {!editing ? <Button variant="secondary" className="sm:ml-auto" onClick={() => setEditing(true)}>{tx('Edit profile', 'প্রোফাইল সম্পাদনা')}</Button> : null}
           </div>

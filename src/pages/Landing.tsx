@@ -42,11 +42,11 @@ export default function Landing() {
       <main>
         <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 pb-16 pt-6 lg:grid-cols-[1.1fr_0.9fr]">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-800">{tx('Padma University', 'পদ্মা বিশ্ববিদ্যালয়')}</p>
-            <h1 className="mt-3 max-w-xl font-display text-5xl leading-[1.05] sm:text-6xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-dusk">{tx('Padma University', 'পদ্মা বিশ্ববিদ্যালয়')}</p>
+            <h1 className="mt-3 max-w-xl font-display text-5xl leading-[1.05] text-night sm:text-6xl">
               {tx('A broken light should not wait in a group chat.', 'একটি ভাঙা বাতি গ্রুপ চ্যাটে আটকে থাকবে না।')}
             </h1>
-            <p className="mt-5 max-w-lg text-lg text-ink/75">
+            <p className="mt-5 max-w-lg text-lg text-steel">
               {tx(
                 'Students, teachers, and staff file one report. The right office gets the work, you see the status, and sensitive cases stay with a smaller desk.',
                 'শিক্ষার্থী, শিক্ষক ও কর্মকর্তারা একটি রিপোর্ট দেন। সঠিক দপ্তর কাজ পায়, আপনি স্ট্যাটাস দেখেন, আর সংবেদনশীল ঘটনা ছোট একটি ডেস্কে থাকে।',
@@ -59,7 +59,7 @@ export default function Landing() {
               </ReportLink>
               <Link to="/login" className={buttonClass('secondary')}>{tx('Sign in', 'সাইন ইন')}</Link>
             </div>
-            <p className="mt-4 max-w-md text-sm text-ink/55">
+            <p className="mt-4 max-w-md text-sm text-slate">
               {tx(
                 'Nothing is sent on its own. You keep the report ID and follow each status. For danger, call 999.',
                 'কিছুই নিজে থেকে যায় না। রিপোর্ট আইডি আপনার কাছে থাকে, প্রতিটি স্ট্যাটাস আপনি দেখেন। বিপদে ৯৯৯-এ কল করুন।',
@@ -67,27 +67,27 @@ export default function Landing() {
             </p>
           </div>
           <div className="relative">
-            <div className="absolute -left-4 top-8 hidden w-64 rotate-[-4deg] rounded-2xl border border-line bg-white/80 p-4 shadow-card sm:block">
-              <p className="text-xs font-semibold text-teal-800">SF-10510</p>
-              <p className="mt-1 font-display text-xl leading-tight">{tx('Library wifi keeps dropping', 'লাইব্রেরির ওয়াইফাই বারবার ছুটে যাচ্ছে')}</p>
-              <p className="mt-2 text-xs text-ink/60">{tx('Submitted · waiting for a first reply', 'জমা হয়েছে · প্রথম উত্তরের অপেক্ষায়')}</p>
+            <div className="absolute -left-4 top-8 hidden w-64 rotate-[-4deg] rounded-2xl border border-haze bg-white/90 p-4 shadow-card sm:block">
+              <p className="text-xs font-semibold text-dusk">SF-10510</p>
+              <p className="mt-1 font-display text-xl leading-tight text-night">{tx('Library wifi keeps dropping', 'লাইব্রেরির ওয়াইফাই বারবার ছুটে যাচ্ছে')}</p>
+              <p className="mt-2 text-xs text-slate">{tx('Submitted · waiting for a first reply', 'জমা হয়েছে · প্রথম উত্তরের অপেক্ষায়')}</p>
             </div>
-            <div className="ml-auto max-w-md rounded-[28px] bg-teal-900 p-4 text-paper shadow-card">
-              <div className="rounded-[22px] bg-card p-5 text-ink">
+            <div className="ml-auto max-w-md rounded-[28px] bg-night p-4 text-frost shadow-card">
+              <div className="rounded-[22px] bg-card p-5 text-night">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs font-semibold tracking-wide text-teal-800">SF-10482</p>
+                  <p className="text-xs font-semibold tracking-wide text-dusk">SF-10482</p>
                   <StatusPill status="in_progress" />
                 </div>
                 <p className="mt-3 font-display text-3xl leading-tight">{tx('Broken asphalt at the main gate', 'প্রধান ফটকে ভাঙা রাস্তা')}</p>
-                <p className="mt-3 text-sm text-ink/70">{tx('Maintenance has the crew on the west footpath.', 'রক্ষণাবেক্ষণ দল পশ্চিম ফুটপাতে কাজ করছে।')}</p>
+                <p className="mt-3 text-sm text-steel">{tx('Maintenance has the crew on the west footpath.', 'রক্ষণাবেক্ষণ দল পশ্চিম ফুটপাতে কাজ করছে।')}</p>
                 <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
-                  <div className="rounded-2xl bg-paper p-3">
-                    <p className="text-xs uppercase tracking-wide text-ink/45">{tx('Target', 'লক্ষ্য')}</p>
-                    <p className="font-display text-3xl">22h</p>
+                  <div className="rounded-2xl bg-frost p-3">
+                    <p className="text-xs uppercase tracking-wide text-slate">{tx('Target', 'লক্ষ্য')}</p>
+                    <p className="font-display text-3xl text-night">22h</p>
                   </div>
-                  <div className="rounded-2xl bg-paper p-3">
-                    <p className="text-xs uppercase tracking-wide text-ink/45">{tx('Same spot', 'একই জায়গা')}</p>
-                    <p className="font-display text-3xl">4</p>
+                  <div className="rounded-2xl bg-frost p-3">
+                    <p className="text-xs uppercase tracking-wide text-slate">{tx('Same spot', 'একই জায়গা')}</p>
+                    <p className="font-display text-3xl text-night">4</p>
                   </div>
                 </div>
               </div>
@@ -104,20 +104,20 @@ export default function Landing() {
 
         <section className="mx-auto max-w-6xl px-4 pb-16">
           <div className="mb-4 max-w-2xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-800">{tx('What you can report', 'যা জানাতে পারেন')}</p>
-            <h2 className="mt-2 font-display text-4xl">{tx('Pick the closest kind of problem.', 'সবচেয়ে কাছের সমস্যাটি বেছে নিন।')}</h2>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-dusk">{tx('What you can report', 'যা জানাতে পারেন')}</p>
+            <h2 className="mt-2 font-display text-4xl text-night">{tx('Pick the closest kind of problem.', 'সবচেয়ে কাছের সমস্যাটি বেছে নিন।')}</h2>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             {state.categories.map((category) => {
               const Icon = categoryIcon[category.id]
               return (
-                <ReportLink key={category.id} category={category.id} className="panel flex items-start gap-3 p-4 hover:border-teal-700">
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-teal-50 text-teal-800">
+                <ReportLink key={category.id} category={category.id} className="panel flex items-start gap-3 p-4 hover:border-steel">
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-frost text-dusk ring-1 ring-haze/70">
                     <Icon className="h-4 w-4" />
                   </span>
                   <span>
-                    <span className="block text-sm font-semibold leading-snug">{lang === 'bn' ? category.bn : category.en}</span>
-                    {category.sensitive ? <span className="mt-1 block text-xs text-plum">{tx('Restricted desk', 'সীমিত ডেস্ক')}</span> : null}
+                    <span className="block text-sm font-semibold leading-snug text-night">{lang === 'bn' ? category.bn : category.en}</span>
+                    {category.sensitive ? <span className="mt-1 block text-xs text-steel">{tx('Restricted desk', 'সীমিত ডেস্ক')}</span> : null}
                   </span>
                 </ReportLink>
               )
@@ -127,8 +127,8 @@ export default function Landing() {
 
         <section id="how" className="mx-auto grid max-w-6xl gap-8 px-4 pb-16 lg:grid-cols-[0.8fr_1.2fr]">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-800">{tx('The path of a report', 'একটি রিপোর্টের পথ')}</p>
-            <h2 className="mt-2 font-display text-4xl">{tx('Filed once. Handed to one office. Closed in the open.', 'একবার জমা। একটি দপ্তর। খোলাখুলি বন্ধ।')}</h2>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-dusk">{tx('The path of a report', 'একটি রিপোর্টের পথ')}</p>
+            <h2 className="mt-2 font-display text-4xl text-night">{tx('Filed once. Handed to one office. Closed in the open.', 'একবার জমা। একটি দপ্তর। খোলাখুলি বন্ধ।')}</h2>
           </div>
           <ol className="grid gap-3 sm:grid-cols-3">
             {[
@@ -137,8 +137,8 @@ export default function Landing() {
               [tx('3. You watch the clock', '৩. আপনি সময় দেখেন'), tx('Target time, replies, resolution, and a rating when the work is done.', 'লক্ষ্য সময়, উত্তর, সমাধান, আর কাজ শেষে একটি রেটিং।')],
             ].map(([title, body]) => (
               <li key={title} className="panel p-4">
-                <p className="font-display text-2xl leading-tight">{title}</p>
-                <p className="mt-2 text-sm text-ink/70">{body}</p>
+                <p className="font-display text-2xl leading-tight text-night">{title}</p>
+                <p className="mt-2 text-sm text-steel">{body}</p>
               </li>
             ))}
           </ol>
@@ -149,10 +149,10 @@ export default function Landing() {
             {flow.map((status, index) => (
               <div key={status} className="flex items-center gap-2">
                 <StatusPill status={status} />
-                {index < flow.length - 1 ? <span className="text-ink/30">→</span> : null}
+                {index < flow.length - 1 ? <span className="text-haze">→</span> : null}
               </div>
             ))}
-            <p className="w-full pt-2 text-sm text-ink/60">{tx('Rejected and reopened sit beside this path when the work needs another look.', 'কাজ আরেকবার দেখতে হলে প্রত্যাখ্যান ও পুনরায় খোলার স্ট্যাটাসও থাকে।')} {statusLabel('rejected', lang)} · {statusLabel('reopened', lang)}</p>
+            <p className="w-full pt-2 text-sm text-slate">{tx('Rejected and reopened sit beside this path when the work needs another look.', 'কাজ আরেকবার দেখতে হলে প্রত্যাখ্যান ও পুনরায় খোলার স্ট্যাটাসও থাকে।')} {statusLabel('rejected', lang)} · {statusLabel('reopened', lang)}</p>
           </div>
         </section>
 
@@ -163,17 +163,17 @@ export default function Landing() {
             [Lock, tx('A smaller desk for sensitive cases', 'সংবেদনশীল ঘটনার জন্য ছোট ডেস্ক'), tx('Harassment stays confidential. The public map never shows those stories.', 'হয়রানির রিপোর্ট গোপন থাকে। প্রকাশ্য মানচিত্র সেই ঘটনা দেখায় না।')],
           ] as [LucideIcon, string, string][]).map(([Icon, title, body]) => (
             <article key={title} className="panel p-5">
-              <Icon className="h-5 w-5 text-teal-800" />
-              <h3 className="mt-3 font-display text-2xl">{title}</h3>
-              <p className="mt-2 text-sm text-ink/70">{body}</p>
+              <Icon className="h-5 w-5 text-dusk" />
+              <h3 className="mt-3 font-display text-2xl text-night">{title}</h3>
+              <p className="mt-2 text-sm text-steel">{body}</p>
             </article>
           ))}
         </section>
 
         <section id="privacy" className="mx-auto max-w-6xl px-4 pb-16">
-          <div className="rounded-[28px] bg-ink px-6 py-8 text-paper sm:px-10">
+          <div className="rounded-[28px] bg-dusk px-6 py-8 text-frost sm:px-10">
             <h2 className="font-display text-4xl">{tx('Quiet where it has to be.', 'যেখানে দরকার, সেখানে চুপচাপ।')}</h2>
-            <div className="mt-6 grid gap-6 md:grid-cols-3">
+            <div className="mt-6 grid gap-6 text-haze md:grid-cols-3">
               <p>{tx('Ordinary maintenance reports show the problem, not a student’s full profile, on the campus feed.', 'সাধারণ রক্ষণাবেক্ষণের রিপোর্টে সমস্যা দেখা যায়, ক্যাম্পাস ফিডে শিক্ষার্থীর পুরো প্রোফাইল নয়।')}</p>
               <p>{tx('Harassment and other confidential reports are withheld from facilities offices.', 'হয়রানি ও অন্যান্য গোপন রিপোর্ট রক্ষণাবেক্ষণ দপ্তরের কাছে যায় না।')}</p>
               <p>{tx('Lost and found, alerts, and a public statistics page sit beside the report desk. Multi-campus routing waits until the university asks for it.', 'হারানো-পাওয়া, সতর্কতা, এবং প্রকাশ্য পরিসংখ্যান ডেস্কের পাশে আছে। একাধিক ক্যাম্পাস তখনই আসবে, যখন বিশ্ববিদ্যালয় চাইবে।')}</p>
@@ -183,13 +183,13 @@ export default function Landing() {
         </section>
       </main>
 
-      <footer className="border-t border-line px-4 py-8">
+      <footer className="border-t border-haze px-4 py-8">
         <div className="mx-auto flex max-w-6xl flex-wrap items-end justify-between gap-4">
           <div>
             <Logo />
-            <p className="mt-2 max-w-md text-sm text-ink/60">{remote ? tx('Reports are stored in the campus database. Call 999 for an emergency.', 'রিপোর্ট ক্যাম্পাস ডেটাবেসে থাকে। জরুরি প্রয়োজনে ৯৯৯।') : tx('Preview only. Reports stay in this browser until the university server is connected. Call 999 for an emergency.', 'শুধু প্রিভিউ। বিশ্ববিদ্যালয়ের সার্ভার যুক্ত হওয়ার আগে রিপোর্ট এই ব্রাউজারে থাকে। জরুরি প্রয়োজনে ৯৯৯।')}</p>
+            <p className="mt-2 max-w-md text-sm text-slate">{remote ? tx('Reports are stored in the campus database. Call 999 for an emergency.', 'রিপোর্ট ক্যাম্পাস ডেটাবেসে থাকে। জরুরি প্রয়োজনে ৯৯৯।') : tx('Preview only. Reports stay in this browser until the university server is connected. Call 999 for an emergency.', 'শুধু প্রিভিউ। বিশ্ববিদ্যালয়ের সার্ভার যুক্ত হওয়ার আগে রিপোর্ট এই ব্রাউজারে থাকে। জরুরি প্রয়োজনে ৯৯৯।')}</p>
           </div>
-          <p className="text-sm text-ink/50">Safely · Padma University</p>
+          <p className="text-sm text-slate">Safely · Padma University</p>
         </div>
       </footer>
     </div>

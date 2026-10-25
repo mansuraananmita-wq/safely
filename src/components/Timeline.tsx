@@ -12,7 +12,7 @@ export function Timeline({ report, includeInternal }: { report: Report; includeI
     <ol className="space-y-4 border-l border-line pl-4">
       {items.map((item) => (
         <li key={item.id} className="relative">
-          <span className="absolute -left-[1.3rem] top-1.5 h-2.5 w-2.5 rounded-full bg-teal-700" />
+          <span className="absolute -left-[1.3rem] top-1.5 h-2.5 w-2.5 rounded-full bg-steel" />
           <div className="flex flex-wrap items-center gap-2 text-xs text-ink/50">
             <span className="font-semibold text-ink/80">{item.actor}</span>
             <span>{formatWhen(item.at, lang)}</span>

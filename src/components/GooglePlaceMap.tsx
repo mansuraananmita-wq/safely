@@ -27,18 +27,18 @@ export function GooglePlaceMap({
   const open = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`
 
   return (
-    <figure id={mapId} className="overflow-hidden rounded-2xl border border-line bg-white">
+    <figure id={mapId} className="overflow-hidden rounded-2xl border border-haze/80 bg-white">
       <figcaption className="flex flex-wrap items-center justify-between gap-2 px-3 py-3 text-sm">
         <span>
           <span className="block font-semibold">{label}</span>
-          {note ? <span className="mt-0.5 block text-xs text-ink/60">{note}</span> : null}
+          {note ? <span className="mt-0.5 block text-xs text-slate">{note}</span> : null}
         </span>
         <span className="flex flex-wrap gap-2">
-          <a className="inline-flex items-center gap-1 rounded-full bg-teal-800 px-3 py-1.5 text-xs font-semibold text-white" href={directions} target="_blank" rel="noreferrer">
+          <a className="inline-flex items-center gap-1 rounded-full bg-dusk px-3 py-1.5 text-xs font-semibold text-frost" href={directions} target="_blank" rel="noreferrer">
             <Navigation className="h-3.5 w-3.5" />
             {tx('Directions', 'দিকনির্দেশ')}
           </a>
-          <a className="inline-flex items-center gap-1 rounded-full border border-line bg-white px-3 py-1.5 text-xs font-semibold text-teal-800" href={open} target="_blank" rel="noreferrer">
+          <a className="inline-flex items-center gap-1 rounded-full border border-haze bg-white px-3 py-1.5 text-xs font-semibold text-dusk" href={open} target="_blank" rel="noreferrer">
             <ExternalLink className="h-3.5 w-3.5" />
             {tx('Open in Google Maps', 'গুগল ম্যাপে খুলুন')}
           </a>

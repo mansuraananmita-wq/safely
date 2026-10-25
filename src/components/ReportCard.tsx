@@ -13,10 +13,10 @@ export function ReportCard({ report, base }: { report: Report; base: string }) {
   const overdue = isOverdue(report)
   const due = dueLabel(report, lang)
   return (
-    <Link to={`${base}/${report.id}`} className={cx('panel block p-4 transition hover:border-teal-700', overdue && 'border-clay bg-clay/5')}>
+    <Link to={`${base}/${report.id}`} className={cx('panel block p-4 transition hover:border-steel', overdue && 'border-clay bg-clay/5')}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-semibold tracking-wide text-teal-800">{report.id}</p>
+          <p className="text-xs font-semibold tracking-wide text-dusk">{report.id}</p>
           <p className="mt-1 font-display text-xl leading-snug">{report.title}</p>
         </div>
         <StatusPill status={report.status} />

@@ -8,18 +8,18 @@ import type { Status } from '../../types'
 const STATUS_ORDER: Status[] = ['submitted', 'under_review', 'assigned', 'in_progress', 'resolved', 'closed', 'rejected', 'reopened']
 
 const STATUS_COLOR: Record<Status, string> = {
-  draft: 'bg-ink/30',
-  submitted: 'bg-sky-700',
+  draft: 'bg-haze',
+  submitted: 'bg-slate',
   under_review: 'bg-amber-600',
-  assigned: 'bg-teal-700',
-  in_progress: 'bg-teal-900',
+  assigned: 'bg-steel',
+  in_progress: 'bg-dusk',
   resolved: 'bg-moss',
-  closed: 'bg-ink',
+  closed: 'bg-night',
   rejected: 'bg-clay',
-  reopened: 'bg-plum',
+  reopened: 'bg-slate',
 }
 
-const CATEGORY_COLOR = ['bg-teal-900', 'bg-teal-700', 'bg-marigold', 'bg-plum', 'bg-moss', 'bg-clay', 'bg-sky-700', 'bg-amber-600', 'bg-teal-800', 'bg-ink']
+const CATEGORY_COLOR = ['bg-night', 'bg-dusk', 'bg-steel', 'bg-slate', 'bg-haze', 'bg-moss', 'bg-clay', 'bg-marigold', 'bg-dusk', 'bg-steel']
 
 function Metric({ to, label, value, hint, alert = false }: { to: string; label: string; value: number; hint: string; alert?: boolean }) {
   return (

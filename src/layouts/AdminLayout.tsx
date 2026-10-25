@@ -60,10 +60,10 @@ export function AdminLayout() {
 
   return (
     <div className="min-h-screen">
-      <header className="no-print sticky top-0 z-30 border-b border-line bg-white/95 shadow-sm backdrop-blur">
+      <header className="no-print sticky top-0 z-30 border-b border-haze/80 bg-frost/90 shadow-sm backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
           <Logo />
-          <p className="hidden text-sm text-ink/50 sm:block">
+          <p className="hidden text-sm text-slate sm:block">
             {role === 'admin' ? tx('Operations desk', 'অপারেশন ডেস্ক') : restricted ? tx('Restricted desk', 'সীমিত ডেস্ক') : tx('Department office', 'দপ্তর')}
           </p>
           <AccountTools bellTo="/admin/notifications" profileTo="/admin/profile" />
@@ -78,15 +78,15 @@ export function AdminLayout() {
       {moreOpen ? (
         <div className="no-print fixed inset-0 z-40 md:hidden">
           <button type="button" className="absolute inset-0 bg-ink/40" aria-label={tx('Close menu', 'মেনু বন্ধ')} onClick={() => setMoreOpen(false)} />
-          <div className="absolute inset-x-3 bottom-20 max-h-[70vh] overflow-y-auto rounded-2xl border border-line bg-card p-2 shadow-card">
+          <div className="absolute inset-x-3 bottom-20 max-h-[70vh] overflow-y-auto rounded-2xl border border-haze bg-card p-2 shadow-card">
             {links(more, true)}
           </div>
         </div>
       ) : null}
-      <nav className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 shadow-[0_-10px_30px_-18px_rgba(16,40,68,0.55)] backdrop-blur md:hidden" aria-label={tx('Sections', 'বিভাগ')} style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}>
+      <nav className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-haze bg-frost/95 shadow-[0_-10px_30px_-18px_rgba(17,21,34,0.55)] backdrop-blur md:hidden" aria-label={tx('Sections', 'বিভাগ')} style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}>
         <div className="grid px-1 pt-1" style={{ gridTemplateColumns: `repeat(${bottom.length + (more.length > 0 ? 1 : 0)}, minmax(0, 1fr))` }}>
           {bottom.map((item) => (
-            <NavLink key={item.to} to={item.to} end={item.end} onClick={() => setMoreOpen(false)} className={({ isActive }) => cx('grid place-items-center gap-0.5 rounded-xl px-1 py-1 text-center text-[11px] leading-tight', isActive || (item.to === '/admin/queues' && pathname.startsWith('/admin/reports/')) ? 'bg-teal-50 font-semibold text-teal-800' : 'text-ink/55')}>
+            <NavLink key={item.to} to={item.to} end={item.end} onClick={() => setMoreOpen(false)} className={({ isActive }) => cx('grid place-items-center gap-0.5 rounded-xl px-1 py-1 text-center text-[11px] leading-tight', isActive || (item.to === '/admin/queues' && pathname.startsWith('/admin/reports/')) ? 'bg-white font-semibold text-dusk ring-1 ring-haze' : 'text-slate')}>
               <item.icon className="h-4 w-4" />
               {lang === 'bn' ? item.shortBn : item.shortEn}
             </NavLink>
@@ -97,7 +97,7 @@ export function AdminLayout() {
               aria-expanded={moreOpen}
               aria-current={moreActive ? 'page' : undefined}
               onClick={() => setMoreOpen((value) => !value)}
-              className={cx('grid place-items-center gap-0.5 rounded-xl px-1 py-1 text-[11px] leading-tight', moreActive || moreOpen ? 'bg-teal-50 font-semibold text-teal-800' : 'text-ink/55')}
+              className={cx('grid place-items-center gap-0.5 rounded-xl px-1 py-1 text-[11px] leading-tight', moreActive || moreOpen ? 'bg-white font-semibold text-dusk ring-1 ring-haze' : 'text-slate')}
             >
               <MoreHorizontal className="h-4 w-4" />
               {tx('More', 'আরও')}

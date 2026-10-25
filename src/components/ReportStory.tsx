@@ -39,7 +39,7 @@ export function ReportStory({ report, internal }: { report: Report; internal: bo
     <article className="space-y-5">
       <div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-semibold text-teal-800">{report.id}</span>
+          <span className="text-sm font-semibold text-dusk">{report.id}</span>
           <StatusPill status={report.status} />
           <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-semibold">{priorityLabel(report.priority, lang)}</span>
           {due ? <span className={overdue ? 'text-sm font-semibold text-clay' : 'text-sm text-ink/60'}>{due}</span> : null}
@@ -103,7 +103,7 @@ export function ReportStory({ report, internal }: { report: Report; internal: bo
             photo.url ? (
               <img key={photo.name} src={photo.url} alt={photo.name} className="h-32 w-full rounded-xl object-cover" />
             ) : (
-              <div key={photo.name} className="flex h-32 items-end rounded-xl bg-teal-50 p-3 text-xs font-medium text-teal-900">
+              <div key={photo.name} className="flex h-32 items-end rounded-xl bg-frost p-3 text-xs font-medium text-dusk ring-1 ring-haze/70">
                 {photo.name}
               </div>
             ),

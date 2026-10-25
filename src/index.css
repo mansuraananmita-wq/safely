@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --night: #111522;
+  --dusk: #1e263b;
+  --steel: #303d59;
+  --slate: #536684;
+  --haze: #98a9c4;
+  --frost: #dce3ef;
+}
+
 html {
   scroll-behavior: smooth;
 }
@@ -19,8 +28,12 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
-  color: #152033;
-  background: #eef2f6;
+  color: var(--night);
+  background-color: var(--frost);
+  background-image:
+    radial-gradient(ellipse 90% 50% at 0% -10%, rgba(152, 169, 196, 0.55), transparent 55%),
+    radial-gradient(ellipse 70% 40% at 100% 0%, rgba(48, 61, 89, 0.12), transparent 50%),
+    linear-gradient(180deg, var(--frost), #cfd8e8 120%);
   font-family: "IBM Plex Sans", system-ui, sans-serif;
 }
 
@@ -30,6 +43,7 @@ html.text-large {
 
 html.contrast body {
   background: #fff;
+  background-image: none;
   color: #000;
 }
 
@@ -44,16 +58,18 @@ html.contrast .text-ink\/50,
 html.contrast .text-ink\/55,
 html.contrast .text-ink\/60,
 html.contrast .text-ink\/70,
-html.contrast .text-ink\/75 {
+html.contrast .text-ink\/75,
+html.contrast .text-slate {
   color: #111;
 }
 
 ::selection {
-  background: #d0ddec;
+  background: var(--haze);
+  color: var(--night);
 }
 
 :focus-visible {
-  outline: 2px solid #1e4e89;
+  outline: 2px solid var(--steel);
   outline-offset: 2px;
 }
 
@@ -63,10 +79,20 @@ html.contrast .text-ink\/75 {
     letter-spacing: -0.02em;
   }
   .panel {
-    @apply rounded-2xl border border-line bg-card shadow-card;
+    @apply rounded-2xl border bg-card shadow-card;
+    border-color: var(--haze);
   }
   .input {
-    @apply w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm text-ink outline-none placeholder:text-ink/40 focus:border-teal-700 focus:ring-2 focus:ring-teal-100;
+    @apply w-full rounded-xl border bg-white px-3 py-2.5 text-sm outline-none;
+    border-color: var(--haze);
+    color: var(--night);
+  }
+  .input::placeholder {
+    color: var(--slate);
+  }
+  .input:focus {
+    border-color: var(--steel);
+    box-shadow: 0 0 0 2px var(--frost);
   }
   .safely-pin span {
     display: block;
@@ -75,8 +101,8 @@ html.contrast .text-ink\/75 {
     margin-left: 5px;
     border: 2px solid #fff;
     border-radius: 50% 50% 50% 0;
-    background: #163a66;
-    box-shadow: 0 2px 6px rgba(16, 40, 68, 0.35);
+    background: var(--dusk);
+    box-shadow: 0 2px 6px rgba(17, 21, 34, 0.35);
     transform: rotate(-45deg);
   }
   .pin-map.leaflet-container {
@@ -94,6 +120,7 @@ html.contrast .text-ink\/75 {
   }
   body {
     background: white;
+    background-image: none;
   }
   .panel {
     break-inside: avoid;

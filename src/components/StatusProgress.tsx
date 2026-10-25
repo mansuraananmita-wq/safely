@@ -183,9 +183,9 @@ export function StatusProgress({ report, office }: { report: Report; office?: st
                 <span
                   className={
                     step === 'done'
-                      ? 'mt-1 h-3 w-3 shrink-0 rounded-full bg-teal-800'
+                      ? 'mt-1 h-3 w-3 shrink-0 rounded-full bg-dusk'
                       : step === 'now'
-                        ? 'mt-1 h-3 w-3 shrink-0 rounded-full bg-teal-700 ring-4 ring-teal-100'
+                        ? 'mt-1 h-3 w-3 shrink-0 rounded-full bg-steel ring-4 ring-haze/60'
                         : step === 'stopped'
                           ? 'mt-1 h-3 w-3 shrink-0 rounded-full bg-clay'
                           : 'mt-1 h-3 w-3 shrink-0 rounded-full bg-line'
@@ -194,7 +194,7 @@ export function StatusProgress({ report, office }: { report: Report; office?: st
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className={`font-semibold ${reached ? '' : 'text-ink/45'}`}>{title}</p>
-                    {step === 'now' ? <span className="rounded-full bg-teal-50 px-2 py-0.5 text-xs font-semibold text-teal-900">{tx('Now', 'এখন')}</span> : null}
+                    {step === 'now' ? <span className="rounded-full bg-frost px-2 py-0.5 text-xs font-semibold text-night ring-1 ring-haze">{tx('Now', 'এখন')}</span> : null}
                     {step === 'stopped' ? <span className="rounded-full bg-clay/10 px-2 py-0.5 text-xs font-semibold text-clay">{tx('Stopped', 'থামানো')}</span> : null}
                   </div>
                   <p className="mt-1 text-xs text-ink/55">

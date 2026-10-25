@@ -29,7 +29,7 @@ export function SosInbox({ limit, linked = false }: { limit?: number; linked?: b
           </p>
         </div>
         {linked && open.length > shown.length ? (
-          <Link to="/admin/sos" className="text-sm font-semibold text-teal-800">{tx('See all', 'সব দেখুন')}</Link>
+          <Link to="/admin/sos" className="text-sm font-semibold text-dusk">{tx('See all', 'সব দেখুন')}</Link>
         ) : null}
       </div>
       {shown.length === 0 ? (
@@ -41,7 +41,7 @@ export function SosInbox({ limit, linked = false }: { limit?: number; linked?: b
       )}
       {solved.length > 0 && typeof limit !== 'number' ? (
         <details className="mt-4">
-          <summary className="cursor-pointer text-sm font-semibold text-teal-800">{tx(`Solved (${solved.length})`, `সমাধান হয়েছে (${solved.length})`)}</summary>
+          <summary className="cursor-pointer text-sm font-semibold text-dusk">{tx(`Solved (${solved.length})`, `সমাধান হয়েছে (${solved.length})`)}</summary>
           <ul className="mt-3 space-y-4">
             {solved.map((item) => <SosCard key={item.id} item={item} desk={false} />)}
           </ul>

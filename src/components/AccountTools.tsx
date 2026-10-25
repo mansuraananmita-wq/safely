@@ -42,30 +42,30 @@ export function AccountTools({ bellTo, profileTo }: { bellTo: string; profileTo:
       {desk ? (
         <Link to="/admin/sos" className="relative rounded-full bg-clay px-3 py-1.5 text-sm font-semibold text-white">
           SOS
-          {sosCount > 0 ? <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-ink px-1 text-[11px] font-bold text-white">{sosCount}</span> : null}
+          {sosCount > 0 ? <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-night px-1 text-[11px] font-bold text-frost">{sosCount}</span> : null}
         </Link>
       ) : <SosButton />}
       <button
         type="button"
         onClick={() => setLang(lang === 'en' ? 'bn' : 'en')}
-        className="rounded-full border border-line bg-white px-3 py-1.5 text-sm font-semibold"
+        className="rounded-full border border-haze bg-white px-3 py-1.5 text-sm font-semibold text-dusk"
       >
         {lang === 'en' ? 'বাংলা' : 'EN'}
       </button>
-      <Link to={bellTo} className="relative rounded-full border border-line bg-white p-2" aria-label={unread > 0 ? tx(`Notifications, ${unread} unread`, `নোটিফিকেশন, ${unread}টি অপঠিত`) : tx('Notifications', 'নোটিফিকেশন')}>
+      <Link to={bellTo} className="relative rounded-full border border-haze bg-white p-2 text-dusk" aria-label={unread > 0 ? tx(`Notifications, ${unread} unread`, `নোটিফিকেশন, ${unread}টি অপঠিত`) : tx('Notifications', 'নোটিফিকেশন')}>
         <Bell className="h-4 w-4" />
         {unread > 0 ? <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-clay px-1 text-[11px] font-bold text-white">{unread}</span> : null}
       </Link>
       <div className="relative">
-        <button type="button" onClick={() => setOpen((value) => !value)} className="rounded-full border border-line bg-white px-3 py-1.5 text-sm font-semibold">
+        <button type="button" onClick={() => setOpen((value) => !value)} className="rounded-full border border-haze bg-white px-3 py-1.5 text-sm font-semibold text-night">
           {currentUser?.name.split(' ')[0]}
         </button>
         {open ? (
           <>
             <button type="button" className="fixed inset-0 z-40 cursor-default" aria-label={tx('Close menu', 'মেনু বন্ধ')} onClick={() => setOpen(false)} />
-            <div className="absolute right-0 z-50 mt-2 w-56 rounded-2xl border border-line bg-card p-2 shadow-card">
-              <p className="px-2 py-1 text-xs text-ink/50">{currentUser?.email}</p>
-              <Link to={profileTo} onClick={() => setOpen(false)} className="block rounded-xl px-2 py-2 text-sm hover:bg-teal-50">
+            <div className="absolute right-0 z-50 mt-2 w-56 rounded-2xl border border-haze bg-card p-2 shadow-card">
+              <p className="px-2 py-1 text-xs text-slate">{currentUser?.email}</p>
+              <Link to={profileTo} onClick={() => setOpen(false)} className="block rounded-xl px-2 py-2 text-sm text-night hover:bg-frost">
                 {tx('Profile and settings', 'প্রোফাইল ও সেটিংস')}
               </Link>
               <button
