@@ -132,7 +132,7 @@ function reportRow(report: Report) {
     priority: report.priority,
     department_id: report.departmentId ?? null,
     assignee: report.assignee ?? null,
-    reporter_id: report.reporterId || null,
+    reporter_id: report.anonymous ? null : (report.reporterId || null),
     created_at: report.createdAt,
     updated_at: report.updatedAt,
     due_at: report.dueAt,
@@ -174,6 +174,7 @@ export async function pullCampus(session: Session | null): Promise<AppState> {
     ...fallback,
     users: [],
     reports: [],
+    reportIdentities: {},
     notifications: [],
     announcements: [],
     lostFound: [],
@@ -212,7 +213,7 @@ export async function pullCampus(session: Session | null): Promise<AppState> {
     return empty
   }
 
-  const [profiles, reports, activities, confirmations, notifications, lost, audit, contacts, alerts] = await Promise.all([
+  const [profiles, reports, activities, confirmations, notifications, lost, audit, contacts, alerts, identities] = await Promise.all([
     rows('profiles'),
     rows('reports'),
     rows('report_activities'),
@@ -222,6 +223,7 @@ export async function pullCampus(session: Session | null): Promise<AppState> {
     rows('audit_log'),
     rows('emergency_contacts'),
     rows('sos_alerts'),
+    rows('report_identities'),
   ])
 
   empty.users = profiles.data.map(userFrom)
@@ -239,7 +241,23 @@ export async function pullCampus(session: Session | null): Promise<AppState> {
     list.push(String(row.user_id))
     confirms.set(id, list)
   }
-  empty.reports = reports.data.map((row) => reportFrom(row, (byReport.get(String(row.id)) ?? []).sort((a, b) => +new Date(a.at) - +new Date(b.at)), confirms.get(String(row.id)) ?? []))
+  const identityMap: Record<string, string> = {}
+  for (const row of identities.data) {
+    identityMap[String(row.report_id)] = String(row.user_id)
+  }
+  empty.reportIdentities = identityMap
+  const email = session.user.email?.toLowerCase()
+  const sessionUserId = empty.users.find((user) => user.email.toLowerCase() === email)?.id ?? null
+  empty.sessionUserId = sessionUserId
+  empty.reports = reports.data.map((row) => {
+    const report = reportFrom(row, (byReport.get(String(row.id)) ?? []).sort((a, b) => +new Date(a.at) - +new Date(b.at)), confirms.get(String(row.id)) ?? [])
+    if (report.anonymous) {
+      // Staff never get report_identities rows. Owners re-attach their own id for My reports.
+      if (sessionUserId && identityMap[report.id] === sessionUserId) return { ...report, reporterId: sessionUserId }
+      return { ...report, reporterId: '' }
+    }
+    return report
+  })
   empty.notifications = notifications.data.map((row) => ({
     id: String(row.id),
     userId: String(row.user_id),
@@ -270,8 +288,6 @@ export async function pullCampus(session: Session | null): Promise<AppState> {
   }))
   empty.emergencyContacts = contacts.data.map(contactFrom)
   empty.sosAlerts = alerts.data.map(sosFrom)
-  const email = session.user.email?.toLowerCase()
-  empty.sessionUserId = empty.users.find((user) => user.email.toLowerCase() === email)?.id ?? null
   return empty
 }
 

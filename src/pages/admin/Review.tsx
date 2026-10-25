@@ -9,27 +9,34 @@ import type { Photo, Status } from '../../types'
 
 export function ReviewPage() {
   const { id } = useParams()
-  const { currentUser, state, tx, lang, remote, setStatus, addComment, requestInfo, extendDue } = useApp()
+  const { currentUser, state, tx, lang, setStatus, addComment, requestInfo, extendDue, revealReporter } = useApp()
   const report = state.reports.find((item) => item.id === id)
   const [status, setNext] = useState<Status | ''>('')
   const [note, setNote] = useState('')
   const [reply, setReply] = useState('')
   const [internal, setInternal] = useState('')
   const [photoName, setPhotoName] = useState('')
-  const visible = Boolean(currentUser && report && report.status !== 'draft' && canView(currentUser, report))
+  const [revealReason, setRevealReason] = useState('')
+  const [revealed, setRevealed] = useState<{ name: string; email: string } | null>(null)
+  const [revealError, setRevealError] = useState<string | null>(null)
+  const visible = Boolean(currentUser && report && report.status !== 'draft' && canView(currentUser, report, state.reportIdentities))
   useTitle(visible && report ? report.id : tx('Review', 'পর্যালোচনা'))
 
   useEffect(() => {
     setNext('')
     setNote('')
+    setRevealed(null)
+    setRevealError(null)
+    setRevealReason('')
   }, [report])
 
-  if (!currentUser || !report || report.status === 'draft' || !canView(currentUser, report)) {
+  if (!currentUser || !report || report.status === 'draft' || !canView(currentUser, report, state.reportIdentities)) {
     return <p className="text-sm">{tx('That report is not on this desk.', 'এই রিপোর্ট এই ডেস্কে নেই।')}</p>
   }
 
-  const transitions = allowedTransitions(currentUser, report)
+  const transitions = allowedTransitions(currentUser, report, state.reportIdentities)
   const operations = currentUser.role === 'admin'
+  const canReveal = report.anonymous && (report.category === 'harassment' || report.category === 'safety') && (operations || currentUser.departmentId === 'd-affairs')
   const restricted = isRestrictedDesk(currentUser)
   const waiting = !report.departmentId
 
@@ -45,7 +52,42 @@ export function ReviewPage() {
         </div>
       </div>
       <div className="no-print space-y-3">
-        {report.anonymous ? <div className="rounded-2xl bg-plum/10 p-4 text-sm text-plum">{report.reporterId ? (remote ? tx('The name is hidden. Status updates still reach the reporter’s own account.', 'নাম লুকানো। স্ট্যাটাস রিপোর্টকারীর নিজের অ্যাকাউন্টে যায়।') : tx('The name is hidden. Status updates still reach the reporter’s own account in this preview.', 'নাম লুকানো। এই প্রিভিউতে স্ট্যাটাস রিপোর্টকারীর নিজের অ্যাকাউন্টে যায়।')) : tx('No reply channel was collected.', 'উত্তরের কোনো পথ রাখা হয়নি।')}</div> : null}
+        {report.anonymous ? (
+          <div className="rounded-2xl bg-plum/10 p-4 text-sm text-plum">
+            {tx(
+              'Anonymous. Staff see no name, email, or avatar. Status updates and information requests still reach the reporter’s own account. Replies appear as “Reporter”.',
+              'বেনামি। কর্মকর্তারা নাম, ইমেইল বা ছবি দেখেন না। স্ট্যাটাস ও তথ্যের অনুরোধ রিপোর্টকারীর অ্যাকাউন্টে যায়। উত্তরে “Reporter” দেখায়।',
+            )}
+          </div>
+        ) : null}
+        {canReveal ? (
+          <form
+            className="panel space-y-3 p-4"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void revealReporter(report.id, revealReason).then((result) => {
+                if (typeof result === 'string') {
+                  setRevealError(result)
+                  setRevealed(null)
+                  return
+                }
+                setRevealError(null)
+                setRevealed(result)
+                setRevealReason('')
+              })
+            }}
+          >
+            <h2 className="font-display text-2xl">{tx('Reveal reporter', 'রিপোর্টকারী দেখান')}</h2>
+            <p className="text-sm text-ink/70">{tx('Harassment or safety emergency only. The reason is written to the audit log.', 'শুধু হয়রানি বা নিরাপত্তা জরুরি অবস্থায়। কারণ অডিট লগে লেখা হয়।')}</p>
+            <Field label={tx('Reason', 'কারণ')}>
+              <textarea className="input min-h-20" value={revealReason} onChange={(event) => setRevealReason(event.target.value)} />
+            </Field>
+            {revealError ? <p className="text-sm text-clay">{revealError}</p> : null}
+            {revealed ? <p className="text-sm font-semibold">{revealed.name} · {revealed.email}</p> : null}
+            <Button type="submit" variant="secondary" className="w-full">{tx('Reveal with audit', 'অডিটসহ দেখান')}</Button>
+          </form>
+        ) : null}
+
         {operations ? <AssignOffice report={report} /> : null}
 
         {transitions.length > 0 ? (

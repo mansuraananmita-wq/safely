@@ -229,7 +229,7 @@ export function ProfilePage() {
   }, [currentUser?.id])
   useTitle(tx('Profile', 'প্রোফাইল'))
   if (!currentUser) return null
-  const filed = state.reports.filter((report) => report.reporterId === currentUser.id && report.status !== 'draft')
+  const filed = state.reports.filter((report) => (report.reporterId === currentUser.id || state.reportIdentities[report.id] === currentUser.id) && report.status !== 'draft')
   const openCount = filed.filter((report) => isOpen(report.status)).length
   const resolvedCount = filed.filter((report) => report.status === 'resolved' || report.status === 'closed').length
   const notices = [

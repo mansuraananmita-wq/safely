@@ -23,7 +23,7 @@ The operations desk can:
 - Open each office queue, including Facilities and Cleaning
 - Manage users, categories, alerts, and the audit log
 
-The public page `/status` shows counts for ordinary reports. Harassment, confidential, anonymous, and safety stories are left off that page and off the public campus map.
+The public page `/status` shows counts for ordinary reports. Harassment, confidential, anonymous, and safety stories are left off that page and off the public campus map. Anonymous filings keep `reports.reporter_id` empty; the private link sits in `report_identities`, readable only by the reporter. Staff screens show “Anonymous” with no name, email, or avatar.
 
 ## How it is built
 

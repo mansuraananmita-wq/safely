@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { assignmentBlocked, deskReports, inboxNotifications, isPublicFeed, officeCanRead, QUEUE_OFFICES, sosDeskStatus } from './logic'
+import { assignmentBlocked, deskReports, identityMode, inboxNotifications, isPublicFeed, isReportOwner, officeCanRead, QUEUE_OFFICES, sosDeskStatus, staffVisibleReporterId } from './logic'
 import { isPreciseFix, preferLiveFix, normalizePhone, sendDecision, sosMessage } from './lib/sos'
 import type { Report, User } from './types'
 
@@ -68,6 +68,20 @@ describe('report privacy', () => {
     const waiting = report({ id: 'w', category: 'harassment', status: 'submitted', confidential: true })
     expect(deskReports(user({ id: 'u-sec', role: 'security' }), [waiting, cleaning]).map((item) => item.id)).toEqual(['w'])
     expect(deskReports(user({ id: 'u-aff', role: 'department', departmentId: 'd-affairs' }), [waiting]).map((item) => item.id)).toEqual(['w'])
+  })
+})
+
+describe('anonymous reporter identity', () => {
+  it('hides reporter id from staff views and keeps ownership via identities', () => {
+    const anon = report({ id: 'SF-A', category: 'harassment', status: 'submitted', anonymous: true, confidential: true, reporterId: '' })
+    const identities = { 'SF-A': 'u-amina' }
+    expect(staffVisibleReporterId(anon)).toBe('')
+    expect(isReportOwner(user({ id: 'u-amina', role: 'student' }), anon, identities)).toBe(true)
+    expect(isReportOwner(user({ id: 'u-admin', role: 'admin' }), anon, identities)).toBe(false)
+    expect(identityMode(user({ id: 'u-admin', role: 'admin' }), anon, identities)).toBe('anonymous')
+    expect(identityMode(user({ id: 'u-amina', role: 'student' }), anon, identities)).toBe('self-anonymous')
+    expect(identityMode(user({ id: 'u-sec', role: 'security' }), anon, identities)).toBe('anonymous')
+    expect(identityMode(user({ id: 'u-maint', role: 'department', departmentId: 'd-maint' }), anon, identities)).toBe('anonymous')
   })
 })
 

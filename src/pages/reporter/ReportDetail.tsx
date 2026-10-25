@@ -10,7 +10,7 @@ export function ReportDetailPage() {
   const location = useLocation()
   const { currentUser, state, tx, toast, addComment, rate, reopen, confirm } = useApp()
   const report = state.reports.find((item) => item.id === id)
-  const allowed = currentUser && report ? canView(currentUser, report) : false
+  const allowed = currentUser && report ? canView(currentUser, report, state.reportIdentities) : false
   const [reply, setReply] = useState('')
   const [stars, setStars] = useState(5)
   const [feedback, setFeedback] = useState('')
@@ -22,7 +22,7 @@ export function ReportDetailPage() {
     return <p className="text-sm">{tx('That report is not available on this account.', 'এই অ্যাকাউন্টে রিপোর্টটি নেই।')}</p>
   }
 
-  const owner = report.reporterId === currentUser.id
+  const owner = report.reporterId === currentUser.id || state.reportIdentities[report.id] === currentUser.id
   const canRate = owner && (report.status === 'resolved' || report.status === 'closed') && !report.rating
   const canReopen = owner && (report.status === 'resolved' || report.status === 'closed')
   const publicFeed = isPublicFeed(report)

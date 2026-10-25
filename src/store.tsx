@@ -3,7 +3,7 @@ import { buildSeed } from './data'
 import type { Session } from '@supabase/supabase-js'
 import { DEMO_PASSWORD, isRemote, supabase } from './lib/supabase'
 import { consumeSignedIn, allocateReportId, pullCampus, pushDiff, rememberUser, takePullError } from './lib/sync'
-import { allowedTransitions, assignmentBlocked, canView, isOpen, nextReportId, uid } from './logic'
+import { allowedTransitions, assignmentBlocked, canView, isOpen, isReportOwner, nextReportId, uid } from './logic'
 import { normalizePhone, sosMessage } from './lib/sos'
 import type {
   Activity,
@@ -53,6 +53,7 @@ function shell(): AppState {
     audit: [],
     emergencyContacts: [],
     sosAlerts: [],
+    reportIdentities: {},
     codes: {},
     sessionUserId: null,
     prefs: readPrefs() ?? seed.prefs,
@@ -66,10 +67,20 @@ function load(): AppState {
     const parsed = JSON.parse(raw) as { version?: number; state?: AppState }
     if (parsed.version !== 1 || !parsed.state?.reports || !parsed.state.users || !parsed.state.categories) return buildSeed()
     const state = withSampleNotices(parsed.state)
-    return { ...state, emergencyContacts: state.emergencyContacts ?? [], sosAlerts: state.sosAlerts ?? [] }
+    return {
+      ...state,
+      emergencyContacts: state.emergencyContacts ?? [],
+      sosAlerts: state.sosAlerts ?? [],
+      reportIdentities: state.reportIdentities ?? {},
+    }
   } catch {
     return buildSeed()
   }
+}
+
+function ownerProfileId(state: AppState, report: Report): string | undefined {
+  if (report.reporterId) return report.reporterId
+  return state.reportIdentities[report.id]
 }
 
 function withSampleNotices(state: AppState): AppState {
@@ -200,6 +211,7 @@ type Api = {
   assign: (reportId: string, departmentId: string, assignee: string, priority: Priority) => boolean
   setPriority: (ids: string[], priority: Priority) => void
   requestInfo: (reportId: string, body: string) => void
+  revealReporter: (reportId: string, reason: string) => Promise<{ name: string; email: string } | string>
   rate: (reportId: string, rating: number, feedback: string) => void
   reopen: (reportId: string, reason: string) => void
   confirm: (reportId: string) => void
@@ -407,7 +419,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       anonymous: input.anonymous,
       status,
       priority,
-      reporterId: user.id,
+      // Anonymous reports keep the link in reportIdentities, not on the report row staff can select.
+      reporterId: input.anonymous ? '' : user.id,
       createdAt: existing?.createdAt ?? stamp,
       updatedAt: stamp,
       dueAt: status === 'draft' ? (existing?.dueAt ?? addHours(stamp, sla)) : addHours(stamp, sla),
@@ -552,10 +565,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return null
       }
       const existing = input.id ? current.reports.find((report) => report.id === input.id) : undefined
-      if (existing && (existing.status !== 'draft' || existing.reporterId !== user.id)) return null
+      if (existing && (existing.status !== 'draft' || !isReportOwner(user, existing, current.reportIdentities))) return null
       const issued = input.id || !remote ? input : { ...input, id: (await allocateReportId()) ?? undefined }
       const report = buildReport(current, user, issued, 'draft')
-      const error = await update((prev) => replaceReport(prev, buildReport(prev, user, { ...issued, id: report.id }, 'draft')))
+      const error = await update((prev) => {
+        const built = buildReport(prev, user, { ...issued, id: report.id }, 'draft')
+        let next = replaceReport(prev, built)
+        if (built.anonymous) next = { ...next, reportIdentities: { ...next.reportIdentities, [built.id]: user.id } }
+        return next
+      })
       if (error) return null
       say(remote ? 'Draft saved to the campus database.' : 'Draft saved in this browser.', remote ? 'খসড়া ক্যাম্পাস ডেটাবেসে সেভ হয়েছে।' : 'খসড়া এই ব্রাউজারে সেভ হয়েছে।')
       return report.id
@@ -569,10 +587,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return null
       }
       const existing = input.id ? current.reports.find((report) => report.id === input.id) : undefined
-      if (existing && (existing.status !== 'draft' || existing.reporterId !== user.id)) return null
+      if (existing && (existing.status !== 'draft' || !isReportOwner(user, existing, current.reportIdentities))) return null
       const dayAgo = Date.now() - 86_400_000
       const recent = current.reports.filter(
-        (report) => report.reporterId === user.id && report.status !== 'draft' && new Date(report.createdAt).getTime() > dayAgo,
+        (report) => isReportOwner(user, report, current.reportIdentities) && report.status !== 'draft' && new Date(report.createdAt).getTime() > dayAgo,
       )
       if (recent.length >= 5) {
         say('One account can file five reports a day.', 'একটি অ্যাকাউন্ট থেকে দিনে পাঁচটি রিপোর্ট যায়।')
@@ -586,6 +604,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
       const error = await update((prev) => {
         let next = replaceReport(prev, submitted)
+        if (submitted.anonymous) next = { ...next, reportIdentities: { ...next.reportIdentities, [submitted.id]: user.id } }
         const audience = deskAudience(next, submitted).filter((item) => item.id !== user.id)
         const href = `/admin/reports/${submitted.id}`
         const title = submitted.confidential ? 'Confidential report submitted' : 'New campus report'
@@ -604,7 +623,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const user = stateRef.current.users.find((item) => item.id === stateRef.current.sessionUserId)
       update((current) => ({
         ...current,
-        reports: current.reports.filter((report) => !(report.id === id && report.status === 'draft' && report.reporterId === user?.id)),
+        reports: current.reports.filter((report) => !(report.id === id && report.status === 'draft' && user && isReportOwner(user, report, current.reportIdentities))),
+        reportIdentities: Object.fromEntries(Object.entries(current.reportIdentities).filter(([reportId]) => reportId !== id)),
       }))
       say('Draft deleted.', 'খসড়া মুছে ফেলা হয়েছে।')
     },
@@ -614,21 +634,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const current = stateRef.current
       const user = current.users.find((item) => item.id === current.sessionUserId)
       const report = current.reports.find((item) => item.id === reportId)
-      if (!user || !report || !canView(user, report)) return
+      if (!user || !report || !canView(user, report, current.reportIdentities)) return
       const internal = visibility === 'internal'
+      const owner = isReportOwner(user, report, current.reportIdentities)
+      const actorLabel = !internal && report.anonymous && owner ? 'Reporter' : user.name
       const nextReport: Report = {
         ...report,
         updatedAt: nowIso(),
         infoRequested: internal ? report.infoRequested : false,
-        activities: [...report.activities, activity(user.name, internal ? 'internal' : 'public', internal ? 'internal' : 'reply', text)],
+        activities: [...report.activities, activity(actorLabel, internal ? 'internal' : 'public', internal ? 'internal' : 'reply', text)],
       }
       update((prev) => {
         let next = replaceReport(prev, nextReport)
-        if (!internal && report.reporterId && report.reporterId !== user.id) {
-          const reporter = next.users.find((item) => item.id === report.reporterId)
+        const ownerId = ownerProfileId(next, report)
+        if (!internal && ownerId && ownerId !== user.id) {
+          const reporter = next.users.find((item) => item.id === ownerId)
           if (reporter) next = withNotes(next, [reporter], 'New update on your report', `${report.id} has a new reply.`, `/app/reports/${report.id}`)
+          else if (remote && report.anonymous && supabase) {
+            void supabase.rpc('notify_report_owner', {
+              p_report_id: report.id,
+              p_title: 'New update on your report',
+              p_body: `${report.id} has a new reply.`,
+              p_href: `/app/reports/${report.id}`,
+              p_kind: null,
+            })
+          }
         }
-        if (!internal && report.reporterId === user.id) {
+        if (!internal && owner) {
           next = withNotes(
             next,
             deskAudience(next, report).filter((item) => item.id !== user.id),
@@ -645,7 +677,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const user = current.users.find((item) => item.id === current.sessionUserId)
       const report = current.reports.find((item) => item.id === reportId)
       if (!user || !report) return false
-      if (!allowedTransitions(user, report).includes(status)) {
+      if (!allowedTransitions(user, report, current.reportIdentities).includes(status)) {
         say('That status change is not available for this account.', 'এই অ্যাকাউন্ট থেকে এই স্ট্যাটাস বদলানো যাবে না।')
         return false
       }
@@ -672,14 +704,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       update((prev) => {
         let next = replaceReport(prev, nextReport)
         next = withAudit(next, user.name, `Set status to ${status.replaceAll('_', ' ')}`, report.id)
-        const reporter = next.users.find((item) => item.id === report.reporterId)
+        const ownerId = ownerProfileId(next, report)
+        const reporter = ownerId ? next.users.find((item) => item.id === ownerId) : undefined
+        const href = `/app/reports/${report.id}`
         if (reporter && reporter.id !== user.id) {
-          const href = `/app/reports/${report.id}`
           if (status === 'resolved') {
             next = withNotes(next, [reporter], 'Your report has been resolved.', `${report.id} is marked resolved. You can rate the work.`, href, 'resolved')
           } else {
             next = withNotes(next, [reporter], 'Report status changed', `${report.id} is now ${status.replaceAll('_', ' ')}.`, href)
           }
+        } else if (remote && report.anonymous && supabase && ownerId !== user.id) {
+          void supabase.rpc('notify_report_owner', {
+            p_report_id: report.id,
+            p_title: status === 'resolved' ? 'Your report has been resolved.' : 'Report status changed',
+            p_body: status === 'resolved' ? `${report.id} is marked resolved. You can rate the work.` : `${report.id} is now ${status.replaceAll('_', ' ')}.`,
+            p_href: href,
+            p_kind: status === 'resolved' ? 'resolved' : null,
+          })
         }
         return next
       })
@@ -720,9 +761,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         next = withAudit(next, user.name, `Assigned report to ${department.en}`, report.id)
         const office = next.users.filter((item) => item.departmentId === departmentId && item.id !== user.id)
         next = withNotes(next, office, 'Report assigned to your office', `${report.id} is on the ${department.en} desk.`, `/admin/reports/${report.id}`)
-        const reporter = next.users.find((item) => item.id === report.reporterId)
+        const ownerId = ownerProfileId(next, report)
+        const reporter = ownerId ? next.users.find((item) => item.id === ownerId) : undefined
         if (reporter && reporter.id !== user.id) {
           next = withNotes(next, [reporter], 'Your report has been assigned.', `${report.id} went to ${department.en}.`, `/app/reports/${report.id}`, 'assigned')
+        } else if (remote && report.anonymous && supabase && ownerId !== user.id) {
+          void supabase.rpc('notify_report_owner', {
+            p_report_id: report.id,
+            p_title: 'Your report has been assigned.',
+            p_body: `${report.id} went to ${department.en}.`,
+            p_href: `/app/reports/${report.id}`,
+            p_kind: 'assigned',
+          })
         }
         return next
       })
@@ -748,7 +798,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const user = current.users.find((item) => item.id === current.sessionUserId)
       const report = current.reports.find((item) => item.id === reportId)
       if (!user || !report || user.role !== 'admin') return
-      if (report.anonymous && !report.reporterId) {
+      const channel = ownerProfileId(current, report)
+      if (report.anonymous && !channel && !remote) {
         say('This anonymous report has no reply channel.', 'এই বেনামি রিপোর্টে উত্তর দেওয়ার পথ নেই।')
         return
       }
@@ -761,18 +812,52 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       update((prev) => {
         let next = replaceReport(prev, nextReport)
         next = withAudit(next, user.name, 'Asked the reporter for more information', report.id)
-        const reporter = next.users.find((item) => item.id === report.reporterId)
+        const ownerId = ownerProfileId(next, report)
+        const reporter = ownerId ? next.users.find((item) => item.id === ownerId) : undefined
         if (reporter) next = withNotes(next, [reporter], 'More information is needed.', `${report.id} needs a reply.`, `/app/reports/${report.id}`, 'info')
+        else if (remote && report.anonymous && supabase) {
+          void supabase.rpc('notify_report_owner', {
+            p_report_id: report.id,
+            p_title: 'More information is needed.',
+            p_body: `${report.id} needs a reply.`,
+            p_href: `/app/reports/${report.id}`,
+            p_kind: 'info',
+          })
+        }
         return next
       })
       say('Question sent to the reporter.', 'প্রশ্ন রিপোর্টকারীর কাছে গেছে।')
+    },
+    revealReporter: async (reportId, reason) => {
+      const text = reason.trim()
+      if (text.length < 8) return 'Write a short reason for the audit log.'
+      const current = stateRef.current
+      const user = current.users.find((item) => item.id === current.sessionUserId)
+      const report = current.reports.find((item) => item.id === reportId)
+      if (!user || !report || !report.anonymous) return 'That report is not anonymous.'
+      if (user.role !== 'admin' && user.departmentId !== 'd-affairs') return 'Only operations or Student Affairs can reveal a reporter.'
+      if (report.category !== 'harassment' && report.category !== 'safety') return 'Reveal is only for harassment or safety emergencies.'
+      if (remote && supabase) {
+        const { data, error } = await supabase.rpc('reveal_reporter', { p_report_id: reportId, p_reason: text })
+        if (error) return error.message
+        const row = Array.isArray(data) ? data[0] : data
+        if (!row || typeof row !== 'object') return 'No identity is stored for this report.'
+        const revealed = row as { name?: string; email?: string }
+        await update((prev) => withAudit(prev, user.name, `Revealed anonymous reporter (${text})`, reportId))
+        return { name: String(revealed.name ?? ''), email: String(revealed.email ?? '') }
+      }
+      const ownerId = ownerProfileId(current, report)
+      const owner = ownerId ? current.users.find((item) => item.id === ownerId) : undefined
+      if (!owner) return 'No identity is stored for this report.'
+      await update((prev) => withAudit(prev, user.name, `Revealed anonymous reporter (${text})`, reportId))
+      return { name: owner.name, email: owner.email }
     },
     rate: (reportId, rating, feedback) => {
       const user = stateRef.current.users.find((item) => item.id === stateRef.current.sessionUserId)
       update((current) => ({
         ...current,
         reports: current.reports.map((report) =>
-          report.id === reportId && report.reporterId === user?.id && (report.status === 'resolved' || report.status === 'closed')
+          report.id === reportId && user && isReportOwner(user, report, current.reportIdentities) && (report.status === 'resolved' || report.status === 'closed')
             ? { ...report, rating, feedback: feedback.trim(), updatedAt: nowIso() }
             : report,
         ),
@@ -788,7 +873,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const current = stateRef.current
       const user = current.users.find((item) => item.id === current.sessionUserId)
       const report = current.reports.find((item) => item.id === reportId)
-      if (!user || !report || report.reporterId !== user.id) return
+      if (!user || !report || !isReportOwner(user, report, current.reportIdentities)) return
       if (report.status !== 'resolved' && report.status !== 'closed') return
       const nextReport: Report = {
         ...report,
@@ -808,7 +893,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const user = stateRef.current.users.find((item) => item.id === stateRef.current.sessionUserId)
       if (!user) return
       const report = stateRef.current.reports.find((item) => item.id === reportId)
-      if (!report || report.reporterId === user.id || report.confirmations.includes(user.id)) return
+      if (!report || isReportOwner(user, report, stateRef.current.reportIdentities) || report.confirmations.includes(user.id)) return
       if (report.confidential || report.anonymous || report.category === 'harassment' || report.category === 'safety') return
       update((current) => ({
         ...current,

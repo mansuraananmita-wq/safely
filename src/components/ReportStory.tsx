@@ -1,7 +1,7 @@
 import { Lock } from 'lucide-react'
 import { GooglePlaceMap } from './GooglePlaceMap'
 import { PLACES, reportPoint, subcategoryLabel } from '../data'
-import { dueLabel, identityMode, isOverdue, priorityLabel, roleLabel } from '../logic'
+import { dueLabel, identityMode, isOverdue, isReportOwner, priorityLabel, roleLabel, staffVisibleReporterId } from '../logic'
 import { useApp } from '../store'
 import type { Report } from '../types'
 import { StatusProgress } from './StatusProgress'
@@ -14,11 +14,12 @@ export function ReportStory({ report, internal }: { report: Report; internal: bo
   const sub = subcategoryLabel(report.category, report.subcategory, lang)
   const place = PLACES.find((item) => item.id === report.locationId)
   const department = state.departments.find((item) => item.id === report.departmentId)
-  const owner = state.users.find((item) => item.id === report.reporterId)
-  const mode = currentUser ? identityMode(currentUser, report) : 'restricted'
+  const visibleReporterId = staffVisibleReporterId(report)
+  const owner = visibleReporterId ? state.users.find((item) => item.id === visibleReporterId) : undefined
+  const mode = currentUser ? identityMode(currentUser, report, state.reportIdentities) : 'restricted'
   const due = dueLabel(report, lang)
   const overdue = isOverdue(report)
-  const showPrivate = internal || report.reporterId === currentUser?.id
+  const showPrivate = Boolean(currentUser && (internal || isReportOwner(currentUser, report, state.reportIdentities)))
   const point = reportPoint(report)
   const exact = Boolean(
     point &&
@@ -29,7 +30,7 @@ export function ReportStory({ report, internal }: { report: Report; internal: bo
   )
 
   let who = tx('Reporter', 'রিপোর্টকারী')
-  if (mode === 'anonymous') who = tx('Anonymous — no reply channel', 'বেনামি — উত্তরের পথ নেই')
+  if (mode === 'anonymous') who = tx('Anonymous', 'বেনামি')
   else if (mode === 'self-anonymous') who = tx('You · name hidden from officers', 'আপনি · নাম কর্মকর্তাদের কাছে গোপন')
   else if (mode === 'restricted') who = tx('Restricted', 'সীমিত')
   else if (mode === 'role-only') who = owner ? roleLabel(owner.role, lang) : tx('Campus member', 'ক্যাম্পাস সদস্য')

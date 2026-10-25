@@ -362,7 +362,7 @@ const reports: Report[] = [
     reporterId: '',
     createdAt: createdAnon,
     updatedAt: createdAnon,
-    activities: [act('a508-1', 6, 'Safely', 'public', 'system', 'Anonymous confidential report submitted. No reply channel was collected.')],
+    activities: [act('a508-1', 6, 'Safely', 'public', 'system', 'Anonymous confidential report submitted. The desk can ask for more detail without seeing the name.')],
   }),
   make({
     id: 'SF-10470',
@@ -706,7 +706,7 @@ export function buildSeed(): AppState {
       { id: uid('n'), userId: 'u-admin', title: 'New wifi report is waiting', body: 'SF-10510 has had no first response yet.', href: '/admin/reports/SF-10510', read: false, createdAt: ago(5) },
       { id: uid('n'), userId: 'u-admin', title: 'Confidential report needs review', body: 'A harassment report is in the safety queue.', href: '/admin/reports/SF-10501', read: false, createdAt: ago(9) },
       { id: uid('n'), userId: 'u-sec', title: 'Confidential report submitted', body: 'Review SF-10501. The description stays with security and student affairs.', href: '/admin/reports/SF-10501', read: false, createdAt: ago(9) },
-      { id: uid('n'), userId: 'u-sec', title: 'Anonymous report submitted', body: 'SF-10508 has no reply channel.', href: '/admin/reports/SF-10508', read: false, createdAt: ago(6) },
+      { id: uid('n'), userId: 'u-sec', title: 'Anonymous report submitted', body: 'SF-10508 is anonymous. The desk can ask for detail without seeing the name.', href: '/admin/reports/SF-10508', read: false, createdAt: ago(6) },
       { id: uid('n'), userId: 'u-maint', title: 'Gate crossing is on your desk', body: 'SF-10482 is in progress and due soon.', href: '/admin/reports/SF-10482', read: false, createdAt: ago(18) },
       { id: uid('n'), userId: 'u-affairs', title: 'Sensitive report waiting for assignment', body: 'SF-10501 is under review and not assigned yet.', href: '/admin/reports/SF-10501', read: false, createdAt: ago(9) },
     ],
@@ -723,6 +723,7 @@ export function buildSeed(): AppState {
     codes: {},
     emergencyContacts: [],
     sosAlerts: [],
+    reportIdentities: { 'SF-10508': 'u-amina' },
     sessionUserId: null,
     prefs: { lang: 'en', textSize: 'default', contrast: false },
   }

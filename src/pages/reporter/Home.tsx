@@ -8,7 +8,7 @@ import { useApp } from '../../store'
 export function HomePage() {
   const { currentUser, state, tx } = useApp()
   useTitle(tx('Home', 'হোম'))
-  const mine = state.reports.filter((report) => report.reporterId === currentUser?.id)
+  const mine = state.reports.filter((report) => currentUser && (report.reporterId === currentUser.id || state.reportIdentities[report.id] === currentUser.id))
   const open = mine.filter((report) => isOpen(report.status))
   const drafts = mine.filter((report) => report.status === 'draft')
   const waiting = mine.filter((report) => report.infoRequested || ((report.status === 'resolved' || report.status === 'closed') && !report.rating))

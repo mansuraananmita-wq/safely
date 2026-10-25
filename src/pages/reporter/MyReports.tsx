@@ -12,7 +12,10 @@ export function MyReportsPage() {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<(typeof filters)[number]>('all')
   useTitle(tx('My reports', 'আমার রিপোর্ট'))
-  const mine = useMemo(() => state.reports.filter((report) => report.reporterId === currentUser?.id), [state.reports, currentUser?.id])
+  const mine = useMemo(
+    () => state.reports.filter((report) => currentUser && (report.reporterId === currentUser.id || state.reportIdentities[report.id] === currentUser.id)),
+    [state.reports, state.reportIdentities, currentUser],
+  )
   const shown = mine.filter((report) => {
     const text = `${report.id} ${report.title} ${report.description}`.toLowerCase()
     if (query && !text.includes(query.toLowerCase())) return false

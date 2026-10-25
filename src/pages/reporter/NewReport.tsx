@@ -367,7 +367,12 @@ export function NewReportPage() {
                 <input type="checkbox" checked={form.anonymous} onChange={(event) => setForm({ ...form, anonymous: event.target.checked, confidential: event.target.checked ? true : form.confidential })} />
                 <span className="font-semibold">{tx('Anonymous', 'বেনামি')}</span>
               </span>
-              <span className="block pl-7 text-ink/75">{tx('Officers do not see your name. You can still open this report from your own account. They may not be able to ask a follow-up. Anonymous also turns Confidential on, so the story stays off the public map.', 'কর্মকর্তারা আপনার নাম দেখেন না। আপনি নিজের অ্যাকাউন্ট থেকে রিপোর্ট খুলতে পারবেন। তারা হয়তো আরও প্রশ্ন করতে পারবেন না। বেনামি চালু করলে গোপনও চালু হয়, তাই বিবরণ প্রকাশ্য ম্যাপে আসে না।')}</span>
+              <span className="block space-y-2 pl-7 text-ink/75">
+                <span className="block">{tx('Admin, security, and department desks see only “Anonymous” — not your name, email, or avatar.', 'অ্যাডমিন, নিরাপত্তা এবং দপ্তর শুধু “বেনামি” দেখে — আপনার নাম, ইমেইল বা ছবি নয়।')}</span>
+                <span className="block">{tx('You still see the report under My reports and can reply to information requests. Those replies are labeled “Reporter”, not your name.', 'আপনি My reports-এ রিপোর্ট দেখবেন এবং তথ্যের অনুরোধে উত্তর দিতে পারবেন। উত্তরে “Reporter” লেখা থাকে, আপনার নাম নয়।')}</span>
+                <span className="block">{tx('Only operations or Student Affairs can reveal your identity for a harassment or safety emergency, and that step is written to the audit log.', 'শুধু অপারেশন বা শিক্ষার্থী বিষয়ক দপ্তর হয়রানি বা নিরাপত্তা জরুরি অবস্থায় পরিচয় খুলতে পারে, এবং সেটি অডিট লগে লেখা হয়।')}</span>
+                <span className="block">{tx('Anonymous also turns Confidential on, so the story stays off the public map and away from ordinary offices.', 'বেনামি চালু করলে গোপনও চালু হয়, তাই বিবরণ প্রকাশ্য ম্যাপ ও সাধারণ দপ্তর থেকে দূরে থাকে।')}</span>
+              </span>
             </label>
             {(sensitive || form.confidential) && !form.anonymous ? (
               <Field label={tx('Best time for the safety team to reach you in the app', 'অ্যাপে নিরাপত্তা দলের কথা বলার সময়')}>
@@ -383,7 +388,7 @@ export function NewReportPage() {
             {form.anonymous ? (
               <label className="flex gap-2 text-sm">
                 <input type="checkbox" checked={form.anonAck} onChange={(event) => setForm({ ...form, anonAck: event.target.checked })} />
-                {tx('I understand my name will be hidden and follow-up may not be possible.', 'আমি বুঝেছি আমার নাম লুকানো থাকবে এবং ফলোআপ নাও হতে পারে।')}
+                {tx('I understand staff see Anonymous only, I keep My reports access, and reveal needs an audited emergency reason.', 'আমি বুঝেছি কর্মকর্তারা শুধু বেনামি দেখেন, আমি My reports রাখি, এবং পরিচয় খুলতে অডিটসহ জরুরি কারণ লাগে।')}
               </label>
             ) : null}
           </div>
@@ -404,7 +409,7 @@ export function NewReportPage() {
                 note={form.pinMoved ? tx('Pin you placed. Check it on Google Maps.', 'আপনার বসানো পিন। গুগল ম্যাপে দেখে নিন।') : tx('Check this pin before you submit.', 'জমা দেওয়ার আগে এই পিন দেখে নিন।')}
               />
             ) : null}
-            <p>{form.confidential || sensitive ? tx('Confidential — limited desk', 'গোপন — সীমিত ডেস্ক') : tx('Ordinary campus report', 'সাধারণ ক্যাম্পাস রিপোর্ট')} · {form.anonymous ? tx('Anonymous — name hidden', 'বেনামি — নাম গোপন') : tx('Name visible to the assigned office', 'বরাদ্দকৃত দপ্তর নাম দেখতে পাবে')}</p>
+            <p>{form.confidential || sensitive ? tx('Confidential — limited desk', 'গোপন — সীমিত ডেস্ক') : tx('Ordinary campus report', 'সাধারণ ক্যাম্পাস রিপোর্ট')} · {form.anonymous ? tx('Anonymous — staff see Anonymous only', 'বেনামি — কর্মকর্তারা শুধু বেনামি দেখেন') : tx('Name visible to the assigned office', 'বরাদ্দকৃত দপ্তর নাম দেখতে পাবে')}</p>
             <p className="text-ink/60">{tx('An officer confirms the department. Safely only suggests one.', 'কর্মকর্তা বিভাগ নিশ্চিত করেন। সেইফলি শুধু পরামর্শ দেয়।')} {lang === 'bn' ? state.departments.find((item) => item.id === category?.suggestedDepartmentId)?.bn : state.departments.find((item) => item.id === category?.suggestedDepartmentId)?.en}</p>
           </div>
         ) : null}

@@ -196,6 +196,8 @@ export interface Prefs {
 export interface AppState {
   users: User[]
   reports: Report[]
+  /** Owner-only map of anonymous report id → profile id. Staff never receive these rows from RLS. */
+  reportIdentities: Record<string, string>
   notifications: AppNotification[]
   announcements: Announcement[]
   lostFound: LostItem[]

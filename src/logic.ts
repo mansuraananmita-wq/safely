@@ -73,9 +73,19 @@ export function restrictedVisible(user: User, report: Report): boolean {
   return false
 }
 
-export function canView(user: User, report: Report): boolean {
-  if (report.status === 'draft') return report.reporterId === user.id
+export function isReportOwner(user: User, report: Report, identities: Record<string, string> = {}): boolean {
   if (report.reporterId && report.reporterId === user.id) return true
+  return identities[report.id] === user.id
+}
+
+/** Staff must never see a reporter id on anonymous reports. */
+export function staffVisibleReporterId(report: Report): string {
+  return report.anonymous ? '' : report.reporterId
+}
+
+export function canView(user: User, report: Report, identities: Record<string, string> = {}): boolean {
+  if (report.status === 'draft') return isReportOwner(user, report, identities)
+  if (isReportOwner(user, report, identities)) return true
   if (user.role === 'admin') return true
   if (user.role === 'security' || isStudentAffairs(user)) return restrictedVisible(user, report)
   if (user.role === 'department') {
@@ -119,9 +129,9 @@ export function assignedAt(report: Report): string | undefined {
 
 export type IdentityMode = 'anonymous' | 'self-anonymous' | 'restricted' | 'named' | 'role-only'
 
-export function identityMode(user: User, report: Report): IdentityMode {
-  if (report.anonymous) return report.reporterId === user.id ? 'self-anonymous' : 'anonymous'
-  if (report.reporterId === user.id) return 'named'
+export function identityMode(user: User, report: Report, identities: Record<string, string> = {}): IdentityMode {
+  if (report.anonymous) return isReportOwner(user, report, identities) ? 'self-anonymous' : 'anonymous'
+  if (isReportOwner(user, report, identities)) return 'named'
   const safetyOfficer = user.role === 'admin' || user.role === 'security' || user.departmentId === 'd-affairs'
   if (report.confidential && !safetyOfficer) return 'restricted'
   const assignedOfficer = user.role === 'department' && user.departmentId === report.departmentId
@@ -194,16 +204,16 @@ export function roleLabel(role: Role, lang: Lang): string {
   return pair(lang, ROLE_LABELS[role])
 }
 
-export function allowedTransitions(user: User, report: Report): Status[] {
+export function allowedTransitions(user: User, report: Report, identities: Record<string, string> = {}): Status[] {
   if (
-    report.reporterId === user.id &&
+    isReportOwner(user, report, identities) &&
     isMember(user.role) &&
     (report.status === 'resolved' || report.status === 'closed')
   ) {
     return ['reopened']
   }
   if (isMember(user.role)) {
-    return report.status === 'draft' && report.reporterId === user.id ? ['submitted'] : []
+    return report.status === 'draft' && isReportOwner(user, report, identities) ? ['submitted'] : []
   }
   const map: Record<Status, Status[]> = {
     draft: [],

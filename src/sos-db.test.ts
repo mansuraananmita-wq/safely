@@ -8,6 +8,8 @@ const rateLimitMigration = path.resolve('supabase/migrations/20261025184500_sos_
 const rateLimitSql = path.resolve('supabase/tests/sos_rate_limit.sql')
 const deskMigration = path.resolve('supabase/migrations/20261025190000_sos_desk_notify_and_status.sql')
 const rlsSql = path.resolve('supabase/tests/sos_rls_student.sql')
+const anonMigration = path.resolve('supabase/migrations/20261026013000_anonymous_report_identities.sql')
+const anonSql = path.resolve('supabase/tests/anonymous_reporter_rls.sql')
 
 function runSqlFile(file: string) {
   try {
@@ -35,5 +37,13 @@ describe('sos database guards', () => {
     expect(existsSync(rlsSql)).toBe(true)
     const output = runSqlFile(rlsSql)
     expect(output).not.toMatch(/student read another user SOS/i)
+  }, 120_000)
+
+  it('keeps anonymous reporter_id null for admin, security, and department selects', () => {
+    expect(existsSync(anonMigration)).toBe(true)
+    expect(existsSync(anonSql)).toBe(true)
+    const output = runSqlFile(anonSql)
+    expect(output).not.toMatch(/returned reporter for anonymous report/i)
+    expect(output).not.toMatch(/read report_identities/i)
   }, 120_000)
 })

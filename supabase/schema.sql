@@ -151,6 +151,13 @@ create table if not exists public.audit_log (
 create index if not exists reports_status_idx on public.reports (status);
 create index if not exists reports_department_idx on public.reports (department_id);
 create index if not exists reports_reporter_idx on public.reports (reporter_id);
+
+create table if not exists public.report_identities (
+  report_id text primary key references public.reports (id) on delete cascade,
+  user_id text not null references public.profiles (id) on delete cascade
+);
+
+create index if not exists report_identities_user_idx on public.report_identities (user_id);
 create index if not exists activities_report_idx on public.report_activities (report_id);
 create index if not exists notifications_user_idx on public.notifications (user_id);
 
@@ -199,6 +206,26 @@ as $$
   select department_id from public.profiles where auth_user_id = auth.uid() and suspended = false
 $$;
 
+create or replace function public.owns_report(r public.reports)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select
+    public.current_profile_id() is not null
+    and (
+      (r.reporter_id is not null and r.reporter_id = public.current_profile_id())
+      or exists (
+        select 1
+        from public.report_identities ri
+        where ri.report_id = r.id
+          and ri.user_id = public.current_profile_id()
+      )
+    );
+$$;
+
 create or replace function public.can_read_report(r public.reports)
 returns boolean
 language sql
@@ -212,8 +239,8 @@ as $$
     where p.auth_user_id = auth.uid()
       and p.suspended = false
       and (
-        (r.status = 'draft' and r.reporter_id = p.id)
-        or (r.reporter_id = p.id and r.status <> 'draft')
+        (r.status = 'draft' and public.owns_report(r))
+        or (public.owns_report(r) and r.status <> 'draft')
         or p.role = 'admin'
         or (
           p.role = 'security' and (
@@ -330,11 +357,17 @@ begin
   if new.category = 'harassment' then
     new.confidential := true;
   end if;
+  if new.anonymous then
+    new.confidential := true;
+    new.reporter_id := null;
+  end if;
   if new.confidential and new.department_id is not null and new.department_id not in ('d-sec', 'd-affairs') then
     raise exception 'Confidential reports stay with Security or Student Affairs';
   end if;
   if tg_op = 'INSERT' then
-    if new.reporter_id is distinct from actor_id and actor_role <> 'admin' then
+    if new.anonymous then
+      null;
+    elsif new.reporter_id is distinct from actor_id and actor_role <> 'admin' then
       raise exception 'Reporter mismatch';
     end if;
     if new.status not in ('draft', 'submitted') and actor_role <> 'admin' then
@@ -358,7 +391,7 @@ begin
     raise exception 'That status change is not available for this account';
   end if;
   if actor_role in ('student', 'teacher', 'staff') then
-    if old.reporter_id is distinct from actor_id then
+    if not public.owns_report(old) then
       raise exception 'Not allowed';
     end if;
     if new.status is distinct from old.status
@@ -375,6 +408,33 @@ drop trigger if exists reports_guard on public.reports;
 create trigger reports_guard
   before insert or update on public.reports
   for each row execute function public.guard_report();
+
+create or replace function public.link_report_identity()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  actor_id text := public.current_profile_id();
+begin
+  if not new.anonymous then
+    return new;
+  end if;
+  if actor_id is null then
+    return new;
+  end if;
+  insert into public.report_identities (report_id, user_id)
+  values (new.id, actor_id)
+  on conflict (report_id) do nothing;
+  return new;
+end;
+$$;
+
+drop trigger if exists reports_link_identity on public.reports;
+create trigger reports_link_identity
+  after insert on public.reports
+  for each row execute function public.link_report_identity();
 
 create or replace function public.guard_profile()
 returns trigger
@@ -454,6 +514,7 @@ alter table public.departments enable row level security;
 alter table public.categories enable row level security;
 alter table public.profiles enable row level security;
 alter table public.reports enable row level security;
+alter table public.report_identities enable row level security;
 alter table public.report_activities enable row level security;
 alter table public.report_confirmations enable row level security;
 alter table public.notifications enable row level security;
@@ -487,7 +548,11 @@ drop policy if exists reports_update on public.reports;
 create policy reports_update on public.reports for update to authenticated using (public.can_read_report(reports)) with check (true);
 drop policy if exists reports_delete on public.reports;
 create policy reports_delete on public.reports for delete to authenticated
-  using (status = 'draft' and reporter_id = public.current_profile_id());
+  using (status = 'draft' and public.owns_report(reports));
+
+drop policy if exists report_identities_select on public.report_identities;
+create policy report_identities_select on public.report_identities for select to authenticated
+  using (user_id = public.current_profile_id());
 
 drop policy if exists activities_select on public.report_activities;
 create policy activities_select on public.report_activities for select to authenticated
@@ -552,6 +617,7 @@ grant usage on schema public to anon, authenticated;
 grant select on public.places, public.departments, public.categories, public.announcements, public.public_reports to anon, authenticated;
 grant select, update on public.profiles to authenticated;
 grant select, insert, update, delete on public.reports to authenticated;
+grant select on public.report_identities to authenticated;
 grant select, insert, delete on public.report_activities to authenticated;
 grant select, insert on public.report_confirmations to authenticated;
 grant select, insert, update on public.notifications to authenticated;
@@ -559,6 +625,101 @@ grant insert, update on public.announcements to authenticated;
 grant select, insert, update on public.lost_found to authenticated;
 grant select, insert on public.audit_log to authenticated;
 grant update on public.departments, public.categories to authenticated;
+
+create or replace function public.notify_report_owner(
+  p_report_id text,
+  p_title text,
+  p_body text,
+  p_href text,
+  p_kind text default null
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  owner_id text;
+  note_id text;
+begin
+  if not exists (select 1 from public.reports r where r.id = p_report_id and public.can_read_report(r)) then
+    raise exception 'Not allowed';
+  end if;
+  select ri.user_id into owner_id
+  from public.report_identities ri
+  where ri.report_id = p_report_id;
+  if owner_id is null then
+    select r.reporter_id into owner_id
+    from public.reports r
+    where r.id = p_report_id;
+  end if;
+  if owner_id is null then
+    return;
+  end if;
+  note_id := 'n' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 12);
+  insert into public.notifications (id, user_id, title, body, href, read, created_at, kind)
+  values (note_id, owner_id, p_title, p_body, p_href, false, now(), p_kind);
+end;
+$$;
+
+create or replace function public.reveal_reporter(p_report_id text, p_reason text)
+returns table (user_id text, name text, email text)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  actor_id text := public.current_profile_id();
+  actor_name text;
+  actor_dept text := public.desk_department();
+  report_row public.reports;
+  owner_id text;
+  reason text := trim(p_reason);
+begin
+  if actor_id is null then
+    raise exception 'Not signed in';
+  end if;
+  if not (public.is_admin() or actor_dept = 'd-affairs') then
+    raise exception 'Only operations or Student Affairs can reveal a reporter';
+  end if;
+  if char_length(reason) < 8 then
+    raise exception 'Write a short reason for the audit log';
+  end if;
+  select * into report_row from public.reports where id = p_report_id;
+  if report_row.id is null then
+    raise exception 'Report not found';
+  end if;
+  if not report_row.anonymous then
+    raise exception 'This report is not anonymous';
+  end if;
+  if report_row.category not in ('harassment', 'safety') then
+    raise exception 'Reveal is only for harassment or safety emergencies';
+  end if;
+  if not public.can_read_report(report_row) then
+    raise exception 'Not allowed';
+  end if;
+  select ri.user_id into owner_id from public.report_identities ri where ri.report_id = p_report_id;
+  if owner_id is null then
+    raise exception 'No identity is stored for this report';
+  end if;
+  select p.name into actor_name from public.profiles p where p.id = actor_id;
+  insert into public.audit_log (id, at, actor, action, target)
+  values (
+    'au' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 12),
+    now(),
+    coalesce(actor_name, actor_id),
+    'Revealed anonymous reporter (' || reason || ')',
+    p_report_id
+  );
+  return query
+  select p.id, p.name, p.email
+  from public.profiles p
+  where p.id = owner_id;
+end;
+$$;
+
+grant execute on function public.notify_report_owner(text, text, text, text, text) to authenticated;
+grant execute on function public.reveal_reporter(text, text) to authenticated;
 
 -- Demo account helper used by seed.sql. Password is padma1234.
 
