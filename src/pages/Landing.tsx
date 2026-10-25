@@ -24,7 +24,7 @@ export default function Landing() {
   return (
     <div>
       <header className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-5">
-        <Logo />
+        <Link to="/" aria-label="Safely"><Logo /></Link>
         <nav className="ml-auto hidden items-center gap-5 text-sm md:flex">
           <a href="#how" className="text-ink/70 hover:text-ink">{tx('How it works', 'কীভাবে কাজ করে')}</a>
           <a href="#privacy" className="text-ink/70 hover:text-ink">{tx('Privacy', 'গোপনীয়তা')}</a>

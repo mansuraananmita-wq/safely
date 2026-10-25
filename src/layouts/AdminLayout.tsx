@@ -1,6 +1,6 @@
 import { Building2, ClipboardList, Inbox, LayoutDashboard, Megaphone, MoreHorizontal, ScrollText, Siren, Tags, UserRound, Users } from 'lucide-react'
 import { useState } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { AccountTools } from '../components/AccountTools'
 import { Logo, cx, navClass } from '../components/ui'
 import { useApp } from '../store'
@@ -62,7 +62,7 @@ export function AdminLayout() {
     <div className="min-h-screen">
       <header className="no-print sticky top-0 z-30 border-b border-haze/80 bg-frost/90 shadow-sm backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
-          <Logo />
+          <Link to="/admin" aria-label="Safely"><Logo /></Link>
           <p className="hidden text-sm text-slate sm:block">
             {role === 'admin' ? tx('Operations desk', 'অপারেশন ডেস্ক') : restricted ? tx('Restricted desk', 'সীমিত ডেস্ক') : tx('Department office', 'দপ্তর')}
           </p>

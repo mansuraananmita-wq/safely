@@ -140,15 +140,23 @@ export function useTitle(title: string) {
   }, [title])
 }
 
-export function Logo({ light = false }: { light?: boolean }) {
+export function Logo({ light = false, large = false }: { light?: boolean; large?: boolean }) {
   return (
-    <span className="inline-flex items-center gap-2">
-      <span className={cx('grid h-8 w-8 place-items-center rounded-lg', light ? 'bg-frost text-dusk' : 'bg-dusk text-frost')}>
-        <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
-          <path d="M5 13.5 9.2 17.5 19 7" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+    <span className="inline-flex items-center gap-2.5">
+      <img
+        src="/safely-logo.png"
+        alt=""
+        width={large ? 56 : 36}
+        height={large ? 56 : 36}
+        className={cx(
+          'shrink-0 rounded-xl object-cover shadow-sm',
+          large ? 'h-14 w-14' : 'h-9 w-9',
+          light ? 'ring-1 ring-white/15' : 'ring-1 ring-haze/80',
+        )}
+      />
+      <span className={cx('font-display leading-none tracking-tight', large ? 'text-3xl' : 'text-xl', light ? 'text-frost' : 'text-night')}>
+        Safely
       </span>
-      <span className={cx('font-display text-xl leading-none', light ? 'text-frost' : 'text-night')}>Safely</span>
     </span>
   )
 }

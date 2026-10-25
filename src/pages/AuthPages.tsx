@@ -11,7 +11,7 @@ function Frame({ title, lede, children }: { title: string; lede: string; childre
   return (
     <div className="grid min-h-screen lg:grid-cols-[0.85fr_1.15fr]">
       <aside className="hidden flex-col justify-between bg-night p-10 text-frost lg:flex">
-        <Logo light />
+        <Logo light large />
         <div>
           <p className="max-w-sm font-display text-4xl leading-tight">{tx('The campus desk, with the noise taken out.', 'ক্যাম্পাস ডেস্ক, অতিরিক্ত শোরগোল ছাড়া।')}</p>
           <p className="mt-4 max-w-sm text-sm text-haze">{tx('Padma University. With Supabase connected, reports are stored in the campus database.', 'পদ্মা বিশ্ববিদ্যালয়। Supabase যুক্ত থাকলে রিপোর্ট ক্যাম্পাস ডেটাবেসে থাকে।')}</p>

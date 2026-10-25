@@ -1,6 +1,6 @@
 import { Bell, ClipboardList, Home, KeyRound, LifeBuoy, Map, Megaphone, MoreHorizontal, Plus, Siren, UserRound } from 'lucide-react'
 import { useState } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { AccountTools } from '../components/AccountTools'
 import { Logo, cx, navClass } from '../components/ui'
 import { useApp } from '../store'
@@ -41,7 +41,7 @@ export function ReporterLayout() {
       </a>
       <header className="no-print sticky top-0 z-30 border-b border-haze/80 bg-frost/90 shadow-sm backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
-          <Logo />
+          <Link to="/app" aria-label="Safely"><Logo /></Link>
           <AccountTools bellTo="/app/notifications" profileTo="/app/profile" />
         </div>
       </header>

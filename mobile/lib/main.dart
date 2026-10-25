@@ -80,14 +80,11 @@ class LoginScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
           children: [
-            Container(
-              width: 44,
-              height: 44,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(color: const Color(0xFF163A66), borderRadius: BorderRadius.circular(10)),
-              child: const Icon(Icons.check, color: Colors.white),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.asset('assets/safely-logo.png', width: 88, height: 88, fit: BoxFit.cover),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             Text('Safely', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             Text(
@@ -167,7 +164,16 @@ class _HomeShellState extends State<HomeShell> {
     ];
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Safely'),
+        title: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.asset('assets/safely-logo.png', width: 28, height: 28, fit: BoxFit.cover),
+            ),
+            const SizedBox(width: 10),
+            const Text('Safely'),
+          ],
+        ),
         actions: [
           TextButton(onPressed: store.toggleLanguage, child: Text(store.bangla ? 'EN' : 'বাংলা')),
           IconButton(onPressed: () { store.logout(); }, icon: const Icon(Icons.logout), tooltip: tx('Sign out', 'সাইন আউট')),
