@@ -222,6 +222,7 @@ type Api = {
   sendSos: (place: { lat: number; lng: number; accuracy: number } | null) => Promise<{ status: 'sent' | 'desk' | 'sms-failed' | 'soon' | 'empty' | 'rejected'; id: string | null; detail?: string | null }>
   refineSosLocation: (id: string, place: { lat: number; lng: number; accuracy: number }) => Promise<string | null>
   resolveSos: (id: string) => Promise<string | null>
+  markSosSeen: () => Promise<string | null>
 }
 
 const Ctx = createContext<Api | null>(null)
@@ -1007,20 +1008,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         smsDetail: '',
         createdAt,
       }
-      const desk = current.users.filter((item) => item.role === 'admin' && !item.suspended && item.id !== user.id)
-      const notes = desk.map((item) => ({
-        id: uid('n'),
-        userId: item.id,
-        title: 'SOS help request',
-        body: message,
-        href: '/admin/sos',
-        read: false,
-        createdAt,
-      }))
+      // Remote inserts get desk notifications from the DB trigger. Preview mode fans them out here.
+      const deskNotes = remote
+        ? []
+        : current.users
+          .filter((item) => (item.role === 'admin' || item.role === 'security') && !item.suspended && item.id !== user.id)
+          .map((item) => ({
+            id: uid('n'),
+            userId: item.id,
+            title: 'SOS help request',
+            body: message,
+            href: '/admin/sos',
+            read: false,
+            createdAt,
+          }))
       const saved = await update((state) => withAudit({
         ...state,
         sosAlerts: [alert, ...(state.sosAlerts ?? [])].slice(0, 100),
-        notifications: [...notes, ...state.notifications].slice(0, 200),
+        notifications: deskNotes.length ? [...deskNotes, ...state.notifications].slice(0, 200) : state.notifications,
       }, user.name, 'Sent an SOS alert', id))
       if (saved) {
         const detail = saved.trim()
@@ -1070,8 +1075,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const solvedAt = nowIso()
       return update((state) => withAudit({
         ...state,
-        sosAlerts: (state.sosAlerts ?? []).map((item) => (item.id === id ? { ...item, resolvedAt: solvedAt } : item)),
+        sosAlerts: (state.sosAlerts ?? []).map((item) => (
+          item.id === id
+            ? { ...item, seenAt: item.seenAt ?? solvedAt, resolvedAt: solvedAt }
+            : item
+        )),
       }, user.name, 'Marked an SOS as solved', id))
+    },
+    markSosSeen: () => {
+      const user = stateRef.current.users.find((item) => item.id === stateRef.current.sessionUserId)
+      if (!user || (user.role !== 'admin' && user.role !== 'security')) return Promise.resolve(null)
+      const open = (stateRef.current.sosAlerts ?? []).filter((item) => !item.resolvedAt && !item.seenAt)
+      if (!open.length) return Promise.resolve(null)
+      const seenAt = nowIso()
+      return update((state) => ({
+        ...state,
+        sosAlerts: (state.sosAlerts ?? []).map((item) => (
+          !item.resolvedAt && !item.seenAt ? { ...item, seenAt } : item
+        )),
+      }))
     },
     resetDemo: () => {
       if (remote && supabase) {

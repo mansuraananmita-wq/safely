@@ -169,6 +169,8 @@ export interface EmergencyContact {
 
 export type SosSmsStatus = 'pending' | 'sent' | 'partial' | 'skipped' | 'failed'
 
+export type SosDeskStatus = 'sent' | 'seen' | 'solved'
+
 export interface SosAlert {
   id: string
   userId: string
@@ -181,6 +183,7 @@ export interface SosAlert {
   smsStatus: SosSmsStatus
   smsDetail: string
   createdAt: string
+  seenAt?: string
   resolvedAt?: string
 }
 

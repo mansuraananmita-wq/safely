@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { assignmentBlocked, deskReports, inboxNotifications, isPublicFeed, officeCanRead, QUEUE_OFFICES } from './logic'
+import { assignmentBlocked, deskReports, inboxNotifications, isPublicFeed, officeCanRead, QUEUE_OFFICES, sosDeskStatus } from './logic'
 import { isPreciseFix, preferLiveFix, normalizePhone, sendDecision, sosMessage } from './lib/sos'
 import type { Report, User } from './types'
 
@@ -79,10 +79,16 @@ describe('sos notifications', () => {
     { userId: 'u-admin', title: 'SOS help request', body: 'help' },
   ]
 
-  it('keeps an SOS bell notice on the admin account only', () => {
+  it('keeps an SOS bell notice on admin and security accounts', () => {
     expect(inboxNotifications(user({ id: 'u-amina', role: 'student' }), notes).map((item) => item.title)).toEqual(['Your report has been received.'])
-    expect(inboxNotifications(user({ id: 'u-sec', role: 'security' }), notes)).toEqual([])
+    expect(inboxNotifications(user({ id: 'u-sec', role: 'security' }), notes).map((item) => item.title)).toEqual(['SOS help request'])
     expect(inboxNotifications(user({ id: 'u-admin', role: 'admin' }), notes).map((item) => item.title)).toEqual(['SOS help request'])
+  })
+
+  it('maps sender-facing SOS status from seen_at and resolved_at', () => {
+    expect(sosDeskStatus({})).toBe('sent')
+    expect(sosDeskStatus({ seenAt: '2026-10-26T00:00:00.000Z' })).toBe('seen')
+    expect(sosDeskStatus({ seenAt: '2026-10-26T00:00:00.000Z', resolvedAt: '2026-10-26T01:00:00.000Z' })).toBe('solved')
   })
 })
 

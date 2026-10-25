@@ -298,6 +298,7 @@ function sosFrom(row: Record<string, unknown>): SosAlert {
     smsStatus: (row.sms_status as SosAlert['smsStatus']) ?? 'pending',
     smsDetail: String(row.sms_detail ?? ''),
     createdAt: String(row.created_at),
+    seenAt: row.seen_at ? String(row.seen_at) : undefined,
     resolvedAt: row.resolved_at ? String(row.resolved_at) : undefined,
   }
 }
@@ -500,6 +501,7 @@ export async function pushDiff(prev: AppState, next: AppState): Promise<string |
         patch.accuracy_m = item.accuracyM ?? null
         patch.message = item.message
       }
+      if ((old.seenAt ?? null) !== (item.seenAt ?? null)) patch.seen_at = item.seenAt ?? null
       if ((old.resolvedAt ?? null) !== (item.resolvedAt ?? null)) patch.resolved_at = item.resolvedAt ?? null
       if (Object.keys(patch).length) {
         const updated = await supabase.from('sos_alerts').update(patch).eq('id', item.id)

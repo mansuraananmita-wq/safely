@@ -725,10 +725,12 @@ create table if not exists public.sos_alerts (
   sms_status text not null default 'pending' check (sms_status in ('pending', 'sent', 'partial', 'skipped', 'failed')),
   sms_detail text not null default '',
   created_at timestamptz not null default now(),
+  seen_at timestamptz,
   resolved_at timestamptz
 );
 
 alter table public.sos_alerts add column if not exists resolved_at timestamptz;
+alter table public.sos_alerts add column if not exists seen_at timestamptz;
 
 create index if not exists emergency_contacts_user on public.emergency_contacts (user_id);
 create index if not exists sos_alerts_created on public.sos_alerts (created_at desc);
@@ -822,6 +824,35 @@ create trigger sos_alerts_limit_insert
   before insert on public.sos_alerts
   for each row execute function public.limit_sos_insert();
 
+create or replace function public.notify_sos_desk()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.notifications (id, user_id, title, body, href, read, created_at)
+  select
+    'n' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 12),
+    p.id,
+    'SOS help request',
+    new.message,
+    '/admin/sos',
+    false,
+    coalesce(new.created_at, now())
+  from public.profiles p
+  where p.role in ('admin', 'security')
+    and coalesce(p.suspended, false) = false
+    and p.id is distinct from new.user_id;
+  return new;
+end;
+$$;
+
+drop trigger if exists sos_alerts_notify_desk on public.sos_alerts;
+create trigger sos_alerts_notify_desk
+  after insert on public.sos_alerts
+  for each row execute function public.notify_sos_desk();
+
 create or replace function public.guard_sos_alert()
 returns trigger
 language plpgsql
@@ -834,11 +865,25 @@ begin
     or new.id is distinct from old.id then
     raise exception 'An SOS alert cannot be rewritten';
   end if;
+
+  if new.seen_at is distinct from old.seen_at then
+    if auth.uid() is not null and not (public.is_admin() or public.desk_role() = 'security') then
+      raise exception 'Only the desk can mark an SOS as seen';
+    end if;
+    if old.seen_at is not null then
+      raise exception 'SOS seen time cannot change';
+    end if;
+  end if;
+
   if new.resolved_at is distinct from old.resolved_at then
     if auth.uid() is not null and not (public.is_admin() or public.desk_role() = 'security') then
       raise exception 'Only the desk can close an SOS';
     end if;
+    if new.resolved_at is not null and new.seen_at is null then
+      new.seen_at := coalesce(old.seen_at, new.resolved_at);
+    end if;
   end if;
+
   if new.lat is distinct from old.lat
     or new.lng is distinct from old.lng
     or new.accuracy_m is distinct from old.accuracy_m
@@ -912,5 +957,5 @@ delete from public.notifications n
 where n.title = 'SOS help request'
   and not exists (
     select 1 from public.profiles p
-    where p.id = n.user_id and p.role = 'admin'
+    where p.id = n.user_id and p.role in ('admin', 'security')
   );

@@ -141,7 +141,13 @@ export function isMember(role: Role): boolean {
 
 export function inboxNotifications<T extends { userId: string; title: string }>(user: { id: string; role: Role } | null | undefined, items: T[]): T[] {
   if (!user) return []
-  return items.filter((item) => item.userId === user.id && (item.title !== 'SOS help request' || user.role === 'admin'))
+  return items.filter((item) => item.userId === user.id && (item.title !== 'SOS help request' || user.role === 'admin' || user.role === 'security'))
+}
+
+export function sosDeskStatus(alert: { seenAt?: string; resolvedAt?: string }): 'sent' | 'seen' | 'solved' {
+  if (alert.resolvedAt) return 'solved'
+  if (alert.seenAt) return 'seen'
+  return 'sent'
 }
 
 const STATUS_LABELS: Record<Status, [string, string]> = {
