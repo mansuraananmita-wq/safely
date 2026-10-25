@@ -10,6 +10,7 @@ export function SosButton({ large = false }: { large?: boolean }) {
   const [left, setLeft] = useState(3)
   const [phase, setPhase] = useState<'locating' | 'count' | 'sending' | 'blocked' | 'done'>('locating')
   const [result, setResult] = useState<'sent' | 'desk' | 'sms-failed' | 'soon' | 'empty' | 'rejected' | null>(null)
+  const [resultDetail, setResultDetail] = useState<string | null>(null)
   const cancelRef = useRef(false)
   const startedRef = useRef(false)
   const [denied, setDenied] = useState(false)
@@ -93,6 +94,7 @@ export function SosButton({ large = false }: { large?: boolean }) {
       sentRef.current = outcome.id ? { id: outcome.id, accuracy: place.accuracy } : null
       if (outcome.id) setTrackingId(outcome.id)
       setResult(outcome.status)
+      setResultDetail(outcome.detail ?? null)
       setPhase('done')
     })
   }, [open, phase])
@@ -106,6 +108,7 @@ export function SosButton({ large = false }: { large?: boolean }) {
     fixRef.current = null
     setFix(null)
     setResult(null)
+    setResultDetail(null)
     setLeft(3)
     setPhase('locating')
     stopWatch.current?.()
@@ -127,19 +130,22 @@ export function SosButton({ large = false }: { large?: boolean }) {
     void sendRef.current(null).then((outcome) => {
       if (cancelRef.current) return
       setResult(outcome.status)
+      setResultDetail(outcome.detail ?? null)
       setPhase('done')
     })
   }
 
-  const outcome = result === 'sent'
-    ? tx('Help texts were sent with your location. The campus desk has the same alert.', 'লোকেশনসহ সাহায্যের বার্তা পাঠানো হয়েছে। ক্যাম্পাস ডেস্কও একই সতর্কতা পেয়েছে।')
-    : result === 'sms-failed'
-      ? tx('The desk has the alert. One or more phone texts did not go through.', 'ডেস্ক সতর্কতা পেয়েছে। এক বা একাধিক ফোন বার্তা যায়নি।')
-      : result === 'soon'
-        ? tx('Wait a minute before sending another SOS.', 'আরেকটি SOS পাঠানোর আগে এক মিনিট অপেক্ষা করুন।')
-        : result === 'rejected'
-          ? tx('The alert was not saved. Try again in a moment.', 'সতর্কতা সেভ হয়নি। একটু পরে আবার চেষ্টা করুন।')
-          : tx('The campus desk has the alert. Phone texts start after Twilio is connected. See BACKEND.md.', 'ক্যাম্পাস ডেস্ক সতর্কতা পেয়েছে। Twilio যুক্ত হলে ফোন বার্তা যাবে। BACKEND.md দেখুন।')
+  const outcome = resultDetail
+    ? resultDetail
+    : result === 'sent'
+      ? tx('Help texts were sent with your location. The campus desk has the same alert.', 'লোকেশনসহ সাহায্যের বার্তা পাঠানো হয়েছে। ক্যাম্পাস ডেস্কও একই সতর্কতা পেয়েছে।')
+      : result === 'sms-failed'
+        ? tx('The desk has the alert. One or more phone texts did not go through.', 'ডেস্ক সতর্কতা পেয়েছে। এক বা একাধিক ফোন বার্তা যায়নি।')
+        : result === 'soon'
+          ? tx('Wait a minute before sending another SOS.', 'আরেকটি SOS পাঠানোর আগে এক মিনিট অপেক্ষা করুন।')
+          : result === 'rejected'
+            ? tx('The alert was not saved. Try again in a moment.', 'সতর্কতা সেভ হয়নি। একটু পরে আবার চেষ্টা করুন।')
+            : tx('The campus desk has the alert. Phone texts start after Twilio is connected. See BACKEND.md.', 'ক্যাম্পাস ডেস্ক সতর্কতা পেয়েছে। Twilio যুক্ত হলে ফোন বার্তা যাবে। BACKEND.md দেখুন।')
 
   const pin = isPreciseFix(fix) ? (
     <GooglePlaceMap

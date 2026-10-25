@@ -219,7 +219,7 @@ type Api = {
   resetDemo: () => void
   addEmergencyContact: (name: string, phone: string) => Promise<'ok' | 'name' | 'phone' | 'limit' | 'duplicate' | 'rejected'>
   removeEmergencyContact: (id: string) => Promise<string | null>
-  sendSos: (place: { lat: number; lng: number; accuracy: number } | null) => Promise<{ status: 'sent' | 'desk' | 'sms-failed' | 'soon' | 'empty' | 'rejected'; id: string | null }>
+  sendSos: (place: { lat: number; lng: number; accuracy: number } | null) => Promise<{ status: 'sent' | 'desk' | 'sms-failed' | 'soon' | 'empty' | 'rejected'; id: string | null; detail?: string | null }>
   refineSosLocation: (id: string, place: { lat: number; lng: number; accuracy: number }) => Promise<string | null>
   resolveSos: (id: string) => Promise<string | null>
 }
@@ -988,7 +988,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const latest = (current.sosAlerts ?? [])
         .filter((item) => item.userId === user.id)
         .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))[0]
-      if (latest && Date.now() - new Date(latest.createdAt).getTime() < 60_000) return { status: 'soon', id: null }
+      if (latest && Date.now() - new Date(latest.createdAt).getTime() < 60_000) {
+        return { status: 'soon', id: null, detail: 'Wait a minute before sending another SOS' }
+      }
       const id = uid('sos')
       const message = sosMessage(user.name, place)
       const createdAt = nowIso()
@@ -1020,7 +1022,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         sosAlerts: [alert, ...(state.sosAlerts ?? [])].slice(0, 100),
         notifications: [...notes, ...state.notifications].slice(0, 200),
       }, user.name, 'Sent an SOS alert', id))
-      if (saved) return { status: 'rejected', id: null }
+      if (saved) {
+        const detail = saved.trim()
+        if (/wait a minute/i.test(detail)) return { status: 'soon', id: null, detail }
+        return { status: 'rejected', id: null, detail }
+      }
       if (!remote || !supabase) return { status: 'desk', id }
       const { data, error } = await supabase.functions.invoke('send-sos', { body: { alertId: id } })
       const payload = (data ?? null) as { status?: string; detail?: string } | null
