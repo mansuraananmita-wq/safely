@@ -12,6 +12,8 @@ class LiveMap extends StatefulWidget {
     this.fixedLat,
     this.fixedLng,
     this.label,
+    this.height = 240,
+    this.noteOverride,
   });
 
   final bool bangla;
@@ -19,6 +21,8 @@ class LiveMap extends StatefulWidget {
   final double? fixedLat;
   final double? fixedLng;
   final String? label;
+  final double height;
+  final String? noteOverride;
 
   @override
   State<LiveMap> createState() => _LiveMapState();
@@ -109,12 +113,13 @@ class _LiveMapState extends State<LiveMap> {
   Widget build(BuildContext context) {
     final live = _status == 'live';
     final title = widget.label ?? (live ? (widget.bangla ? 'আপনি এখানে' : 'You are here') : (widget.bangla ? 'ক্যাম্পাস' : 'Campus'));
-    final note = switch (_status) {
-      'live' => widget.bangla ? 'এই পিন আপনার লাইভ লোকেশন অনুসরণ করে।' : 'This pin follows your live location.',
-      'seeking' => widget.bangla ? 'আপনার লোকেশন খোঁজা হচ্ছে…' : 'Finding your location…',
-      'pin' => widget.bangla ? 'গুগল ম্যাপে এই রিপোর্টের পিন।' : 'This report’s pin on Google Maps.',
-      _ => widget.bangla ? 'লোকেশন বন্ধ। অনুমতি দিলে পিন আপনার কাছে আসবে।' : 'Location is off. Allow it and the pin moves to you.',
-    };
+    final note = widget.noteOverride ??
+        switch (_status) {
+          'live' => widget.bangla ? 'এই পিন আপনার লাইভ লোকেশন অনুসরণ করে।' : 'This pin follows your live location.',
+          'seeking' => widget.bangla ? 'আপনার লোকেশন খোঁজা হচ্ছে…' : 'Finding your location…',
+          'pin' => widget.bangla ? 'গুগল ম্যাপে এই রিপোর্টের পিন।' : 'This report’s pin on Google Maps.',
+          _ => widget.bangla ? 'লোকেশন বন্ধ। অনুমতি দিলে পিন আপনার কাছে আসবে।' : 'Location is off. Allow it and the pin moves to you.',
+        };
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -141,7 +146,7 @@ class _LiveMapState extends State<LiveMap> {
         ClipRRect(
           borderRadius: BorderRadius.circular(16),
           child: SizedBox(
-            height: 240,
+            height: widget.height,
             child: _controller == null
                 ? ColoredBox(
                     color: Colors.white,

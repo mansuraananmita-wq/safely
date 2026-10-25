@@ -48,7 +48,7 @@
 		</dict>
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Safely shows your live location on the home map and can attach it to a campus report.</string>
+	<string>Safely needs your live location for the home map, campus reports, and SOS help messages to the desk. Readings worse than 1 kilometre are not sent. SOS does not call 999.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

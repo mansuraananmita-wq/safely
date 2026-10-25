@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:safely_mobile/remote_config.dart';
+import 'package:safely_mobile/sos.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class Member {
@@ -105,11 +106,20 @@ class CampusStore extends ChangeNotifier {
   bool bangla = false;
   String? error;
   final List<Report> _reports = [];
+  final List<SosAlert> _sosAlerts = [];
   int _next = 10530;
 
   bool get remote => remoteReady && Supabase.instance.isInitialized;
 
   List<Report> get reports => List.unmodifiable(_reports);
+
+  List<SosAlert> mySosAlerts() {
+    final id = member?.id;
+    if (id == null) return const [];
+    final mine = _sosAlerts.where((alert) => alert.userId == id).toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return mine;
+  }
 
   List<Report> mine() {
     final id = member?.id;
@@ -144,6 +154,7 @@ class CampusStore extends ChangeNotifier {
   Future<void> logout() async {
     member = null;
     error = null;
+    _sosAlerts.clear();
     if (remote) {
       await Supabase.instance.client.auth.signOut();
       _reports
@@ -308,7 +319,121 @@ class CampusStore extends ChangeNotifier {
             createdAt: DateTime.tryParse(row['created_at'] as String? ?? '')?.toLocal() ?? DateTime.now(),
           ),
       ]);
+    await refreshSosAlerts();
     notifyListeners();
+  }
+
+  Future<void> refreshSosAlerts() async {
+    final who = member;
+    if (who == null) return;
+    if (!remote) {
+      notifyListeners();
+      return;
+    }
+    try {
+      final rows = await Supabase.instance.client
+          .from('sos_alerts')
+          .select()
+          .eq('user_id', who.id)
+          .order('created_at', ascending: false)
+          .limit(20);
+      _sosAlerts
+        ..clear()
+        ..addAll([for (final row in rows as List) SosAlert.fromRow(Map<String, dynamic>.from(row as Map))]);
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<SosSendResult> sendSos({LiveFix? place}) async {
+    final who = member;
+    if (who == null) {
+      return const SosSendResult(kind: SosSendKind.rejected, detail: 'Not signed in');
+    }
+    final latest = mySosAlerts().isEmpty ? null : mySosAlerts().first;
+    if (latest != null && DateTime.now().difference(latest.createdAt) < const Duration(seconds: 60)) {
+      return const SosSendResult(kind: SosSendKind.soon, detail: 'Wait a minute before sending another SOS');
+    }
+    final id = newSosId();
+    final message = sosMessage(who.name, isPreciseFix(place) ? place : null);
+    final createdAt = DateTime.now().toUtc();
+    final alert = SosAlert(
+      id: id,
+      userId: who.id,
+      senderName: who.name,
+      lat: isPreciseFix(place) ? place!.lat : null,
+      lng: isPreciseFix(place) ? place!.lng : null,
+      accuracyM: isPreciseFix(place) ? place!.accuracy : null,
+      message: message,
+      createdAt: createdAt.toLocal(),
+    );
+
+    if (!remote) {
+      _sosAlerts.insert(0, alert);
+      notifyListeners();
+      return SosSendResult(kind: SosSendKind.desk, id: id);
+    }
+
+    try {
+      final client = Supabase.instance.client;
+      await client.from('sos_alerts').insert({
+        'id': id,
+        'user_id': who.id,
+        'sender_name': who.name,
+        'lat': alert.lat,
+        'lng': alert.lng,
+        'accuracy_m': alert.accuracyM,
+        'message': message,
+        'contacts': <Map<String, String>>[],
+        'sms_status': 'pending',
+        'sms_detail': '',
+        'created_at': createdAt.toIso8601String(),
+      });
+      _sosAlerts.insert(0, alert);
+      notifyListeners();
+
+      var kind = SosSendKind.desk;
+      String? detail;
+      try {
+        final response = await client.functions.invoke('send-sos', body: {'alertId': id});
+        final data = response.data;
+        final status = data is Map ? data['status']?.toString() : null;
+        final payloadDetail = data is Map ? data['detail']?.toString() : null;
+        if (status == 'sent') {
+          kind = SosSendKind.sent;
+        } else if (status == 'failed' || status == 'partial') {
+          kind = SosSendKind.smsFailed;
+          detail = payloadDetail;
+        } else if (status == 'skipped') {
+          kind = SosSendKind.desk;
+          detail = payloadDetail;
+        }
+        if (status != null) {
+          await client.from('sos_alerts').update({
+            'sms_status': status,
+            'sms_detail': (payloadDetail ?? '').length > 180 ? payloadDetail!.substring(0, 180) : (payloadDetail ?? ''),
+          }).eq('id', id);
+        }
+      } catch (_) {
+        kind = SosSendKind.desk;
+      }
+      await refreshSosAlerts();
+      return SosSendResult(kind: kind, id: id, detail: detail);
+    } on PostgrestException catch (caught) {
+      final detail = caught.message.trim();
+      if (RegExp(r'wait a minute', caseSensitive: false).hasMatch(detail)) {
+        return SosSendResult(kind: SosSendKind.soon, detail: detail);
+      }
+      return SosSendResult(kind: SosSendKind.rejected, detail: detail.isEmpty ? null : detail);
+    } catch (caught) {
+      final detail = caught.toString();
+      if (RegExp(r'wait a minute', caseSensitive: false).hasMatch(detail)) {
+        return SosSendResult(kind: SosSendKind.soon, detail: detail);
+      }
+      if (RegExp(r'socket|offline|failed host|network', caseSensitive: false).hasMatch(detail)) {
+        return SosSendResult.offline();
+      }
+      return SosSendResult(kind: SosSendKind.rejected, detail: detail);
+    }
   }
 
   int _sla(String category) {

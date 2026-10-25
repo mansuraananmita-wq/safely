@@ -3,6 +3,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:safely_mobile/campus.dart';
 import 'package:safely_mobile/live_map.dart';
 import 'package:safely_mobile/remote_config.dart';
+import 'package:safely_mobile/sos_panel.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 Future<void> main() async {
@@ -204,6 +205,8 @@ class MemberHome extends StatelessWidget {
         Text(member.name, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600)),
         Text(member.unit, style: TextStyle(color: Colors.blueGrey.shade700)),
         const SizedBox(height: 16),
+        SosHomeSection(store: store),
+        const SizedBox(height: 20),
         Text(tx('Your location', 'আপনার লোকেশন'), style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
         LiveMap(bangla: store.bangla),
