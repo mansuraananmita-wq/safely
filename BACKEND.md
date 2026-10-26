@@ -39,6 +39,7 @@ Supabase প্রজেক্ট এই রিপোজিটরি তৈর�
 - `notifications`, `announcements`, `lost_found`, `audit_log`
 - `support_contacts` — Get help directory; signed-in users read active rows; only admin writes
 - `emergency_contacts`, `sos_alerts` (`seen_at`, `resolved_at` সহ)
+- `safe_walks` — Safe Walk check-ins; optional location; `expire_due_safe_walks` / `cleanup_safe_walk_locations`; owner reads own, desk reads expired only
 - `public_reports` ভিউ। হয়রানি, গোপন, বেনামি, এবং safety রিপোর্ট এই ভিউতে নেই।
 - `public_status_by_category`, `public_status_by_office`, `public_status_summary` — `/status` এর গণনা; ৫-এর কম সংখ্যা `fewer than 5`; সংবেদনশীল রিপোর্ট বাদ।
 - Row Level Security। কে কোন রিপোর্ট/SOS দেখতে পাবে সেটা ডেটাবেসও ঠিক রাখে।
@@ -92,8 +93,9 @@ Run-এর পর নিচে **Success** দেখা উচিত। error �
 - `20261027001500_support_contacts.sql` — Get help `support_contacts` টেবিল, seed (৯৯৯ + placeholder), RLS
 - `20261027010000_public_status_counts.sql` — `/status` bucketed counts + 30-day avg resolution views
 - `20261027020000_reveal_dual_control.sql` — `reveal_requests`, dual-control `reveal_reporter`, `revealed_at`
+- `20261027030000_safe_walks.sql` — Safe Walk table, expire + 24h location cleanup, RLS
 
-টেস্ট SQL: `supabase/tests/` (SOS রেট লিমিট, SOS RLS, বেনামি রিপোর্টার আইসোলেশন, support_contacts, public status counts, reveal dual-control)। `npm run test` linked প্রজেক্টে এগুলো চালায়।
+টেস্ট SQL: `supabase/tests/` (SOS রেট লিমিট, SOS RLS, বেনামি রিপোর্টার আইসোলেশন, support_contacts, public status counts, reveal dual-control, Safe Walk RLS/cleanup)। `npm run test` linked প্রজেক্টে এগুলো চালায়।
 
 ### SQL যদি auth.users-এ আটকায়
 

@@ -210,6 +210,28 @@ export interface SosAlert {
   resolvedAt?: string
 }
 
+export type SafeWalkStatus = 'active' | 'arrived' | 'expired' | 'cancelled'
+
+export interface SafeWalk {
+  id: string
+  userId: string
+  senderName: string
+  destinationId: string
+  destination: string
+  startedAt: string
+  endsAt: string
+  closedAt?: string
+  status: SafeWalkStatus
+  shareLocation: boolean
+  notifyDesk: boolean
+  contactName: string
+  contactPhone: string
+  lastLat?: number
+  lastLng?: number
+  lastAccuracyM?: number
+  locationUpdatedAt?: string
+}
+
 export interface Prefs {
   lang: Lang
   textSize: 'default' | 'large'
@@ -245,6 +267,7 @@ export interface AppState {
   audit: AuditEntry[]
   emergencyContacts: EmergencyContact[]
   sosAlerts: SosAlert[]
+  safeWalks: SafeWalk[]
   categories: Category[]
   departments: Department[]
   codes: Record<string, string>

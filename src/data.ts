@@ -816,6 +816,7 @@ export function buildSeed(): AppState {
     codes: {},
     emergencyContacts: [],
     sosAlerts: [],
+    safeWalks: [],
     reportIdentities: { 'SF-10508': 'u-amina' },
     identityRevealedAt: {},
     revealRequests: [],

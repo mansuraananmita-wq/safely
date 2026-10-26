@@ -18,6 +18,7 @@ Campus members can:
 - Send an SOS: a 3-second countdown, then a help message with the device’s live location to the campus desk
 - Save up to five personal phone numbers that also receive the SOS text once Twilio is connected
 - Open Get help for campus support numbers (tap-to-call), including 999
+- Start a Safe Walk on the phone: pick a campus place, a 5–60 minute timer, and the desk and/or a saved contact. This does not replace 999
 - Read alerts, use lost and found, and switch between English and Bangla
 
 The operations desk can:
@@ -25,6 +26,7 @@ The operations desk can:
 - See open, overdue, and unassigned work
 - Read SOS help messages with a map, without saving an admin phone number
 - Mark SOS alerts as seen and solved; the sender sees Sent → Seen by desk → Solved
+- See Safe Walks that expired without “I arrived” on `/admin/safe-walk` (shared pins clear 24 hours after close)
 - Assign a report to an office, change status, ask for information, and leave an internal note
 - Open each office queue, including Facilities and Cleaning
 - Manage users, categories, alerts, Get help contacts, and the audit log
@@ -60,7 +62,7 @@ npm run dev
 
 Open [http://localhost:5173/](http://localhost:5173/).
 
-`npm run test` checks privacy rules, SOS helpers, image EXIF strip helpers, public count labels, and linked-database guards (rate limit, SOS RLS, anonymous reporter isolation, support_contacts write lock, public status count bucketing, reveal dual-control). `npm run build` typechecks and builds the site. `npm run preview` serves that build.
+`npm run test` checks privacy rules, SOS helpers, image EXIF strip helpers, public count labels, and linked-database guards (rate limit, SOS RLS, anonymous reporter isolation, support_contacts write lock, public status count bucketing, reveal dual-control, Safe Walk RLS and 24-hour location cleanup). `npm run build` typechecks and builds the site. `npm run preview` serves that build.
 
 To use the campus database, copy `.env.example` to `.env.local` and set:
 
@@ -112,6 +114,10 @@ Press SOS on the website or on the phone home screen. The app uses the device GP
 The desk sees the message on the dashboard and on `/admin/sos`. A database trigger sends the SOS bell notice to **admin** and **security** only. The sender can follow Sent → Seen by desk → Solved on their own alert. Marking an alert as solved removes it from the open count on the SOS button. Members and department accounts can only read their own SOS rows. The database also enforces one SOS per minute and at most 20 per day; rejected inserts surface the server message.
 
 Saved personal numbers are optional extra SMS recipients. 999, 112, and 911 cannot be saved as contacts. SOS never dials 999.
+
+## Safe Walk
+
+On the phone, Safe Walk lets someone pick a campus destination and a timer between 5 and 60 minutes, then choose the campus desk and/or a saved trusted contact. If the timer ends without **I arrived**, `expire_due_safe_walks` marks the walk expired and notifies admin and security. Optional live location is stored only when sharing is on and is wiped 24 hours after the walk closes. Owners read their own walks; the desk reads **expired** walks only. Safe Walk does not replace 999.
 
 ## What still needs an outside account
 

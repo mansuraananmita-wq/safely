@@ -16,6 +16,8 @@ const publicStatusMigration = path.resolve('supabase/migrations/20261027010000_p
 const publicStatusSql = path.resolve('supabase/tests/public_status_counts.sql')
 const revealMigration = path.resolve('supabase/migrations/20261027020000_reveal_dual_control.sql')
 const revealSql = path.resolve('supabase/tests/reveal_dual_control.sql')
+const safeWalkMigration = path.resolve('supabase/migrations/20261027030000_safe_walks.sql')
+const safeWalkSql = path.resolve('supabase/tests/safe_walks_rls.sql')
 
 function runSqlFile(file: string) {
   try {
@@ -80,5 +82,17 @@ describe('sos database guards', () => {
     expect(output).not.toMatch(/security requested a reveal/i)
     expect(output).not.toMatch(/unrelated department requested a reveal/i)
     expect(output).not.toMatch(/reveal_reporter returned no identity after approval/i)
+  }, 120_000)
+
+  it('keeps Safe Walk RLS strict and clears location after 24 hours', () => {
+    expect(existsSync(safeWalkMigration)).toBe(true)
+    expect(existsSync(safeWalkSql)).toBe(true)
+    const output = runSqlFile(safeWalkSql)
+    expect(output).not.toMatch(/student read another user Safe Walk/i)
+    expect(output).not.toMatch(/admin read active Safe Walk/i)
+    expect(output).not.toMatch(/admin could not read expired Safe Walk/i)
+    expect(output).not.toMatch(/security could not read expired Safe Walk/i)
+    expect(output).not.toMatch(/location was not cleared 24 hours after close/i)
+    expect(output).not.toMatch(/fresh expired location should remain until 24 hours pass/i)
   }, 120_000)
 })

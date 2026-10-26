@@ -1,4 +1,4 @@
-import { Building2, ClipboardList, Inbox, LayoutDashboard, LifeBuoy, Megaphone, MoreHorizontal, ScrollText, Siren, Tags, UserRound, Users } from 'lucide-react'
+import { Building2, ClipboardList, Footprints, Inbox, LayoutDashboard, LifeBuoy, Megaphone, MoreHorizontal, ScrollText, Siren, Tags, UserRound, Users } from 'lucide-react'
 import { useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { AccountTools } from '../components/AccountTools'
@@ -20,6 +20,7 @@ export function AdminLayout() {
     ? [
         { to: '/admin', end: true, icon: LayoutDashboard, en: 'Dashboard', bn: 'ড্যাশবোর্ড', shortEn: 'Home', shortBn: 'হোম', primary: true },
         { to: '/admin/sos', icon: Siren, en: 'SOS', bn: 'এসওএস', shortEn: 'SOS', shortBn: 'এসওএস', primary: true },
+        { to: '/admin/safe-walk', icon: Footprints, en: 'Safe Walk', bn: 'সেইফ ওয়াক', shortEn: 'Walk', shortBn: 'হাঁটা', primary: true },
         { to: '/admin/reports', icon: ClipboardList, en: 'All reports', bn: 'সব রিপোর্ট', shortEn: 'Reports', shortBn: 'রিপোর্ট', primary: true },
         { to: '/admin/departments', icon: Building2, en: 'Departments', bn: 'বিভাগ', shortEn: 'Offices', shortBn: 'দপ্তর', primary: true },
         { to: '/admin/users', icon: Users, en: 'Users', bn: 'ব্যবহারকারী', shortEn: 'Users', shortBn: 'ব্যক্তি', primary: false },
@@ -42,6 +43,7 @@ export function AdminLayout() {
         },
         { to: '/admin/profile', icon: UserRound, en: 'Profile', bn: 'প্রোফাইল', shortEn: 'Profile', shortBn: 'প্রোফাইল', primary: true },
         { to: '/admin/sos', icon: Siren, en: 'SOS', bn: 'এসওএস', shortEn: 'SOS', shortBn: 'এসওএস', primary: true },
+        { to: '/admin/safe-walk', icon: Footprints, en: 'Safe Walk', bn: 'সেইফ ওয়াক', shortEn: 'Walk', shortBn: 'হাঁটা', primary: true },
       ]
   const bottom = items.filter((item) => item.primary)
   const more = items.filter((item) => !item.primary)

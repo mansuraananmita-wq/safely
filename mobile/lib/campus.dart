@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:safely_mobile/remote_config.dart';
+import 'package:safely_mobile/safe_walk.dart';
 import 'package:safely_mobile/sos.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -262,7 +263,10 @@ class CampusStore extends ChangeNotifier {
   final List<Report> _reports = [];
   final List<SosAlert> _sosAlerts = [];
   final List<SupportContact> _supportContacts = [];
+  final List<SafeWalk> _safeWalks = [];
+  final List<EmergencyContact> _emergencyContacts = [];
   int _next = 10530;
+  int _walkNext = 1;
 
   bool get remote => remoteReady && Supabase.instance.isInitialized;
 
@@ -280,6 +284,23 @@ class CampusStore extends ChangeNotifier {
     final mine = _sosAlerts.where((alert) => alert.userId == id).toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return mine;
+  }
+
+  List<EmergencyContact> get emergencyContacts => List.unmodifiable(_emergencyContacts);
+
+  List<SafeWalk> mySafeWalks() {
+    final id = member?.id;
+    if (id == null) return const [];
+    final mine = _safeWalks.where((walk) => walk.userId == id).toList()
+      ..sort((a, b) => b.startedAt.compareTo(a.startedAt));
+    return mine;
+  }
+
+  SafeWalk? activeSafeWalk() {
+    for (final walk in mySafeWalks()) {
+      if (walk.status == SafeWalkStatus.active) return walk;
+    }
+    return null;
   }
 
   List<Report> mine() {
@@ -316,6 +337,8 @@ class CampusStore extends ChangeNotifier {
     member = null;
     error = null;
     _sosAlerts.clear();
+    _safeWalks.clear();
+    _emergencyContacts.clear();
     if (remote) {
       await Supabase.instance.client.auth.signOut();
       _reports
@@ -489,7 +512,199 @@ class CampusStore extends ChangeNotifier {
       ]);
     await refreshSosAlerts();
     await refreshSupportContacts();
+    await refreshEmergencyContacts();
+    await refreshSafeWalks();
     notifyListeners();
+  }
+
+  Future<void> refreshEmergencyContacts() async {
+    final who = member;
+    if (who == null) return;
+    if (!remote) {
+      notifyListeners();
+      return;
+    }
+    try {
+      final rows = await Supabase.instance.client.from('emergency_contacts').select().eq('user_id', who.id).order('created_at');
+      _emergencyContacts
+        ..clear()
+        ..addAll([for (final row in rows as List) EmergencyContact.fromRow(Map<String, dynamic>.from(row as Map))]);
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> refreshSafeWalks() async {
+    final who = member;
+    if (who == null) return;
+    if (!remote) {
+      notifyListeners();
+      return;
+    }
+    try {
+      await expireDueSafeWalks();
+      await Supabase.instance.client.rpc('cleanup_safe_walk_locations');
+      final rows = await Supabase.instance.client.from('safe_walks').select().eq('user_id', who.id).order('started_at', ascending: false).limit(20);
+      _safeWalks
+        ..clear()
+        ..addAll([for (final row in rows as List) SafeWalk.fromRow(Map<String, dynamic>.from(row as Map))]);
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> expireDueSafeWalks() async {
+    if (!remote) {
+      final now = DateTime.now();
+      var changed = false;
+      for (var i = 0; i < _safeWalks.length; i++) {
+        final walk = _safeWalks[i];
+        if (walk.status == SafeWalkStatus.active && !walk.endsAt.isAfter(now)) {
+          _safeWalks[i] = SafeWalk(
+            id: walk.id,
+            userId: walk.userId,
+            senderName: walk.senderName,
+            destinationId: walk.destinationId,
+            destination: walk.destination,
+            startedAt: walk.startedAt,
+            endsAt: walk.endsAt,
+            status: SafeWalkStatus.expired,
+            shareLocation: walk.shareLocation,
+            notifyDesk: walk.notifyDesk,
+            contactName: walk.contactName,
+            contactPhone: walk.contactPhone,
+            lastLat: walk.lastLat,
+            lastLng: walk.lastLng,
+            lastAccuracyM: walk.lastAccuracyM,
+            closedAt: now,
+          );
+          changed = true;
+        }
+      }
+      if (changed) notifyListeners();
+      return;
+    }
+    try {
+      await Supabase.instance.client.rpc('expire_due_safe_walks');
+    } catch (_) {}
+  }
+
+  Future<String?> startSafeWalk({
+    required String destinationId,
+    required int minutes,
+    required bool shareLocation,
+    required bool notifyDesk,
+    String contactName = '',
+    String contactPhone = '',
+    LiveFix? place,
+  }) async {
+    final who = member;
+    final campus = placeById(destinationId);
+    if (who == null || campus == null) return 'Not signed in';
+    if (minutes < 5 || minutes > 60) return 'Choose 5 to 60 minutes.';
+    if (!notifyDesk && contactName.trim().isEmpty) return 'Choose the campus desk and/or a saved contact.';
+    if (activeSafeWalk() != null) return 'Finish the open Safe Walk first.';
+    final started = DateTime.now().toUtc();
+    final ends = started.add(Duration(minutes: minutes));
+    final id = 'sw${started.millisecondsSinceEpoch}$_walkNext';
+    _walkNext += 1;
+    final destination = bangla ? campus.bn : campus.en;
+    final walk = SafeWalk(
+      id: id,
+      userId: who.id,
+      senderName: who.name,
+      destinationId: destinationId,
+      destination: destination,
+      startedAt: started.toLocal(),
+      endsAt: ends.toLocal(),
+      status: SafeWalkStatus.active,
+      shareLocation: shareLocation,
+      notifyDesk: notifyDesk,
+      contactName: contactName,
+      contactPhone: contactPhone,
+      lastLat: shareLocation && isPreciseFix(place) ? place!.lat : null,
+      lastLng: shareLocation && isPreciseFix(place) ? place!.lng : null,
+      lastAccuracyM: shareLocation && isPreciseFix(place) ? place!.accuracy : null,
+    );
+    if (!remote) {
+      _safeWalks.insert(0, walk);
+      notifyListeners();
+      return null;
+    }
+    try {
+      await Supabase.instance.client.from('safe_walks').insert({
+        'id': id,
+        'user_id': who.id,
+        'sender_name': who.name,
+        'destination_id': destinationId,
+        'destination': destination,
+        'started_at': started.toIso8601String(),
+        'ends_at': ends.toIso8601String(),
+        'status': 'active',
+        'share_location': shareLocation,
+        'notify_desk': notifyDesk,
+        'contact_name': contactName,
+        'contact_phone': contactPhone,
+        'last_lat': walk.lastLat,
+        'last_lng': walk.lastLng,
+        'last_accuracy_m': walk.lastAccuracyM,
+        'location_updated_at': walk.lastLat == null ? null : started.toIso8601String(),
+      });
+      await refreshSafeWalks();
+      return null;
+    } catch (caught) {
+      return caught.toString();
+    }
+  }
+
+  Future<String?> finishSafeWalk(String id, {required bool arrived}) async {
+    final who = member;
+    if (who == null) return 'Not signed in';
+    if (!remote) {
+      final index = _safeWalks.indexWhere((item) => item.id == id && item.userId == who.id);
+      if (index < 0) return 'Safe Walk not found.';
+      final walk = _safeWalks[index];
+      _safeWalks[index] = SafeWalk(
+        id: walk.id,
+        userId: walk.userId,
+        senderName: walk.senderName,
+        destinationId: walk.destinationId,
+        destination: walk.destination,
+        startedAt: walk.startedAt,
+        endsAt: walk.endsAt,
+        status: arrived ? SafeWalkStatus.arrived : SafeWalkStatus.cancelled,
+        shareLocation: walk.shareLocation,
+        notifyDesk: walk.notifyDesk,
+        contactName: walk.contactName,
+        contactPhone: walk.contactPhone,
+        lastLat: walk.lastLat,
+        lastLng: walk.lastLng,
+        lastAccuracyM: walk.lastAccuracyM,
+        closedAt: DateTime.now(),
+      );
+      notifyListeners();
+      return null;
+    }
+    try {
+      await Supabase.instance.client.from('safe_walks').update({
+        'status': arrived ? 'arrived' : 'cancelled',
+      }).eq('id', id).eq('user_id', who.id);
+      await refreshSafeWalks();
+      return null;
+    } catch (caught) {
+      return caught.toString();
+    }
+  }
+
+  Future<void> updateSafeWalkLocation(String id, LiveFix place) async {
+    final who = member;
+    if (who == null || !remote || !isPreciseFix(place)) return;
+    try {
+      await Supabase.instance.client.from('safe_walks').update({
+        'last_lat': place.lat,
+        'last_lng': place.lng,
+        'last_accuracy_m': place.accuracy,
+        'location_updated_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', id).eq('user_id', who.id).eq('status', 'active');
+    } catch (_) {}
   }
 
   Future<void> refreshSupportContacts() async {

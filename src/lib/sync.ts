@@ -1,7 +1,7 @@
 import type { Session } from '@supabase/supabase-js'
 import { buildSeed } from '../data'
 import { supabase } from './supabase'
-import type { Activity, Announcement, AppNotification, AppState, AuditEntry, Category, Department, EmergencyContact, LostItem, Photo, Report, RevealRequest, SosAlert, SupportContact, SupportCategory, User } from '../types'
+import type { Activity, Announcement, AppNotification, AppState, AuditEntry, Category, Department, EmergencyContact, LostItem, Photo, Report, RevealRequest, SafeWalk, SosAlert, SupportContact, SupportCategory, User } from '../types'
 
 let signedIn: User | null = null
 let pullError: string | null = null
@@ -200,6 +200,7 @@ export async function pullCampus(session: Session | null): Promise<AppState> {
     audit: [],
     emergencyContacts: [],
     sosAlerts: [],
+    safeWalks: [],
     codes: {},
     sessionUserId: null,
   }
@@ -236,7 +237,12 @@ export async function pullCampus(session: Session | null): Promise<AppState> {
     return empty
   }
 
-  const [profiles, reports, activities, confirmations, notifications, lost, audit, contacts, alerts, identities, reveals] = await Promise.all([
+  await Promise.all([
+    supabase.rpc('expire_due_safe_walks'),
+    supabase.rpc('cleanup_safe_walk_locations'),
+  ])
+
+  const [profiles, reports, activities, confirmations, notifications, lost, audit, contacts, alerts, walks, identities, reveals] = await Promise.all([
     rows('profiles'),
     rows('reports'),
     rows('report_activities'),
@@ -246,6 +252,7 @@ export async function pullCampus(session: Session | null): Promise<AppState> {
     rows('audit_log'),
     rows('emergency_contacts'),
     rows('sos_alerts'),
+    rows('safe_walks'),
     rows('report_identities'),
     rows('reveal_requests'),
   ])
@@ -327,7 +334,30 @@ export async function pullCampus(session: Session | null): Promise<AppState> {
   }))
   empty.emergencyContacts = contacts.data.map(contactFrom)
   empty.sosAlerts = alerts.data.map(sosFrom)
+  empty.safeWalks = walks.data.map(safeWalkFrom)
   return empty
+}
+
+function safeWalkFrom(row: Record<string, unknown>): SafeWalk {
+  return {
+    id: String(row.id),
+    userId: String(row.user_id),
+    senderName: String(row.sender_name ?? ''),
+    destinationId: String(row.destination_id),
+    destination: String(row.destination),
+    startedAt: String(row.started_at),
+    endsAt: String(row.ends_at),
+    closedAt: row.closed_at ? String(row.closed_at) : undefined,
+    status: (row.status as SafeWalk['status']) ?? 'active',
+    shareLocation: Boolean(row.share_location),
+    notifyDesk: Boolean(row.notify_desk),
+    contactName: String(row.contact_name ?? ''),
+    contactPhone: String(row.contact_phone ?? ''),
+    lastLat: typeof row.last_lat === 'number' ? row.last_lat : undefined,
+    lastLng: typeof row.last_lng === 'number' ? row.last_lng : undefined,
+    lastAccuracyM: typeof row.last_accuracy_m === 'number' ? row.last_accuracy_m : undefined,
+    locationUpdatedAt: row.location_updated_at ? String(row.location_updated_at) : undefined,
+  }
 }
 
 function contactFrom(row: Record<string, unknown>): EmergencyContact {

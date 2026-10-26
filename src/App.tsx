@@ -6,6 +6,7 @@ import { DepartmentQueuesPage } from './pages/admin/DepartmentQueues'
 import { AnnouncementsPage, AuditPage, CategoriesPage, DepartmentsPage, SupportContactsPage, UsersPage } from './pages/admin/Manage'
 import { OverviewPage } from './pages/admin/Overview'
 import { ReviewPage } from './pages/admin/Review'
+import { SafeWalkPage } from './pages/admin/SafeWalk'
 import { Forgot, Login, Register, Verify } from './pages/AuthPages'
 import Landing from './pages/Landing'
 import { NotificationsPage } from './pages/Notifications'
@@ -86,6 +87,7 @@ export default function App() {
           <Route path="/admin/queues" element={<DepartmentQueuesPage />} />
           <Route path="/admin/profile" element={<ProfilePage />} />
           <Route path="/admin/sos" element={<SosPage />} />
+          <Route path="/admin/safe-walk" element={<SafeWalkPage />} />
           <Route path="/admin/notifications" element={<NotificationsPage />} />
         </Route>
       </Route>

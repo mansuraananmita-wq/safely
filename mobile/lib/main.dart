@@ -5,6 +5,7 @@ import 'package:safely_mobile/campus.dart';
 import 'package:safely_mobile/help.dart';
 import 'package:safely_mobile/live_map.dart';
 import 'package:safely_mobile/remote_config.dart';
+import 'package:safely_mobile/safe_walk.dart';
 import 'package:safely_mobile/sos_panel.dart';
 import 'package:safely_mobile/strip_image_meta.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -221,6 +222,11 @@ class MemberHome extends StatelessWidget {
         LiveMap(bangla: store.bangla),
         const SizedBox(height: 16),
         FilledButton(onPressed: onReport, child: Text(tx('Report a problem', 'সমস্যা জানান'))),
+        const SizedBox(height: 10),
+        OutlinedButton(
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SafeWalkScreen(store: store))),
+          child: Text(tx('Safe Walk', 'সেইফ ওয়াক')),
+        ),
         const SizedBox(height: 10),
         OutlinedButton(
           onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => HelpScreen(store: store))),
