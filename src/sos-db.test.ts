@@ -18,6 +18,8 @@ const revealMigration = path.resolve('supabase/migrations/20261027020000_reveal_
 const revealSql = path.resolve('supabase/tests/reveal_dual_control.sql')
 const safeWalkMigration = path.resolve('supabase/migrations/20261027030000_safe_walks.sql')
 const safeWalkSql = path.resolve('supabase/tests/safe_walks_rls.sql')
+const appSettingsMigration = path.resolve('supabase/migrations/20261027040000_app_settings.sql')
+const appSettingsSql = path.resolve('supabase/tests/app_settings_rls.sql')
 
 function runSqlFile(file: string) {
   try {
@@ -94,5 +96,15 @@ describe('sos database guards', () => {
     expect(output).not.toMatch(/security could not read expired Safe Walk/i)
     expect(output).not.toMatch(/location was not cleared 24 hours after close/i)
     expect(output).not.toMatch(/fresh expired location should remain until 24 hours pass/i)
+  }, 120_000)
+
+  it('allows signed-in read of app_settings and blocks student writes', () => {
+    expect(existsSync(appSettingsMigration)).toBe(true)
+    expect(existsSync(appSettingsSql)).toBe(true)
+    const output = runSqlFile(appSettingsSql)
+    expect(output).not.toMatch(/student could not read security_sms_number/i)
+    expect(output).not.toMatch(/student inserted into app_settings/i)
+    expect(output).not.toMatch(/student updated app_settings/i)
+    expect(output).not.toMatch(/admin could not update security_sms_number/i)
   }, 120_000)
 })

@@ -13,6 +13,16 @@ Future<void> dialEmergency999() async {
   await launchUrl(uri);
 }
 
+Future<void> openOfflineSosSms({
+  required String name,
+  required String securityNumber,
+  LiveFix? place,
+}) async {
+  if (!isUsableSecuritySmsNumber(securityNumber)) return;
+  final uri = offlineSosSmsUri(securityNumber, offlineSosSmsBody(name, place));
+  await launchUrl(uri);
+}
+
 /// 3-second cancelable countdown used by SOS (and covered by a widget test).
 class SosCountdown extends StatefulWidget {
   const SosCountdown({
@@ -508,6 +518,38 @@ class _SosFlowSheetState extends State<SosFlowSheet> {
                 Text(_outcomeText(), style: const TextStyle(height: 1.35)),
                 if (_result?.kind == SosSendKind.offline) ...[
                   const SizedBox(height: 12),
+                  Text(
+                    tx(
+                      'You can open the SMS app with a prefilled message to campus security. Safely does not send it for you — press Send yourself. This does not replace 999.',
+                      'ক্যাম্পাস সিকিউরিটিতে প্রিফিল করা SMS অ্যাপ খুলতে পারেন। Safely নিজে পাঠায় না — আপনাকে Send চাপতে হবে। এটি ৯৯৯-এর বিকল্প নয়।',
+                    ),
+                    style: TextStyle(color: Colors.blueGrey.shade700, height: 1.35, fontSize: 13),
+                  ),
+                  const SizedBox(height: 12),
+                  if (isUsableSecuritySmsNumber(widget.store.securitySmsNumber))
+                    FilledButton.icon(
+                      key: const Key('sos-offline-sms'),
+                      onPressed: () {
+                        final who = widget.store.member;
+                        if (who == null) return;
+                        unawaited(openOfflineSosSms(
+                          name: who.name,
+                          securityNumber: widget.store.securitySmsNumber,
+                          place: _fix,
+                        ));
+                      },
+                      icon: const Icon(Icons.sms_outlined),
+                      label: Text(tx('Send SMS instead', 'বার্তায় পাঠান')),
+                    )
+                  else
+                    Text(
+                      tx(
+                        'No campus security SMS number is saved yet. Call 999 if someone is in danger.',
+                        'এখনও ক্যাম্পাস সিকিউরিটি SMS নম্বর সেভ নেই। কেউ বিপদে থাকলে ৯৯৯-এ কল করুন।',
+                      ),
+                      style: TextStyle(color: Colors.blueGrey.shade700, height: 1.35, fontSize: 13),
+                    ),
+                  const SizedBox(height: 8),
                   FilledButton.icon(
                     onPressed: dialEmergency999,
                     icon: const Icon(Icons.phone),

@@ -201,16 +201,18 @@ export async function pullCampus(session: Session | null): Promise<AppState> {
     emergencyContacts: [],
     sosAlerts: [],
     safeWalks: [],
+    appSettings: {},
     codes: {},
     sessionUserId: null,
   }
   if (!supabase) return empty
 
-  const [categories, departments, announcements, support] = await Promise.all([
+  const [categories, departments, announcements, support, settings] = await Promise.all([
     rows('categories'),
     rows('departments'),
     rows('announcements'),
     rows('support_contacts'),
+    rows('app_settings'),
   ])
 
   empty.categories = categories.data.length ? categories.data.map(categoryFrom) : fallback.categories
@@ -227,6 +229,9 @@ export async function pullCampus(session: Session | null): Promise<AppState> {
   empty.supportContacts = support.data.length
     ? support.data.map(supportFrom).sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id))
     : fallback.supportContacts
+  empty.appSettings = settings.data.length
+    ? Object.fromEntries(settings.data.map((row) => [String(row.key), String(row.value ?? '')]))
+    : { ...fallback.appSettings }
 
   if (!session) {
     const { data, error } = await supabase.from('public_reports').select('*')
@@ -507,6 +512,18 @@ export async function pushDiff(prev: AppState, next: AppState): Promise<string |
       const updated = await supabase.from('announcements').update({ active: item.active }).eq('id', item.id)
       note(updated.error)
     }
+  }
+
+  const prevSettings = prev.appSettings ?? {}
+  const nextSettings = next.appSettings ?? {}
+  for (const key of Object.keys(nextSettings)) {
+    if (prevSettings[key] === nextSettings[key]) continue
+    const upserted = await supabase.from('app_settings').upsert({
+      key,
+      value: nextSettings[key] ?? '',
+      updated_at: new Date().toISOString(),
+    })
+    note(upserted.error)
   }
 
   const prevSupport = new Map((prev.supportContacts ?? []).map((item) => [item.id, item]))

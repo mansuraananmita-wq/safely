@@ -15,7 +15,7 @@ Campus members can:
 - Choose Confidential and/or Anonymous on the form, with clear wording about who sees what
 - Follow status from submitted through review, assignment, work, resolution, and close
 - Confirm someone else’s open report at the same place instead of filing a copy
-- Send an SOS: a 3-second countdown, then a help message with the device’s live location to the campus desk
+- Send an SOS: a 3-second countdown, then a help message with the device’s live location to the campus desk; if the phone is offline, open a prefilled SMS to campus security (user must press Send) or call 999
 - Save up to five personal phone numbers that also receive the SOS text once Twilio is connected
 - Open Get help for campus support numbers (tap-to-call), including 999
 - Start a Safe Walk on the phone: pick a campus place, a 5–60 minute timer, and the desk and/or a saved contact. This does not replace 999
@@ -63,7 +63,7 @@ npm run dev
 
 Open [http://localhost:5173/](http://localhost:5173/).
 
-`npm run test` checks privacy rules, SOS helpers, image EXIF strip helpers, public count labels, and linked-database guards (rate limit, SOS RLS, anonymous reporter isolation, support_contacts write lock, public status count bucketing, reveal dual-control, Safe Walk RLS and 24-hour location cleanup). `npm run build` typechecks and builds the site. `npm run preview` serves that build.
+`npm run test` checks privacy rules, SOS helpers, image EXIF strip helpers, public count labels, and linked-database guards (rate limit, SOS RLS, anonymous reporter isolation, support_contacts write lock, public status count bucketing, reveal dual-control, Safe Walk RLS and 24-hour location cleanup, app_settings RLS). `npm run build` typechecks and builds the site. `npm run preview` serves that build.
 
 To use the campus database, copy `.env.example` to `.env.local` and set:
 
@@ -115,6 +115,8 @@ Press SOS on the website or on the phone home screen. The app uses the device GP
 The desk sees the message on the dashboard and on `/admin/sos`. A database trigger sends the SOS bell notice to **admin** and **security** only. The sender can follow Sent → Seen by desk → Solved on their own alert. Marking an alert as solved removes it from the open count on the SOS button. Members and department accounts can only read their own SOS rows. The database also enforces one SOS per minute and at most 20 per day; rejected inserts surface the server message.
 
 Saved personal numbers are optional extra SMS recipients. 999, 112, and 911 cannot be saved as contacts. SOS never dials 999.
+
+If the phone is offline, SOS offers **Send SMS instead**, which opens the device SMS app to `app_settings.security_sms_number` with the person’s name, last coordinates, and a Maps link. Safely does not send the text; the person presses Send. The **Call 999** button stays available. Admins edit the security number on `/admin/help`.
 
 ## Safe Walk
 

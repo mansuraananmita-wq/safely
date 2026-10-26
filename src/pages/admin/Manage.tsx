@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Button, Field, useTitle } from '../../components/ui'
 import { PLACES } from '../../data'
 import { average, hoursBetween, isOpen, isOverdue } from '../../logic'
@@ -267,8 +267,12 @@ export function AuditPage() {
 }
 
 export function SupportContactsPage() {
-  const { currentUser, state, tx, lang, saveSupportContact, setSupportContactActive } = useApp()
+  const { currentUser, state, tx, lang, saveSupportContact, setSupportContactActive, saveAppSetting } = useApp()
   const [form, setForm] = useState(emptySupportForm)
+  const [securitySms, setSecuritySms] = useState(state.appSettings?.security_sms_number ?? '')
+  useEffect(() => {
+    setSecuritySms(state.appSettings?.security_sms_number ?? '')
+  }, [state.appSettings?.security_sms_number])
   useTitle(tx('Get help contacts', 'সাহায্যের যোগাযোগ'))
   if (!currentUser || currentUser.role !== 'admin') return null
   const rows = state.supportContacts.slice().sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id))
@@ -305,6 +309,32 @@ export function SupportContactsPage() {
     })
   }
   return (
+    <div className="space-y-6">
+      <form
+        className="panel space-y-3 p-4"
+        onSubmit={(event) => {
+          event.preventDefault()
+          saveAppSetting('security_sms_number', securitySms)
+        }}
+      >
+        <h2 className="font-display text-2xl">{tx('Offline SOS SMS number', 'অফলাইন SOS SMS নম্বর')}</h2>
+        <p className="text-sm text-ink/60">
+          {tx(
+            'When the phone cannot reach the server, Safely opens the SMS app to this campus security number. The person still has to press Send. Does not replace 999.',
+            'ফোন সার্ভারে না পৌঁছালে Safely এই ক্যাম্পাস সিকিউরিটি নম্বরে SMS অ্যাপ খোলে। পাঠাতে এখনও Send চাপতে হয়। ৯৯৯-এর বিকল্প নয়।',
+          )}
+        </p>
+        <Field label={tx('Campus security SMS number', 'ক্যাম্পাস সিকিউরিটি SMS নম্বর')}>
+          <input
+            className="input"
+            value={securitySms}
+            onChange={(event) => setSecuritySms(event.target.value)}
+            placeholder="01XXXXXXXXX"
+            inputMode="tel"
+          />
+        </Field>
+        <Button type="submit">{tx('Save number', 'নম্বর সেভ')}</Button>
+      </form>
     <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
       <form className="panel space-y-3 p-4" onSubmit={submit}>
         <h1 className="font-display text-3xl">{form.id ? tx('Edit contact', 'যোগাযোগ সম্পাদনা') : tx('Add contact', 'যোগাযোগ যোগ')}</h1>
@@ -349,6 +379,7 @@ export function SupportContactsPage() {
           </article>
         ))}
       </div>
+    </div>
     </div>
   )
 }

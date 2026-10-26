@@ -58,6 +58,7 @@ function shell(): AppState {
     emergencyContacts: [],
     sosAlerts: [],
     safeWalks: [],
+    appSettings: {},
     reportIdentities: {},
     identityRevealedAt: {},
     revealRequests: [],
@@ -79,6 +80,7 @@ function load(): AppState {
       emergencyContacts: state.emergencyContacts ?? [],
       sosAlerts: state.sosAlerts ?? [],
       safeWalks: state.safeWalks ?? [],
+      appSettings: state.appSettings ?? {},
       reportIdentities: state.reportIdentities ?? {},
       identityRevealedAt: state.identityRevealedAt ?? {},
       revealRequests: state.revealRequests ?? [],
@@ -246,6 +248,7 @@ type Api = {
     isActive: boolean
   }) => void
   setSupportContactActive: (id: string, isActive: boolean) => void
+  saveAppSetting: (key: string, value: string) => void
   addLost: (input: { title: string; place: string; detail: string; kind: LostItem['kind']; contact: string }) => void
   setLostStatus: (id: string, status: LostItem['status']) => void
   updateUser: (id: string, patch: Partial<Pick<User, 'role' | 'suspended' | 'departmentId'>>) => void
@@ -1103,6 +1106,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         ...current,
         supportContacts: current.supportContacts.map((item) => (item.id === id ? { ...item, isActive } : item)),
       }, user.name, isActive ? 'Restored a help contact' : 'Hid a help contact', id))
+    },
+    saveAppSetting: (key, value) => {
+      const user = stateRef.current.users.find((item) => item.id === stateRef.current.sessionUserId)
+      if (!user || user.role !== 'admin') return
+      const trimmed = value.trim()
+      update((current) => withAudit({
+        ...current,
+        appSettings: { ...(current.appSettings ?? {}), [key]: trimmed },
+      }, user.name, 'Updated app setting', key))
+      say('Setting saved.', 'সেটিং সেভ হয়েছে।')
     },
     addLost: (input) => {
       const user = stateRef.current.users.find((item) => item.id === stateRef.current.sessionUserId)

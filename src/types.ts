@@ -268,6 +268,7 @@ export interface AppState {
   emergencyContacts: EmergencyContact[]
   sosAlerts: SosAlert[]
   safeWalks: SafeWalk[]
+  appSettings: Record<string, string>
   categories: Category[]
   departments: Department[]
   codes: Record<string, string>

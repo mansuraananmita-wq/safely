@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:safely_mobile/remote_config.dart';
 import 'package:safely_mobile/safe_walk.dart';
 import 'package:safely_mobile/sos.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class Member {
@@ -255,11 +258,13 @@ class CampusStore extends ChangeNotifier {
   CampusStore() {
     _reports.addAll(_seed());
     _supportContacts.addAll(seedSupportContacts);
+    unawaited(_loadCachedSecuritySms());
   }
 
   Member? member;
   bool bangla = false;
   String? error;
+  String securitySmsNumber = '';
   final List<Report> _reports = [];
   final List<SosAlert> _sosAlerts = [];
   final List<SupportContact> _supportContacts = [];
@@ -267,6 +272,7 @@ class CampusStore extends ChangeNotifier {
   final List<EmergencyContact> _emergencyContacts = [];
   int _next = 10530;
   int _walkNext = 1;
+  static const _securitySmsCacheKey = 'safely_security_sms_number';
 
   bool get remote => remoteReady && Supabase.instance.isInitialized;
 
@@ -514,7 +520,41 @@ class CampusStore extends ChangeNotifier {
     await refreshSupportContacts();
     await refreshEmergencyContacts();
     await refreshSafeWalks();
+    await refreshAppSettings();
     notifyListeners();
+  }
+
+  Future<void> _loadCachedSecuritySms() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getString(_securitySmsCacheKey) ?? '';
+      if (cached.isEmpty || securitySmsNumber.isNotEmpty) return;
+      securitySmsNumber = cached;
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> _cacheSecuritySms(String value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_securitySmsCacheKey, value);
+    } catch (_) {}
+  }
+
+  Future<void> refreshAppSettings() async {
+    if (!remote) {
+      await _loadCachedSecuritySms();
+      return;
+    }
+    try {
+      final row = await Supabase.instance.client.from('app_settings').select().eq('key', 'security_sms_number').maybeSingle();
+      final value = row == null ? '' : (row['value'] as String? ?? '');
+      securitySmsNumber = value;
+      await _cacheSecuritySms(value);
+      notifyListeners();
+    } catch (_) {
+      await _loadCachedSecuritySms();
+    }
   }
 
   Future<void> refreshEmergencyContacts() async {

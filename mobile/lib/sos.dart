@@ -28,6 +28,31 @@ String sosMessage(String name, LiveFix? place) {
   return 'Safely SOS. $name needs help now. $where This does not call 999.';
 }
 
+/// Prefill body for the phone SMS app when SOS cannot reach the server.
+/// Never auto-sends — the person must press Send in the SMS app.
+String offlineSosSmsBody(String name, LiveFix? place) {
+  if (place == null) {
+    return 'Safely SOS. $name needs help now. Location was not available. This does not call 999.';
+  }
+  final lat = place.lat.toStringAsFixed(6);
+  final lng = place.lng.toStringAsFixed(6);
+  final maps = 'https://maps.google.com/?q=$lat,$lng';
+  return 'Safely SOS. $name needs help now. Coordinates: $lat, $lng. Map: $maps This does not call 999.';
+}
+
+/// Opens the device SMS composer. Does not send silently.
+Uri offlineSosSmsUri(String securityNumber, String body) {
+  final digits = securityNumber.replaceAll(RegExp(r'[^\d+]'), '');
+  return Uri.parse('sms:$digits?body=${Uri.encodeComponent(body)}');
+}
+
+bool isUsableSecuritySmsNumber(String raw) {
+  final digits = raw.replaceAll(RegExp(r'[^\d+]'), '');
+  if (digits.isEmpty || digits.contains('X') || digits.contains('x')) return false;
+  final onlyDigits = digits.replaceAll('+', '');
+  return onlyDigits.length >= 7;
+}
+
 enum SosDeskStatus { sent, seen, solved }
 
 SosDeskStatus sosDeskStatus({DateTime? seenAt, DateTime? resolvedAt}) {
