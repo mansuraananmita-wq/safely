@@ -41,6 +41,14 @@ export function MyReportsPage() {
       <div className="mt-4 space-y-3">
         {shown.length === 0 ? <Empty title={tx('No reports here', 'এখানে রিপোর্ট নেই')} body={tx('Try another filter, or file the first one.', 'অন্য ফিল্টার দেখুন, অথবা প্রথম রিপোর্ট দিন।')} /> : shown.map((report) => (
           <div key={report.id} className="space-y-2">
+            {state.identityRevealedAt[report.id] ? (
+              <div className="rounded-2xl bg-clay/10 px-4 py-3 text-sm text-ink/80">
+                {tx(
+                  `Your anonymous identity on ${report.id} was revealed after a two-person campus approval.`,
+                  `${report.id}-এ আপনার বেনামি পরিচয় দুইজনের অনুমোদনের পর খোলা হয়েছে।`,
+                )}
+              </div>
+            ) : null}
             <ReportCard report={report} base="/app/reports" />
             {report.status === 'draft' ? (
               <div className="flex gap-2">

@@ -1,7 +1,7 @@
 import type { Session } from '@supabase/supabase-js'
 import { buildSeed } from '../data'
 import { supabase } from './supabase'
-import type { Activity, Announcement, AppNotification, AppState, AuditEntry, Category, Department, EmergencyContact, LostItem, Photo, Report, SosAlert, SupportContact, SupportCategory, User } from '../types'
+import type { Activity, Announcement, AppNotification, AppState, AuditEntry, Category, Department, EmergencyContact, LostItem, Photo, Report, RevealRequest, SosAlert, SupportContact, SupportCategory, User } from '../types'
 
 let signedIn: User | null = null
 let pullError: string | null = null
@@ -191,6 +191,8 @@ export async function pullCampus(session: Session | null): Promise<AppState> {
     users: [],
     reports: [],
     reportIdentities: {},
+    identityRevealedAt: {},
+    revealRequests: [],
     notifications: [],
     announcements: [],
     supportContacts: [],
@@ -234,7 +236,7 @@ export async function pullCampus(session: Session | null): Promise<AppState> {
     return empty
   }
 
-  const [profiles, reports, activities, confirmations, notifications, lost, audit, contacts, alerts, identities] = await Promise.all([
+  const [profiles, reports, activities, confirmations, notifications, lost, audit, contacts, alerts, identities, reveals] = await Promise.all([
     rows('profiles'),
     rows('reports'),
     rows('report_activities'),
@@ -245,6 +247,7 @@ export async function pullCampus(session: Session | null): Promise<AppState> {
     rows('emergency_contacts'),
     rows('sos_alerts'),
     rows('report_identities'),
+    rows('reveal_requests'),
   ])
 
   empty.users = profiles.data.map(userFrom)
@@ -263,10 +266,25 @@ export async function pullCampus(session: Session | null): Promise<AppState> {
     confirms.set(id, list)
   }
   const identityMap: Record<string, string> = {}
+  const revealedAt: Record<string, string> = {}
   for (const row of identities.data) {
-    identityMap[String(row.report_id)] = String(row.user_id)
+    const reportId = String(row.report_id)
+    identityMap[reportId] = String(row.user_id)
+    if (row.revealed_at) revealedAt[reportId] = String(row.revealed_at)
   }
   empty.reportIdentities = identityMap
+  empty.identityRevealedAt = revealedAt
+  empty.revealRequests = reveals.data.map((row): RevealRequest => ({
+    id: String(row.id),
+    reportId: String(row.report_id),
+    requestedBy: String(row.requested_by),
+    reason: String(row.reason ?? ''),
+    status: row.status as RevealRequest['status'],
+    approvedBy: row.approved_by ? String(row.approved_by) : undefined,
+    createdAt: String(row.created_at),
+    decidedAt: row.decided_at ? String(row.decided_at) : undefined,
+    openedAt: row.opened_at ? String(row.opened_at) : undefined,
+  }))
   const email = session.user.email?.toLowerCase()
   const sessionUserId = empty.users.find((user) => user.email.toLowerCase() === email)?.id ?? null
   empty.sessionUserId = sessionUserId

@@ -32,6 +32,14 @@ export function ReportDetailPage() {
       <div className="space-y-4">
         {just ? <div className="rounded-2xl border border-moss/30 bg-moss/10 p-4 text-sm font-medium">{tx(`Received ${report.id}. Save this ID. The desk will assign a department after review.`, `${report.id} গৃহীত হয়েছে। এই আইডি রাখুন। পর্যালোচনার পর ডেস্ক একটি বিভাগ বরাদ্দ করবে।`)}</div> : null}
         {report.status === 'draft' ? <Link to={`/app/report/new?draft=${report.id}`} className="text-sm font-semibold text-teal-800">{tx('Continue this draft', 'এই খসড়া চালিয়ে যান')}</Link> : null}
+        {owner && state.identityRevealedAt[report.id] ? (
+          <div className="rounded-2xl bg-clay/10 p-4 text-sm">
+            {tx(
+              'Your anonymous identity on this report was revealed after a two-person campus approval. The reveal is written to the audit log.',
+              'এই রিপোর্টে আপনার বেনামি পরিচয় দুইজনের অনুমোদনের পর খোলা হয়েছে। রিভিল অডিট লগে লেখা আছে।',
+            )}
+          </div>
+        ) : null}
         {report.infoRequested && owner ? <div className="rounded-2xl bg-amber-100 p-4 text-sm">{tx('The office asked for more information. Reply below.', 'দপ্তর আরও তথ্য চেয়েছে। নিচে উত্তর দিন।')}</div> : null}
         <ReportStory report={report} internal={false} />
       </div>

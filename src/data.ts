@@ -817,6 +817,8 @@ export function buildSeed(): AppState {
     emergencyContacts: [],
     sosAlerts: [],
     reportIdentities: { 'SF-10508': 'u-amina' },
+    identityRevealedAt: {},
+    revealRequests: [],
     sessionUserId: null,
     prefs: { lang: 'en', textSize: 'default', contrast: false },
   }

@@ -21,6 +21,7 @@ import type {
   Report,
   Role,
   Status,
+  RevealRequest,
   SupportCategory,
   SupportContact,
   User,
@@ -57,6 +58,8 @@ function shell(): AppState {
     emergencyContacts: [],
     sosAlerts: [],
     reportIdentities: {},
+    identityRevealedAt: {},
+    revealRequests: [],
     codes: {},
     sessionUserId: null,
     prefs: readPrefs() ?? seed.prefs,
@@ -75,6 +78,8 @@ function load(): AppState {
       emergencyContacts: state.emergencyContacts ?? [],
       sosAlerts: state.sosAlerts ?? [],
       reportIdentities: state.reportIdentities ?? {},
+      identityRevealedAt: state.identityRevealedAt ?? {},
+      revealRequests: state.revealRequests ?? [],
       supportContacts: state.supportContacts ?? [],
     }
   } catch {
@@ -215,6 +220,8 @@ type Api = {
   assign: (reportId: string, departmentId: string, assignee: string, priority: Priority) => boolean
   setPriority: (ids: string[], priority: Priority) => void
   requestInfo: (reportId: string, body: string) => void
+  requestReveal: (reportId: string, reason: string) => Promise<string | null>
+  decideReveal: (requestId: string, decision: 'approved' | 'rejected') => Promise<string | null>
   revealReporter: (reportId: string, reason: string) => Promise<{ name: string; email: string } | string>
   rate: (reportId: string, rating: number, feedback: string) => void
   reopen: (reportId: string, reason: string) => void
@@ -846,6 +853,68 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       })
       say('Question sent to the reporter.', 'প্রশ্ন রিপোর্টকারীর কাছে গেছে।')
     },
+    requestReveal: async (reportId, reason) => {
+      const text = reason.trim()
+      if (text.length < 8) return 'Write a short reason for the audit log.'
+      const current = stateRef.current
+      const user = current.users.find((item) => item.id === current.sessionUserId)
+      const report = current.reports.find((item) => item.id === reportId)
+      if (!user || !report || !report.anonymous) return 'That report is not anonymous.'
+      if (user.role !== 'admin' && user.departmentId !== 'd-affairs') return 'Only operations or Student Affairs can request a reveal.'
+      if (report.category !== 'harassment' && report.category !== 'safety') return 'Reveal is only for harassment or safety emergencies.'
+      if (current.revealRequests.some((item) => item.reportId === reportId && item.status === 'pending')) {
+        return 'A reveal request is already pending for this report.'
+      }
+      if (current.revealRequests.some((item) => item.reportId === reportId && item.status === 'approved')) {
+        return 'This report already has an approved reveal request.'
+      }
+      if (remote && supabase) {
+        const { error } = await supabase.rpc('request_reveal', { p_report_id: reportId, p_reason: text })
+        if (error) return error.message
+        const next = await pullCampus((await supabase.auth.getSession()).data.session)
+        setState(next)
+        say('Reveal request submitted for a second approval.', 'রিভিল অনুরোধ দ্বিতীয় অনুমোদনের জন্য জমা হয়েছে।')
+        return null
+      }
+      const item: RevealRequest = {
+        id: uid('rr'),
+        reportId,
+        requestedBy: user.id,
+        reason: text,
+        status: 'pending',
+        createdAt: nowIso(),
+      }
+      update((prev) => withAudit({ ...prev, revealRequests: [item, ...prev.revealRequests] }, user.name, `Requested anonymous reveal (${text})`, reportId))
+      say('Reveal request submitted for a second approval.', 'রিভিল অনুরোধ দ্বিতীয় অনুমোদনের জন্য জমা হয়েছে।')
+      return null
+    },
+    decideReveal: async (requestId, decision) => {
+      const current = stateRef.current
+      const user = current.users.find((item) => item.id === current.sessionUserId)
+      const request = current.revealRequests.find((item) => item.id === requestId)
+      if (!user || !request) return 'Reveal request not found.'
+      if (user.role !== 'admin' && user.departmentId !== 'd-affairs') return 'Only operations or Student Affairs can decide a reveal request.'
+      if (request.status !== 'pending') return 'This reveal request is already decided.'
+      if (request.requestedBy === user.id) return 'You cannot approve or reject your own reveal request.'
+      if (remote && supabase) {
+        const { error } = await supabase.rpc('decide_reveal_request', { p_request_id: requestId, p_decision: decision })
+        if (error) return error.message
+        const next = await pullCampus((await supabase.auth.getSession()).data.session)
+        setState(next)
+        say(decision === 'approved' ? 'Reveal request approved.' : 'Reveal request rejected.', decision === 'approved' ? 'রিভিল অনুরোধ অনুমোদিত।' : 'রিভিল অনুরোধ প্রত্যাখ্যাত।')
+        return null
+      }
+      update((prev) => withAudit({
+        ...prev,
+        revealRequests: prev.revealRequests.map((item) =>
+          item.id === requestId
+            ? { ...item, status: decision, approvedBy: user.id, decidedAt: nowIso() }
+            : item,
+        ),
+      }, user.name, decision === 'approved' ? `Approved anonymous reveal (${request.reason})` : `Rejected anonymous reveal (${request.reason})`, request.reportId))
+      say(decision === 'approved' ? 'Reveal request approved.' : 'Reveal request rejected.', decision === 'approved' ? 'রিভিল অনুরোধ অনুমোদিত।' : 'রিভিল অনুরোধ প্রত্যাখ্যাত।')
+      return null
+    },
     revealReporter: async (reportId, reason) => {
       const text = reason.trim()
       if (text.length < 8) return 'Write a short reason for the audit log.'
@@ -855,19 +924,47 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (!user || !report || !report.anonymous) return 'That report is not anonymous.'
       if (user.role !== 'admin' && user.departmentId !== 'd-affairs') return 'Only operations or Student Affairs can reveal a reporter.'
       if (report.category !== 'harassment' && report.category !== 'safety') return 'Reveal is only for harassment or safety emergencies.'
+      const approved = current.revealRequests.find((item) => item.reportId === reportId && item.status === 'approved')
+      if (!approved) return 'Reveal needs an approved request from a second desk officer.'
       if (remote && supabase) {
         const { data, error } = await supabase.rpc('reveal_reporter', { p_report_id: reportId, p_reason: text })
         if (error) return error.message
         const row = Array.isArray(data) ? data[0] : data
         if (!row || typeof row !== 'object') return 'No identity is stored for this report.'
         const revealed = row as { name?: string; email?: string }
-        await update((prev) => withAudit(prev, user.name, `Revealed anonymous reporter (${text})`, reportId))
+        const next = await pullCampus((await supabase.auth.getSession()).data.session)
+        setState(next)
         return { name: String(revealed.name ?? ''), email: String(revealed.email ?? '') }
       }
       const ownerId = ownerProfileId(current, report)
       const owner = ownerId ? current.users.find((item) => item.id === ownerId) : undefined
       if (!owner) return 'No identity is stored for this report.'
-      await update((prev) => withAudit(prev, user.name, `Revealed anonymous reporter (${text})`, reportId))
+      const stamp = nowIso()
+      await update((prev) => {
+        const stamped = {
+          ...prev,
+          identityRevealedAt: { ...prev.identityRevealedAt, [reportId]: stamp },
+          revealRequests: prev.revealRequests.map((item) =>
+            item.reportId === reportId && item.status === 'approved' && !item.openedAt
+              ? { ...item, openedAt: stamp }
+              : item,
+          ),
+          notifications: [
+            {
+              id: uid('n'),
+              userId: owner.id,
+              title: 'Your anonymous identity was revealed',
+              body: `Campus operations revealed your identity on ${reportId} after a two-person approval.`,
+              href: `/app/reports/${reportId}`,
+              read: false,
+              createdAt: stamp,
+              kind: 'info' as const,
+            },
+            ...prev.notifications,
+          ],
+        }
+        return withAudit(stamped, user.name, `Revealed anonymous reporter (${text})`, reportId)
+      })
       return { name: owner.name, email: owner.email }
     },
     rate: (reportId, rating, feedback) => {

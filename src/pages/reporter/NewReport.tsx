@@ -392,7 +392,7 @@ export function NewReportPage() {
                 </div>
                 <label className="flex gap-2 text-sm">
                   <input type="checkbox" checked={form.anonAck} onChange={(event) => setForm({ ...form, anonAck: event.target.checked })} />
-                  {tx('I understand staff see Anonymous only, I keep My reports access, and reveal needs an audited emergency reason.', 'আমি বুঝেছি কর্মকর্তারা শুধু বেনামি দেখেন, আমি My reports রাখি, এবং পরিচয় খুলতে অডিটসহ জরুরি কারণ লাগে।')}
+                  {tx('I understand staff see Anonymous only, I keep My reports access, and reveal needs two desk officers plus an audited emergency reason.', 'আমি বুঝেছি কর্মকর্তারা শুধু বেনামি দেখেন, আমি My reports রাখি, এবং পরিচয় খুলতে দুইজন ডেস্ক কর্মকর্তা ও অডিটসহ জরুরি কারণ লাগে।')}
                 </label>
               </div>
             ) : null}

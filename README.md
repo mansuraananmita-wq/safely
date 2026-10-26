@@ -28,13 +28,13 @@ The operations desk can:
 - Assign a report to an office, change status, ask for information, and leave an internal note
 - Open each office queue, including Facilities and Cleaning
 - Manage users, categories, alerts, Get help contacts, and the audit log
-- For a harassment or safety emergency only, call audited `reveal_reporter` (operations or Student Affairs)
+- For a harassment or safety emergency only, request an anonymous reveal; a second admin or Student Affairs officer must approve before `reveal_reporter` returns the identity
 
 The public page `/status` shows open and resolved counts per category and office, plus average resolution time for the last 30 days. Aggregation happens in database views. Counts under 5 appear as **fewer than 5**. Harassment, confidential, anonymous, and safety stories never contribute to those figures or to the public campus map.
 
 ### Anonymous reports
 
-Anonymous filings keep `reports.reporter_id` empty. The private link sits in `report_identities`, which only the reporter can select. Staff screens show **Anonymous** with no name, email, or avatar. The reporter still sees the case under My reports and can reply to information requests; those replies are labeled **Reporter**, not a real name. Reveal needs an audited reason and is limited to harassment or safety emergencies.
+Anonymous filings keep `reports.reporter_id` empty. The private link sits in `report_identities`, which only the reporter can select. Staff screens show **Anonymous** with no name, email, or avatar. The reporter still sees the case under My reports and can reply to information requests; those replies are labeled **Reporter**, not a real name. Reveal is limited to harassment or safety emergencies and needs two desk officers: one requests in `reveal_requests`, a different admin or Student Affairs officer approves, then `reveal_reporter` returns the identity. Request, decision, and reveal are audited. My reports shows a notice if that identity was revealed.
 
 ## How it is built
 
@@ -60,7 +60,7 @@ npm run dev
 
 Open [http://localhost:5173/](http://localhost:5173/).
 
-`npm run test` checks privacy rules, SOS helpers, image EXIF strip helpers, public count labels, and linked-database guards (rate limit, SOS RLS, anonymous reporter isolation, support_contacts write lock, public status count bucketing). `npm run build` typechecks and builds the site. `npm run preview` serves that build.
+`npm run test` checks privacy rules, SOS helpers, image EXIF strip helpers, public count labels, and linked-database guards (rate limit, SOS RLS, anonymous reporter isolation, support_contacts write lock, public status count bucketing, reveal dual-control). `npm run build` typechecks and builds the site. `npm run preview` serves that build.
 
 To use the campus database, copy `.env.example` to `.env.local` and set:
 

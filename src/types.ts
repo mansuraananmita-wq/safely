@@ -216,11 +216,28 @@ export interface Prefs {
   contrast: boolean
 }
 
+export type RevealRequestStatus = 'pending' | 'approved' | 'rejected'
+
+export interface RevealRequest {
+  id: string
+  reportId: string
+  requestedBy: string
+  reason: string
+  status: RevealRequestStatus
+  approvedBy?: string
+  createdAt: string
+  decidedAt?: string
+  openedAt?: string
+}
+
 export interface AppState {
   users: User[]
   reports: Report[]
   /** Owner-only map of anonymous report id → profile id. Staff never receive these rows from RLS. */
   reportIdentities: Record<string, string>
+  /** Owner-only map of anonymous report id → when identity was revealed. */
+  identityRevealedAt: Record<string, string>
+  revealRequests: RevealRequest[]
   notifications: AppNotification[]
   announcements: Announcement[]
   supportContacts: SupportContact[]

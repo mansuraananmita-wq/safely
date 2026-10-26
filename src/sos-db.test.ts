@@ -14,6 +14,8 @@ const supportMigration = path.resolve('supabase/migrations/20261027001500_suppor
 const supportSql = path.resolve('supabase/tests/support_contacts_rls.sql')
 const publicStatusMigration = path.resolve('supabase/migrations/20261027010000_public_status_counts.sql')
 const publicStatusSql = path.resolve('supabase/tests/public_status_counts.sql')
+const revealMigration = path.resolve('supabase/migrations/20261027020000_reveal_dual_control.sql')
+const revealSql = path.resolve('supabase/tests/reveal_dual_control.sql')
 
 function runSqlFile(file: string) {
   try {
@@ -68,5 +70,15 @@ describe('sos database guards', () => {
     expect(output).not.toMatch(/small water open count was not hidden/i)
     expect(output).not.toMatch(/confidential report changed public/i)
     expect(output).not.toMatch(/harassment\/safety must not appear/i)
+  }, 120_000)
+
+  it('requires a second desk officer for anonymous reveal and blocks unrelated roles', () => {
+    expect(existsSync(revealMigration)).toBe(true)
+    expect(existsSync(revealSql)).toBe(true)
+    const output = runSqlFile(revealSql)
+    expect(output).not.toMatch(/requester approved their own reveal request/i)
+    expect(output).not.toMatch(/security requested a reveal/i)
+    expect(output).not.toMatch(/unrelated department requested a reveal/i)
+    expect(output).not.toMatch(/reveal_reporter returned no identity after approval/i)
   }, 120_000)
 })

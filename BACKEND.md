@@ -46,7 +46,8 @@ Supabase প্রজেক্ট এই রিপোজিটরি তৈর�
 - গোপন রিপোর্ট শুধু Security (`d-sec`) বা Student Affairs (`d-affairs`)-এ বরাদ্দ হয়।
 - SOS ইনসার্টে রেট লিমিট (৬০ সেকেন্ড / দিনে ২০) এবং অ্যাডমিন+নিরাপত্তায় বেল নোটিফিকেশন ট্রিগার।
 - `notify_report_owner(...)` — স্টাফ আইডি না দেখেও রিপোর্টকারীকে নোটিস পাঠায়।
-- `reveal_reporter(report_id, reason)` — শুধু অপারেশন বা শিক্ষার্থী বিষয়ক; শুধু হয়রানি/নিরাপত্তা; অডিট লগে লেখে।
+- `reveal_requests` — বেনামি রিভিলের দুই-ধাপ অনুমোদন (pending/approved/rejected)
+- `request_reveal` / `decide_reveal_request` / `reveal_reporter` — একজন অনুরোধ, অন্যজন অনুমোদন, তারপর পরিচয়; শুধু হয়রানি/নিরাপত্তা; অডিট + রিপোর্টকারী নোটিস
 - নতুন সাইন-আপে `profiles` রো তৈরি হয়।
 - `seed_demo_account(...)` ফাংশন। পরের ফাইল এটা ডাকে। পাসওয়ার্ড `padma1234`।
 
@@ -90,8 +91,9 @@ Run-এর পর নিচে **Success** দেখা উচিত। error �
 - `20261026013000_anonymous_report_identities.sql` — `report_identities`, `reveal_reporter`, বেনামি `reporter_id` খালি
 - `20261027001500_support_contacts.sql` — Get help `support_contacts` টেবিল, seed (৯৯৯ + placeholder), RLS
 - `20261027010000_public_status_counts.sql` — `/status` bucketed counts + 30-day avg resolution views
+- `20261027020000_reveal_dual_control.sql` — `reveal_requests`, dual-control `reveal_reporter`, `revealed_at`
 
-টেস্ট SQL: `supabase/tests/` (SOS রেট লিমিট, SOS RLS, বেনামি রিপোর্টার আইসোলেশন, support_contacts student write block, public status count hide)। `npm run test` linked প্রজেক্টে এগুলো চালায়।
+টেস্ট SQL: `supabase/tests/` (SOS রেট লিমিট, SOS RLS, বেনামি রিপোর্টার আইসোলেশন, support_contacts, public status counts, reveal dual-control)। `npm run test` linked প্রজেক্টে এগুলো চালায়।
 
 ### SQL যদি auth.users-এ আটকায়
 
@@ -196,7 +198,7 @@ supabase functions deploy send-sos --project-ref rirqasqzdekohtqznexg
 - ডেটাবেসে `reports.reporter_id` বেনামিতে `null`। যোগসূত্র `report_identities` (owner-only RLS)।
 - স্টাফ `report_identities` সরাসরি SELECT করতে পারে না।
 - তথ্য চাইলে `notify_report_owner` দিয়ে নোটিস যায় — আইডি স্ক্রিনে দেখায় না।
-- হয়রানি বা নিরাপত্তা জরুরি অবস্থায় অপারেশন বা Student Affairs `reveal_reporter` চালায়; কারণ অডিট লগে থাকে।
+- হয়রানি বা নিরাপত্তা জরুরি অবস্থায় একজন অপারেশন/Student Affairs `request_reveal` করে; অন্যজন অনুমোদন করে; তারপর `reveal_reporter` পরিচয় দেয়। অনুরোধ/অনুমোদন/রিভিল অডিট লগে থাকে; রিপোর্টকারী My reports-এ নোটিস পায়।
 
 ## ৮. যা এখনও বাকি
 

@@ -9,7 +9,7 @@ import type { Photo, Status } from '../../types'
 
 export function ReviewPage() {
   const { id } = useParams()
-  const { currentUser, state, tx, lang, setStatus, addComment, requestInfo, extendDue, revealReporter } = useApp()
+  const { currentUser, state, tx, lang, setStatus, addComment, requestInfo, extendDue, requestReveal, decideReveal, revealReporter } = useApp()
   const report = state.reports.find((item) => item.id === id)
   const [status, setNext] = useState<Status | ''>('')
   const [note, setNote] = useState('')
@@ -36,9 +36,13 @@ export function ReviewPage() {
 
   const transitions = allowedTransitions(currentUser, report, state.reportIdentities)
   const operations = currentUser.role === 'admin'
-  const canReveal = report.anonymous && (report.category === 'harassment' || report.category === 'safety') && (operations || currentUser.departmentId === 'd-affairs')
+  const canRevealDesk = operations || currentUser.departmentId === 'd-affairs'
+  const canReveal = report.anonymous && (report.category === 'harassment' || report.category === 'safety') && canRevealDesk
   const restricted = isRestrictedDesk(currentUser)
   const waiting = !report.departmentId
+  const pendingRequest = state.revealRequests.find((item) => item.reportId === report.id && item.status === 'pending')
+  const approvedRequest = state.revealRequests.find((item) => item.reportId === report.id && item.status === 'approved')
+  const alreadyRevealed = Boolean((approvedRequest && approvedRequest.openedAt) || state.identityRevealedAt[report.id] || revealed)
 
   return (
     <div className="grid gap-6 xl:grid-cols-[1fr_340px]">
@@ -61,31 +65,90 @@ export function ReviewPage() {
           </div>
         ) : null}
         {canReveal ? (
-          <form
-            className="panel space-y-3 p-4"
-            onSubmit={(event) => {
-              event.preventDefault()
-              void revealReporter(report.id, revealReason).then((result) => {
-                if (typeof result === 'string') {
-                  setRevealError(result)
-                  setRevealed(null)
-                  return
-                }
-                setRevealError(null)
-                setRevealed(result)
-                setRevealReason('')
-              })
-            }}
-          >
+          <div className="panel space-y-3 p-4">
             <h2 className="font-display text-2xl">{tx('Reveal reporter', 'রিপোর্টকারী দেখান')}</h2>
-            <p className="text-sm text-ink/70">{tx('Harassment or safety emergency only. The reason is written to the audit log.', 'শুধু হয়রানি বা নিরাপত্তা জরুরি অবস্থায়। কারণ অডিট লগে লেখা হয়।')}</p>
-            <Field label={tx('Reason', 'কারণ')}>
-              <textarea className="input min-h-20" value={revealReason} onChange={(event) => setRevealReason(event.target.value)} />
-            </Field>
+            <p className="text-sm text-ink/70">
+              {tx(
+                'Harassment or safety emergency only. One desk officer requests, a different admin or Student Affairs officer approves, then identity can be opened. Each step is audited.',
+                'শুধু হয়রানি বা নিরাপত্তা জরুরি অবস্থায়। একজন অনুরোধ করেন, অন্য অ্যাডমিন বা শিক্ষার্থী বিষয়ক অনুমোদন করেন, তারপর পরিচয় খোলা যায়। প্রতিটি ধাপ অডিটে থাকে।',
+              )}
+            </p>
+            {pendingRequest ? (
+              <div className="space-y-3 rounded-xl bg-frost p-3 text-sm">
+                <p className="font-semibold">{tx('Pending second approval', 'দ্বিতীয় অনুমোদন বাকি')}</p>
+                <p>{pendingRequest.reason}</p>
+                <p className="text-xs text-ink/55">
+                  {tx('Requested by', 'অনুরোধ করেছেন')} {state.users.find((item) => item.id === pendingRequest.requestedBy)?.name ?? pendingRequest.requestedBy}
+                </p>
+                {pendingRequest.requestedBy !== currentUser.id ? (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="primary"
+                      onClick={() => {
+                        void decideReveal(pendingRequest.id, 'approved').then((error) => setRevealError(error))
+                      }}
+                    >
+                      {tx('Approve request', 'অনুরোধ অনুমোদন')}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        void decideReveal(pendingRequest.id, 'rejected').then((error) => setRevealError(error))
+                      }}
+                    >
+                      {tx('Reject', 'প্রত্যাখ্যান')}
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="text-xs text-ink/60">{tx('Waiting for a different desk officer. You cannot approve your own request.', 'অন্য কর্মকর্তার অপেক্ষা। নিজের অনুরোধ নিজে অনুমোদন করা যায় না।')}</p>
+                )}
+              </div>
+            ) : null}
+            {approvedRequest && !alreadyRevealed ? (
+              <form
+                className="space-y-3"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  void revealReporter(report.id, revealReason || approvedRequest.reason).then((result) => {
+                    if (typeof result === 'string') {
+                      setRevealError(result)
+                      setRevealed(null)
+                      return
+                    }
+                    setRevealError(null)
+                    setRevealed(result)
+                    setRevealReason('')
+                  })
+                }}
+              >
+                <p className="text-sm font-semibold text-moss">{tx('Approved. Open the identity with an audit note.', 'অনুমোদিত। অডিট নোটসহ পরিচয় খুলুন।')}</p>
+                <Field label={tx('Reveal note', 'রিভিল নোট')}>
+                  <textarea className="input min-h-20" value={revealReason} onChange={(event) => setRevealReason(event.target.value)} placeholder={approvedRequest.reason} />
+                </Field>
+                <Button type="submit" variant="secondary" className="w-full">{tx('Reveal with audit', 'অডিটসহ দেখান')}</Button>
+              </form>
+            ) : null}
+            {!pendingRequest && !approvedRequest ? (
+              <form
+                className="space-y-3"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  void requestReveal(report.id, revealReason).then((error) => {
+                    setRevealError(error)
+                    if (!error) setRevealReason('')
+                  })
+                }}
+              >
+                <Field label={tx('Reason', 'কারণ')}>
+                  <textarea className="input min-h-20" value={revealReason} onChange={(event) => setRevealReason(event.target.value)} />
+                </Field>
+                <Button type="submit" variant="secondary" className="w-full">{tx('Request reveal', 'রিভিল অনুরোধ')}</Button>
+              </form>
+            ) : null}
             {revealError ? <p className="text-sm text-clay">{revealError}</p> : null}
             {revealed ? <p className="text-sm font-semibold">{revealed.name} · {revealed.email}</p> : null}
-            <Button type="submit" variant="secondary" className="w-full">{tx('Reveal with audit', 'অডিটসহ দেখান')}</Button>
-          </form>
+            {alreadyRevealed && !revealed ? <p className="text-sm text-ink/70">{tx('Identity was revealed after dual approval. Check the audit log.', 'দ্বৈত অনুমোদনের পর পরিচয় খোলা হয়েছে। অডিট লগ দেখুন।')}</p> : null}
+          </div>
         ) : null}
 
         {operations ? <AssignOffice report={report} /> : null}
