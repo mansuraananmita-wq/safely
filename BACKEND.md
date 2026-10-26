@@ -101,8 +101,9 @@ Run-এর পর নিচে **Success** দেখা উচিত। error �
 - `20261027040000_app_settings.sql` — `app_settings` + `security_sms_number`; signed-in read, admin write
 - `20261027050000_report_abuse.sql` — report flags, hidden account counts, daily caps (10, or 3 for 14 days)
 - `20261027060000_device_tokens.sql` — push `device_tokens`; user writes only own rows
+- `20261027070000_report_media.sql` — private `report-media` bucket; voice ≤10 MB, video ≤20 MB; reporter, assigned office, and security can read
 
-টেস্ট SQL: `supabase/tests/` (SOS রেট লিমিট, SOS RLS, বেনামি রিপোর্টার আইসোলেশন, support_contacts, public status counts, reveal dual-control, Safe Walk RLS/cleanup, app_settings RLS, report caps, device_tokens RLS)। `npm run test` linked প্রজেক্টে এগুলো চালায়।
+টেস্ট SQL: `supabase/tests/` (SOS রেট লিমিট, SOS RLS, বেনামি রিপোর্টার আইসোলেশন, support_contacts, public status counts, reveal dual-control, Safe Walk RLS/cleanup, app_settings RLS, report caps, device_tokens RLS, report media RLS)। `npm run test` linked প্রজেক্টে এগুলো চালায়।
 
 ### SQL যদি auth.users-এ আটকায়
 

@@ -27,6 +27,11 @@ class Place {
   final double lng;
 }
 
+String? _clipPath(Object? value) {
+  if (value is Map && value['path'] is String) return value['path'] as String;
+  return null;
+}
+
 class Report {
   Report({
     required this.id,
@@ -40,6 +45,8 @@ class Report {
     required this.status,
     required this.reporterId,
     required this.createdAt,
+    this.voicePath,
+    this.videoPath,
   });
 
   final String id;
@@ -53,6 +60,8 @@ class Report {
   final String status;
   final String reporterId;
   final DateTime createdAt;
+  final String? voicePath;
+  final String? videoPath;
 }
 
 class SupportContact {
@@ -381,6 +390,8 @@ class CampusStore extends ChangeNotifier {
     required double lng,
     List<Map<String, String>> photos = const [],
     bool anonymous = false,
+    String? voicePath,
+    String? videoPath,
   }) async {
     final who = member;
     if (who == null) return null;
@@ -399,6 +410,8 @@ class CampusStore extends ChangeNotifier {
         status: 'submitted',
         reporterId: who.id,
         createdAt: DateTime.now(),
+        voicePath: voicePath,
+        videoPath: videoPath,
       );
       _next += 1;
       _reports.insert(0, report);
@@ -514,6 +527,8 @@ class CampusStore extends ChangeNotifier {
             status: row['status'] as String? ?? 'submitted',
             reporterId: row['reporter_id'] as String? ?? member!.id,
             createdAt: DateTime.tryParse(row['created_at'] as String? ?? '')?.toLocal() ?? DateTime.now(),
+            voicePath: _clipPath(row['voice_note']),
+            videoPath: _clipPath(row['video']),
           ),
       ]);
     await refreshSosAlerts();

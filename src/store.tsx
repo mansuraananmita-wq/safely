@@ -4,6 +4,7 @@ import type { Session } from '@supabase/supabase-js'
 import { DEMO_PASSWORD, isRemote, supabase } from './lib/supabase'
 import { consumeSignedIn, allocateReportId, pullCampus, pushDiff, rememberUser, takePullError } from './lib/sync'
 import { allowedTransitions, assignmentBlocked, canView, isOpen, isReportOwner, nextReportId, uid } from './logic'
+import { mediaProblem, stripAudioId3, videoExtension, voiceExtension } from './lib/reportMedia'
 import { normalizePhone, sosMessage } from './lib/sos'
 import type {
   Activity,
@@ -19,6 +20,7 @@ import type {
   Photo,
   Priority,
   Report,
+  ReportMedia,
   Role,
   Status,
   RevealRequest,
@@ -157,6 +159,41 @@ function withNotes(state: AppState, users: User[], title: string, body: string, 
   return { ...state, notifications: [...notes, ...state.notifications].slice(0, 200) }
 }
 
+export type ReportClip = { file: Blob; mime: string; seconds: number; name: string }
+
+async function storeClip(reportId: string, kind: 'voice' | 'video', clip: ReportClip, remote: boolean): Promise<ReportMedia | string> {
+  const problem = mediaProblem(kind, clip.mime, clip.file.size, clip.seconds)
+  if (problem) return problem
+  const ext = kind === 'voice' ? voiceExtension(clip.mime) : videoExtension(clip.mime)
+  if (!ext) return 'Unsupported file.'
+  let body = clip.file
+  if (clip.mime === 'audio/mpeg') {
+    const stripped = stripAudioId3(new Uint8Array(await clip.file.arrayBuffer()))
+    body = new Blob([stripped.slice()], { type: clip.mime })
+  }
+  if (!remote || !supabase) {
+    return { path: '', name: clip.name, mime: clip.mime, seconds: Math.round(clip.seconds), bytes: body.size, url: URL.createObjectURL(body) }
+  }
+  const path = `${reportId}/${kind}.${ext}`
+  const uploaded = await supabase.storage.from('report-media').upload(path, body, { contentType: clip.mime, upsert: true })
+  if (uploaded.error) return uploaded.error.message
+  const media: ReportMedia = { path, name: clip.name, mime: clip.mime, seconds: Math.round(clip.seconds), bytes: body.size }
+  const column = kind === 'voice' ? 'voice_note' : 'video'
+  const saved = await supabase.from('reports').update({ [column]: media }).eq('id', reportId)
+  if (saved.error) return saved.error.message
+  return media
+}
+
+async function attachReportClips(reportId: string, clips: { voice?: ReportClip; video?: ReportClip }, remote: boolean) {
+  const voice = clips.voice ? await storeClip(reportId, 'voice', clips.voice, remote) : undefined
+  const video = clips.video ? await storeClip(reportId, 'video', clips.video, remote) : undefined
+  return {
+    voice: typeof voice === 'string' ? undefined : voice,
+    video: typeof video === 'string' ? undefined : video,
+    error: typeof voice === 'string' || typeof video === 'string',
+  }
+}
+
 function withAudit(state: AppState, actor: string, action: string, target: string): AppState {
   const entry: AuditEntry = { id: uid('au'), at: nowIso(), actor, action, target }
   return { ...state, audit: [entry, ...state.audit].slice(0, 300) }
@@ -219,7 +256,7 @@ type Api = {
   setTextSize: (size: 'default' | 'large') => void
   setContrast: (on: boolean) => void
   saveDraft: (input: ReportInput) => Promise<string | null>
-  submitReport: (input: ReportInput) => Promise<string | null>
+  submitReport: (input: ReportInput, clips?: { voice?: ReportClip; video?: ReportClip }) => Promise<string | null>
   deleteDraft: (id: string) => void
   addComment: (reportId: string, body: string, visibility: 'public' | 'internal') => void
   setStatus: (reportId: string, status: Status, note: string, resolutionPhoto?: Photo) => boolean
@@ -611,7 +648,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       say(remote ? 'Draft saved to the campus database.' : 'Draft saved in this browser.', remote ? 'খসড়া ক্যাম্পাস ডেটাবেসে সেভ হয়েছে।' : 'খসড়া এই ব্রাউজারে সেভ হয়েছে।')
       return report.id
     },
-    submitReport: async (input) => {
+    submitReport: async (input, clips) => {
       const current = stateRef.current
       const user = current.users.find((item) => item.id === current.sessionUserId)
       if (!user) return null
@@ -649,6 +686,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return next
       })
       if (error) return null
+      if (clips?.voice || clips?.video) {
+        const saved = await attachReportClips(submitted.id, clips, Boolean(remote && supabase))
+        if (saved.voice || saved.video) {
+          update((prev) => {
+            const current = prev.reports.find((item) => item.id === submitted.id) ?? submitted
+            return replaceReport(prev, { ...current, voiceNote: saved.voice ?? current.voiceNote, video: saved.video ?? current.video })
+          })
+        }
+        if (saved.error) say('The report was saved, but a recording was not stored.', 'রিপোর্ট সেভ হয়েছে, কিন্তু রেকর্ডিং সেভ হয়নি।')
+      }
       say(`Submitted ${submitted.id}.`, `${submitted.id} জমা হয়েছে।`)
       return submitted.id
     },

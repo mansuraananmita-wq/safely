@@ -24,6 +24,8 @@ const reportCapsMigration = path.resolve('supabase/migrations/20261027050000_rep
 const reportCapsSql = path.resolve('supabase/tests/report_caps.sql')
 const deviceTokenMigration = path.resolve('supabase/migrations/20261027060000_device_tokens.sql')
 const deviceTokenSql = path.resolve('supabase/tests/device_tokens_rls.sql')
+const reportMediaMigration = path.resolve('supabase/migrations/20261027070000_report_media.sql')
+const reportMediaSql = path.resolve('supabase/tests/report_media_rls.sql')
 
 function runSqlFile(file: string) {
   try {
@@ -131,5 +133,13 @@ describe('sos database guards', () => {
     expect(output).not.toMatch(/student wrote another user device token/i)
     expect(output).not.toMatch(/student could not read own device token/i)
     expect(output).not.toMatch(/student read another user device token/i)
+  }, 120_000)
+
+  it('hides a report voice file from an unrelated user', () => {
+    expect(existsSync(reportMediaMigration)).toBe(true)
+    expect(existsSync(reportMediaSql)).toBe(true)
+    const output = runSqlFile(reportMediaSql)
+    expect(output).not.toMatch(/unrelated user read report media/i)
+    expect(output).not.toMatch(/reporter could not read own report media/i)
   }, 120_000)
 })

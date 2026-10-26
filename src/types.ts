@@ -73,6 +73,16 @@ export interface Photo {
   url?: string
 }
 
+export interface ReportMedia {
+  path: string
+  name: string
+  mime: string
+  seconds: number
+  bytes: number
+  /** Session-only playback URL. Not stored in the database. */
+  url?: string
+}
+
 export interface Activity {
   id: string
   at: string
@@ -93,6 +103,8 @@ export interface Report {
   lat?: number
   lng?: number
   photos: Photo[]
+  voiceNote?: ReportMedia
+  video?: ReportMedia
   confidential: boolean
   anonymous: boolean
   status: Status

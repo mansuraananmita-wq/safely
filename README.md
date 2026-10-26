@@ -11,7 +11,7 @@ The brand mark is the shield logo in `public/safely-logo.png` (also used as the 
 Campus members can:
 
 - File a report with a category, a campus place, photos, and an optional device pin
-- Attach photos with EXIF/GPS stripped before upload (map pin stays a separate choice); Anonymous shows a warning that faces and uniforms can still identify someone
+- Attach photos with EXIF/GPS stripped before upload (map pin stays a separate choice); add a voice note up to 60 seconds or a video up to 30 seconds and 20 MB. Anonymous warns that faces and voices can still identify someone
 - Choose Confidential and/or Anonymous on the form, with clear wording about who sees what
 - Follow status from submitted through review, assignment, work, resolution, and close
 - Confirm someone else’s open report at the same place instead of filing a copy
@@ -64,7 +64,7 @@ npm run dev
 
 Open [http://localhost:5173/](http://localhost:5173/).
 
-`npm run test` checks privacy rules, SOS helpers, image EXIF strip helpers, public count labels, and linked-database guards (rate limit, SOS RLS, anonymous reporter isolation, support_contacts write lock, public status count bucketing, reveal dual-control, Safe Walk RLS and 24-hour location cleanup, app_settings RLS, daily report caps). `npm run build` typechecks and builds the site. `npm run preview` serves that build.
+`npm run test` checks privacy rules, SOS helpers, image EXIF strip helpers, public count labels, and linked-database guards (rate limit, SOS RLS, anonymous reporter isolation, support_contacts write lock, public status count bucketing, reveal dual-control, Safe Walk RLS and 24-hour location cleanup, app_settings RLS, daily report caps, report media storage RLS). `npm run build` typechecks and builds the site. `npm run preview` serves that build.
 
 To use the campus database, copy `.env.example` to `.env.local` and set:
 

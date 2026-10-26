@@ -11,6 +11,7 @@ import 'package:safely_mobile/live_map.dart';
 import 'package:safely_mobile/quick_exit_prefs.dart';
 import 'package:safely_mobile/quick_exit_settings.dart';
 import 'package:safely_mobile/remote_config.dart';
+import 'package:safely_mobile/report_clips.dart';
 import 'package:safely_mobile/safe_walk.dart';
 import 'package:safely_mobile/shake_sos.dart';
 import 'package:safely_mobile/sos_panel.dart';
@@ -358,6 +359,14 @@ class ReportDetail extends StatelessWidget {
           Text('${categoryName(report.category, store.bangla)} · ${place == null ? '' : (store.bangla ? place.bn : place.en)} · ${report.locationDetail}'),
           const SizedBox(height: 12),
           Text(report.description, style: const TextStyle(height: 1.4)),
+          if (report.voicePath != null) ...[
+            const SizedBox(height: 16),
+            ReportClipPlayer(label: store.tx('Voice note', 'ভয়েস নোট'), storagePath: report.voicePath),
+          ],
+          if (report.videoPath != null) ...[
+            const SizedBox(height: 16),
+            ReportClipPlayer(label: store.tx('Video', 'ভিডিও'), storagePath: report.videoPath),
+          ],
           const SizedBox(height: 16),
           LiveMap(bangla: store.bangla, followDevice: false, fixedLat: report.lat, fixedLng: report.lng, label: place == null ? report.id : (store.bangla ? place.bn : place.en)),
         ],
@@ -386,13 +395,54 @@ class _NewReportState extends State<NewReport> {
   bool _anonymous = false;
   bool _busy = false;
   String? _error;
+  ReportClip? _voice;
+  ReportClip? _video;
+  final VoiceRecorder _recorder = VoiceRecorder();
+  bool _recording = false;
 
   @override
   void dispose() {
+    _recorder.dispose();
     _title.dispose();
     _body.dispose();
     _detail.dispose();
     super.dispose();
+  }
+
+  Future<void> _toggleVoice() async {
+    final store = widget.store;
+    try {
+      if (_recording) {
+        final clip = await _recorder.stop();
+        setState(() {
+          _recording = false;
+          _voice = clip;
+          _error = null;
+        });
+        return;
+      }
+      final problem = await _recorder.start();
+      if (problem != null) {
+        setState(() => _error = store.tx(problem, 'মাইক্রোফোনের অনুমতি লাগবে।'));
+        return;
+      }
+      setState(() => _recording = true);
+    } catch (error) {
+      setState(() => _error = error.toString());
+    }
+  }
+
+  Future<void> _addVideo() async {
+    try {
+      final clip = await pickReportVideo();
+      if (clip == null) return;
+      setState(() {
+        _video = clip;
+        _error = null;
+      });
+    } catch (error) {
+      setState(() => _error = error.toString());
+    }
   }
 
   Future<void> _addPhoto() async {
@@ -451,6 +501,13 @@ class _NewReportState extends State<NewReport> {
     if (report == null) {
       setState(() => _error = store.error ?? store.tx('The report was not saved.', 'রিপোর্ট সেভ হয়নি।'));
       return;
+    }
+    try {
+      if (_voice != null) await uploadReportClip(store, report.id, _voice!, video: false);
+      if (_video != null) await uploadReportClip(store, report.id, _video!, video: true);
+      if (store.remote) await store.refresh();
+    } catch (error) {
+      setState(() => _error = store.tx('The report was saved, but a recording was not stored.', 'রিপোর্ট সেভ হয়েছে, কিন্তু রেকর্ডিং সেভ হয়নি।'));
     }
     widget.onDone(report.id);
   }
@@ -518,6 +575,20 @@ class _NewReportState extends State<NewReport> {
           ],
         ),
         const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: _busy ? null : _toggleVoice,
+          icon: Icon(_recording ? Icons.stop : Icons.mic_none),
+          label: Text(_recording ? tx('Stop voice note', 'ভয়েস নোট থামান') : tx('Record voice note (60s)', 'ভয়েস নোট রেকর্ড (৬০ সে.)')),
+        ),
+        if (_voice != null) Text(tx('Voice note ready · ${_voice!.seconds}s', 'ভয়েস নোট প্রস্তুত · ${_voice!.seconds} সে.')),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: _busy ? null : _addVideo,
+          icon: const Icon(Icons.videocam_outlined),
+          label: Text(tx('Add short video (30s, 20 MB)', 'ছোট ভিডিও যোগ (৩০ সে., ২০ এমবি)')),
+        ),
+        if (_video != null) Text(tx('Video ready · ${_video!.seconds}s', 'ভিডিও প্রস্তুত · ${_video!.seconds} সে.')),
+        const SizedBox(height: 12),
         CheckboxListTile(
           contentPadding: EdgeInsets.zero,
           value: _anonymous,
@@ -536,8 +607,8 @@ class _NewReportState extends State<NewReport> {
             ),
             child: Text(
               tx(
-                'Photos can still identify you. Faces, uniforms, name tags, and background details in a picture may reveal who filed the report even when your name is hidden.',
-                'ছবি থেকেও পরিচয় ফাঁস হতে পারে। মুখ, ইউনিফর্ম, নেমট্যাগ, এবং পেছনের বিবরণ নাম লুকানো থাকলেও রিপোর্টকারীকে চেনা দিতে পারে।',
+                'Photos, a voice note, or a video can still identify you. Faces, uniforms, and the sound of a voice may reveal who filed the report even when your name is hidden.',
+                'ছবি, ভয়েস নোট, বা ভিডিও থেকেও পরিচয় ফাঁস হতে পারে। মুখ, ইউনিফর্ম, এবং কণ্ঠস্বর নাম লুকানো থাকলেও রিপোর্টকারীকে চেনা দিতে পারে।',
               ),
               style: const TextStyle(height: 1.35),
             ),

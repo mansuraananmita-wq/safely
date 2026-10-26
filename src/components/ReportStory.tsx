@@ -1,9 +1,11 @@
+import { useEffect, useState } from 'react'
 import { Lock } from 'lucide-react'
+import { supabase } from '../lib/supabase'
 import { GooglePlaceMap } from './GooglePlaceMap'
 import { PLACES, reportPoint, subcategoryLabel } from '../data'
 import { dueLabel, identityMode, isOverdue, isReportOwner, priorityLabel, roleLabel, staffVisibleReporterId } from '../logic'
 import { useApp } from '../store'
-import type { Report } from '../types'
+import type { Report, ReportMedia } from '../types'
 import { StatusProgress } from './StatusProgress'
 import { Timeline } from './Timeline'
 import { StatusPill } from './ui'
@@ -112,6 +114,9 @@ export function ReportStory({ report, internal }: { report: Report; internal: bo
         </div>
       ) : null}
 
+      {report.voiceNote ? <ClipPlayer kind="voice" media={report.voiceNote} label={tx('Voice note', 'ভয়েস নোট')} /> : null}
+      {report.video ? <ClipPlayer kind="video" media={report.video} label={tx('Video', 'ভিডিও')} /> : null}
+
       {report.rejectReason ? (
         <div className="rounded-2xl bg-clay/10 p-4 text-sm">
           <p className="font-semibold text-clay">{tx('Why it was rejected', 'কেন প্রত্যাখ্যান')}</p>
@@ -141,5 +146,26 @@ export function ReportStory({ report, internal }: { report: Report; internal: bo
         <Timeline report={report} includeInternal={internal} />
       </section>
     </article>
+  )
+}
+
+function ClipPlayer({ kind, media, label }: { kind: 'voice' | 'video'; media: ReportMedia; label: string }) {
+  const [src, setSrc] = useState(media.url ?? '')
+  useEffect(() => {
+    if (media.url || !media.path || !supabase) return
+    let alive = true
+    void supabase.storage.from('report-media').createSignedUrl(media.path, 600).then(({ data }) => {
+      if (alive && data?.signedUrl) setSrc(data.signedUrl)
+    })
+    return () => {
+      alive = false
+    }
+  }, [media.path, media.url])
+  if (!src) return <p className="text-sm text-ink/60">{label}</p>
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-semibold">{label} · {media.seconds}s</p>
+      {kind === 'voice' ? <audio controls src={src} className="w-full" /> : <video controls src={src} className="max-h-80 w-full rounded-xl bg-black" />}
+    </div>
   )
 }

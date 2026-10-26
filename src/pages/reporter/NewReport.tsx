@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { categoryIcon } from '../../categoryUi'
 import { GooglePlaceMap } from '../../components/GooglePlaceMap'
 import { PinPicker } from '../../components/PinPicker'
 import { Button, Field, useTitle } from '../../components/ui'
 import { PLACES, SUBCATEGORIES, subcategoryLabel } from '../../data'
+import { mediaProblem } from '../../lib/reportMedia'
 import { stripImageMeta } from '../../lib/stripImageMeta'
 import { isMapPin, isOpen, isPublicFeed, priorityLabel } from '../../logic'
 import { useApp, type ReportInput } from '../../store'
@@ -60,6 +61,11 @@ export function NewReportPage() {
   const [step, setStep] = useState(0)
   const [sending, setSending] = useState(false)
   const [form, setForm] = useState<FormState>(empty)
+  const [voice, setVoice] = useState<{ blob: Blob; mime: string; seconds: number } | null>(null)
+  const [video, setVideo] = useState<{ file: File; mime: string; seconds: number } | null>(null)
+  const [recording, setRecording] = useState(false)
+  const [recordSeconds, setRecordSeconds] = useState(0)
+  const recorder = useRef<MediaRecorder | null>(null)
   useTitle(tx('New report', 'নতুন রিপোর্ট'))
 
   useEffect(() => {
@@ -182,6 +188,62 @@ export function NewReportPage() {
     setForm((current) => ({ ...current, photos: [...current.photos, ...next].slice(0, 3) }))
   }
 
+  const stopRecording = () => {
+    recorder.current?.stop()
+    recorder.current = null
+    setRecording(false)
+  }
+
+  const startRecording = async () => {
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      toast(tx('This browser cannot record audio.', 'এই ব্রাউজার অডিও রেকর্ড করতে পারে না।'))
+      return
+    }
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    const mime = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
+    const rec = new MediaRecorder(stream)
+    const chunks: Blob[] = []
+    const started = Date.now()
+    rec.ondataavailable = (event) => {
+      if (event.data.size > 0) chunks.push(event.data)
+    }
+    rec.onstop = () => {
+      stream.getTracks().forEach((track) => track.stop())
+      const seconds = Math.max(1, Math.min(60, Math.round((Date.now() - started) / 1000)))
+      const blob = new Blob(chunks, { type: mime })
+      const problem = mediaProblem('voice', mime, blob.size, seconds)
+      if (problem) toast(problem)
+      else setVoice({ blob, mime, seconds })
+    }
+    rec.start()
+    recorder.current = rec
+    setRecordSeconds(0)
+    setRecording(true)
+    window.setTimeout(() => {
+      if (recorder.current === rec) stopRecording()
+    }, 60_000)
+    const tick = window.setInterval(() => {
+      const seconds = Math.min(60, Math.round((Date.now() - started) / 1000))
+      setRecordSeconds(seconds)
+      if (seconds >= 60) window.clearInterval(tick)
+    }, 250)
+  }
+
+  const addVideo = async (file: File) => {
+    try {
+      const mime = file.type || 'video/mp4'
+      const seconds = await clipDuration(file)
+      const problem = mediaProblem('video', mime, file.size, seconds)
+      if (problem) {
+        toast(problem)
+        return
+      }
+      setVideo({ file, mime, seconds })
+    } catch {
+      toast(tx('That video could not be read. Try an MP4, WebM, or MOV.', 'ভিডিও পড়া যায়নি। MP4, WebM, বা MOV চেষ্টা করুন।'))
+    }
+  }
+
   const choosePlace = (id: string) => {
     const item = PLACES.find((place) => place.id === id)
     setForm((current) => ({
@@ -301,6 +363,20 @@ export function NewReportPage() {
               <input className="input" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => { const list = event.target.files; if (list) void addPhotos(Array.from(list)); event.target.value = '' }} />
             </Field>
             {form.photos.length === 0 ? <p className="text-sm text-ink/60">{tx('No photo yet. You can continue without one.', 'এখনও ছবি নেই। ছবি ছাড়াও এগোনো যায়।')}</p> : <PhotoPreviews photos={form.photos} onRemove={(index) => setForm({ ...form, photos: form.photos.filter((_, item) => item !== index) })} removeLabel={tx('Remove', 'সরান')} />}
+            <div className="space-y-2">
+              <p className="text-sm font-semibold">{tx('Voice note', 'ভয়েস নোট')}</p>
+              <p className="text-sm text-ink/60">{tx('Optional. Up to 60 seconds and 10 MB. Recorded in the browser. ID3 tags are removed from MP3 files.', 'ঐচ্ছিক। সর্বোচ্চ ৬০ সেকেন্ড ও ১০ এমবি। ব্রাউজারে রেকর্ড হয়। MP3-এর ID3 ট্যাগ সরানো হয়।')}</p>
+              {recording ? (
+                <Button type="button" variant="secondary" onClick={stopRecording}>{tx(`Stop (${recordSeconds}s)`, `থামান (${recordSeconds} সে.)`)}</Button>
+              ) : (
+                <Button type="button" variant="secondary" onClick={() => void startRecording()}>{tx('Record voice note', 'ভয়েস নোট রেকর্ড')}</Button>
+              )}
+              {voice ? <p className="text-sm">{tx(`Voice note ready · ${voice.seconds}s`, `ভয়েস নোট প্রস্তুত · ${voice.seconds} সে.`)} <button type="button" className="font-semibold text-clay" onClick={() => setVoice(null)}>{tx('Remove', 'সরান')}</button></p> : null}
+            </div>
+            <Field label={tx('Short video', 'ছোট ভিডিও')} hint={tx('Optional. Up to 30 seconds and 20 MB. MP4, WebM, or MOV.', 'ঐচ্ছিক। সর্বোচ্চ ৩০ সেকেন্ড ও ২০ এমবি। MP4, WebM, বা MOV।')}>
+              <input className="input" type="file" accept="video/mp4,video/webm,video/quicktime" onChange={(event) => { const file = event.target.files?.[0]; if (file) void addVideo(file); event.target.value = '' }} />
+            </Field>
+            {video ? <p className="text-sm">{tx(`Video ready · ${Math.round(video.seconds)}s`, `ভিডিও প্রস্তুত · ${Math.round(video.seconds)} সে.`)} <button type="button" className="font-semibold text-clay" onClick={() => setVideo(null)}>{tx('Remove', 'সরান')}</button></p> : null}
           </div>
         ) : null}
 
@@ -386,8 +462,8 @@ export function NewReportPage() {
               <div className="space-y-3">
                 <div className="rounded-2xl bg-clay/10 p-4 text-sm text-ink/80">
                   {tx(
-                    'Photos can still identify you. Faces, uniforms, name tags, and background details in a picture may reveal who filed the report even when your name is hidden.',
-                    'ছবি থেকেও পরিচয় ফাঁস হতে পারে। মুখ, ইউনিফর্ম, নেমট্যাগ, এবং পেছনের বিবরণ নাম লুকানো থাকলেও রিপোর্টকারীকে চেনা দিতে পারে।',
+                    'Photos, a voice note, or a video can still identify you. Faces, uniforms, and the sound of a voice may reveal who filed the report even when your name is hidden.',
+                    'ছবি, ভয়েস নোট, বা ভিডিও থেকেও পরিচয় ফাঁস হতে পারে। মুখ, ইউনিফর্ম, এবং কণ্ঠস্বর নাম লুকানো থাকলেও রিপোর্টকারীকে চেনা দিতে পারে।',
                   )}
                 </div>
                 <label className="flex gap-2 text-sm">
@@ -406,6 +482,7 @@ export function NewReportPage() {
             <p>{lang === 'bn' ? category?.bn : category?.en}{form.subcategory ? ` · ${subcategoryLabel(form.category, form.subcategory, lang)}` : ''} · {place ? (lang === 'bn' ? place.bn : place.en) : ''}{form.locationDetail ? ` · ${form.locationDetail}` : ''}</p>
             <p className="whitespace-pre-wrap text-ink/80">{form.description}</p>
             {form.photos.length > 0 ? <PhotoPreviews photos={form.photos} /> : <p className="text-ink/55">{tx('No photos attached.', 'কোনো ছবি যোগ হয়নি।')}</p>}
+            <p className="text-ink/70">{voice ? tx(`Voice note · ${voice.seconds}s`, `ভয়েস নোট · ${voice.seconds} সে.`) : tx('No voice note.', 'ভয়েস নোট নেই।')} · {video ? tx(`Video · ${Math.round(video.seconds)}s`, `ভিডিও · ${Math.round(video.seconds)} সে.`) : tx('No video.', 'ভিডিও নেই।')}</p>
             {place && form.lat != null && form.lng != null ? (
               <GooglePlaceMap
                 lat={form.lat}
@@ -451,7 +528,10 @@ export function NewReportPage() {
               return
             }
             setSending(true)
-            void submitReport(body).then((id) => {
+            void submitReport(body, {
+              voice: voice ? { file: voice.blob, mime: voice.mime, seconds: voice.seconds, name: 'voice' } : undefined,
+              video: video ? { file: video.file, mime: video.mime, seconds: video.seconds, name: video.file.name } : undefined,
+            }).then((id) => {
               setSending(false)
               if (id) navigate(`/app/reports/${id}`, { state: { submitted: true } })
             })
@@ -461,6 +541,24 @@ export function NewReportPage() {
       </div>
     </div>
   )
+}
+
+function clipDuration(file: File): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file)
+    const video = document.createElement('video')
+    video.preload = 'metadata'
+    video.onloadedmetadata = () => {
+      const seconds = video.duration
+      URL.revokeObjectURL(url)
+      resolve(Number.isFinite(seconds) ? seconds : 0)
+    }
+    video.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('unreadable'))
+    }
+    video.src = url
+  })
 }
 
 function PhotoPreviews({ photos, onRemove, removeLabel }: { photos: Photo[]; onRemove?: (index: number) => void; removeLabel?: string }) {

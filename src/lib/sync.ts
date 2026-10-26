@@ -1,7 +1,7 @@
 import type { Session } from '@supabase/supabase-js'
 import { buildSeed } from '../data'
 import { supabase } from './supabase'
-import type { Activity, Announcement, AppNotification, AppState, AuditEntry, Category, Department, EmergencyContact, LostItem, Photo, Report, ReportFlag, RevealRequest, SafeWalk, SosAlert, SupportContact, SupportCategory, User } from '../types'
+import type { Activity, Announcement, AppNotification, AppState, AuditEntry, Category, Department, EmergencyContact, LostItem, Photo, Report, ReportFlag, ReportMedia, RevealRequest, SafeWalk, SosAlert, SupportContact, SupportCategory, User } from '../types'
 
 let signedIn: User | null = null
 let pullError: string | null = null
@@ -105,6 +105,8 @@ function reportFrom(row: Record<string, unknown>, activities: Activity[], confir
     lat: typeof row.lat === 'number' ? row.lat : undefined,
     lng: typeof row.lng === 'number' ? row.lng : undefined,
     photos,
+    voiceNote: mediaFrom(row.voice_note),
+    video: mediaFrom(row.video),
     confidential: Boolean(row.confidential),
     anonymous: Boolean(row.anonymous),
     status: row.status as Report['status'],
@@ -130,8 +132,26 @@ function reportFrom(row: Record<string, unknown>, activities: Activity[], confir
   }
 }
 
-function reportRow(report: Report) {
+function mediaFrom(value: unknown): ReportMedia | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const row = value as Record<string, unknown>
+  if (!row.path) return undefined
   return {
+    path: String(row.path),
+    name: String(row.name ?? ''),
+    mime: String(row.mime ?? ''),
+    seconds: Number(row.seconds ?? 0),
+    bytes: Number(row.bytes ?? 0),
+  }
+}
+
+function mediaRow(media: ReportMedia | undefined) {
+  if (!media?.path) return null
+  return { path: media.path, name: media.name, mime: media.mime, seconds: media.seconds, bytes: media.bytes }
+}
+
+function reportRow(report: Report) {
+  const row: Record<string, unknown> = {
     id: report.id,
     title: report.title,
     description: report.description,
@@ -163,6 +183,9 @@ function reportRow(report: Report) {
     blocks_access: report.blocksAccess,
     contact_window: report.contactWindow,
   }
+  if (report.voiceNote?.path) row.voice_note = mediaRow(report.voiceNote)
+  if (report.video?.path) row.video = mediaRow(report.video)
+  return row
 }
 
 async function rows(table: string, query?: { column: string; value: string }) {
