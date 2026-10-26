@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { assignmentBlocked, deskReports, identityMode, inboxNotifications, isPublicFeed, isReportOwner, officeCanRead, QUEUE_OFFICES, sosDeskStatus, staffVisibleReporterId } from './logic'
-import { isPreciseFix, preferLiveFix, normalizePhone, sendDecision, sosMessage } from './lib/sos'
+import { isPreciseFix, preferLiveFix, normalizePhone, sendDecision, shouldPushLiveFix, sosLiveOpen, sosMessage } from './lib/sos'
 import type { Report, User } from './types'
 
 function user(partial: Partial<User> & Pick<User, 'id' | 'role'>): User {
@@ -145,5 +145,17 @@ describe('sos live location', () => {
     expect(preferLiveFix(city, wifi)).toEqual(wifi)
     expect(preferLiveFix(wifi, precise)).toEqual(precise)
     expect(preferLiveFix(precise, ip)).toEqual(precise)
+  })
+
+  it('pushes a walk of similar GPS accuracy and rejects a city-wide later guess', () => {
+    const sent = { lat: 23.810331, lng: 90.412521, accuracy: 12, at: 1_000 }
+    const walked = { lat: 23.810800, lng: 90.412900, accuracy: 18, at: 8_000 }
+    const jitter = { lat: 23.810332, lng: 90.412522, accuracy: 14, at: 2_000 }
+    const city = { lat: 23.7942, lng: 90.4097, accuracy: 8_000, at: 9_000 }
+    expect(shouldPushLiveFix(sent, walked)).toBe(true)
+    expect(shouldPushLiveFix(sent, jitter)).toBe(false)
+    expect(shouldPushLiveFix(sent, city)).toBe(false)
+    expect(sosLiveOpen(new Date(Date.now() - 30_000).toISOString())).toBe(true)
+    expect(sosLiveOpen(new Date(Date.now() - 4 * 60_000).toISOString())).toBe(false)
   })
 })

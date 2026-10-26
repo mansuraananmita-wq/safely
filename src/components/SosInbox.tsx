@@ -2,14 +2,17 @@ import { useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { GooglePlaceMap } from './GooglePlaceMap'
 import { formatWhen, sosDeskStatus } from '../logic'
+import { sosLiveOpen } from '../lib/sos'
 import { useApp } from '../store'
 import { Button } from './ui'
 import type { SosAlert } from '../types'
 
 export function SosInbox({ limit, linked = false }: { limit?: number; linked?: boolean }) {
-  const { currentUser, state, tx, markSosSeen } = useApp()
+  const { currentUser, state, tx, markSosSeen, refreshSosAlerts } = useApp()
   const markRef = useRef(markSosSeen)
+  const refreshRef = useRef(refreshSosAlerts)
   markRef.current = markSosSeen
+  refreshRef.current = refreshSosAlerts
   const desk = currentUser?.role === 'admin' || currentUser?.role === 'security'
   const rows = (state.sosAlerts ?? [])
     .filter((item) => (desk ? true : item.userId === currentUser?.id))
@@ -24,6 +27,14 @@ export function SosInbox({ limit, linked = false }: { limit?: number; linked?: b
     if (!desk || !unseenOpen) return
     void markRef.current()
   }, [desk, unseenOpen])
+
+  useEffect(() => {
+    if (!open.length) return
+    const tick = () => { void refreshRef.current() }
+    tick()
+    const timer = window.setInterval(tick, 4_000)
+    return () => window.clearInterval(timer)
+  }, [open.length])
 
   if (!currentUser) return null
 
@@ -88,11 +99,12 @@ function SosCard({ item, desk }: { item: SosAlert; desk: boolean }) {
           {item.lat!.toFixed(6)}, {item.lng!.toFixed(6)}
           {typeof item.accuracyM === 'number' ? ` · ${Math.round(item.accuracyM)} m` : ''}
           {rough ? ` · ${tx('approximate', 'আনুমানিক')}` : ''}
+          {!rough && sosLiveOpen(item.createdAt) && !item.resolvedAt ? ` · ${tx('live', 'লাইভ')}` : ''}
         </p>
       ) : null}
       {hasPlace ? (
         <div className="mt-3">
-          <GooglePlaceMap lat={item.lat!} lng={item.lng!} label={item.senderName} note={rough ? tx('This older pin is too wide to find someone. A new SOS only sends a close device location.', 'এই পুরোনো পিন কাউকে খুঁজে পাওয়ার মতো কাছের নয়। নতুন SOS শুধু কাছের ডিভাইস লোকেশন পাঠায়।') : tx('Location sent with the help message', 'সাহায্যের বার্তার সাথে পাঠানো লোকেশন')} eager />
+          <GooglePlaceMap lat={item.lat!} lng={item.lng!} label={item.senderName} note={rough ? tx('This older pin is too wide to find someone. A new SOS only sends a close device location.', 'এই পুরোনো পিন কাউকে খুঁজে পাওয়ার মতো কাছের নয়। নতুন SOS শুধু কাছের ডিভাইস লোকেশন পাঠায়।') : sosLiveOpen(item.createdAt) && !item.resolvedAt ? tx('Live pin — it follows them for three minutes.', 'লাইভ পিন — তিন মিনিট তাদের অনুসরণ করে।') : tx('Location sent with the help message', 'সাহায্যের বার্তার সাথে পাঠানো লোকেশন')} eager />
         </div>
       ) : (
         <p className="mt-3 text-sm text-clay">{tx('Location was not available.', 'লোকেশন পাওয়া যায়নি।')}</p>

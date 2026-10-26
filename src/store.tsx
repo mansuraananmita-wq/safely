@@ -2,10 +2,10 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import { buildSeed } from './data'
 import type { Session } from '@supabase/supabase-js'
 import { DEMO_PASSWORD, isRemote, supabase } from './lib/supabase'
-import { consumeSignedIn, allocateReportId, pullCampus, pushDiff, rememberUser, takePullError } from './lib/sync'
+import { consumeSignedIn, allocateReportId, pullCampus, pullSosAlerts, pushDiff, rememberUser, takePullError } from './lib/sync'
 import { allowedTransitions, assignmentBlocked, canView, isOpen, isReportOwner, nextReportId, uid } from './logic'
 import { mediaProblem, stripAudioId3, videoExtension, voiceExtension } from './lib/reportMedia'
-import { normalizePhone, sosMessage } from './lib/sos'
+import { isPreciseFix, LIVE_SHARE_MS, normalizePhone, shouldPushLiveFix, sosMessage, watchLiveLocation, type LiveFix } from './lib/sos'
 import type {
   Activity,
   Announcement,
@@ -303,6 +303,8 @@ type Api = {
   removeEmergencyContact: (id: string) => Promise<string | null>
   sendSos: (place: { lat: number; lng: number; accuracy: number } | null) => Promise<{ status: 'sent' | 'desk' | 'sms-failed' | 'soon' | 'empty' | 'rejected'; id: string | null; detail?: string | null }>
   refineSosLocation: (id: string, place: { lat: number; lng: number; accuracy: number }) => Promise<string | null>
+  startSosLiveShare: (id: string, place: { lat: number; lng: number; accuracy: number }) => void
+  refreshSosAlerts: () => Promise<void>
   resolveSos: (id: string) => Promise<string | null>
   markSosSeen: () => Promise<string | null>
 }
@@ -399,6 +401,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }
 
   const say = (en: string, bn: string) => toast(stateRef.current.prefs.lang === 'bn' ? bn : en)
+  const sosShare = useRef<{ stop: () => void } | null>(null)
+
+  const stopSosLiveShare = () => {
+    sosShare.current?.stop()
+    sosShare.current = null
+  }
+
+  useEffect(() => () => stopSosLiveShare(), [])
 
   const update = (fn: (current: AppState) => AppState): Promise<string | null> => {
     const prev = stateRef.current
@@ -419,6 +429,57 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const detail = error.length > 180 ? `${error.slice(0, 180)}…` : error
       toast(stateRef.current.prefs.lang === 'bn' ? `ক্যাম্পাস ডেটাবেস এই পরিবর্তন নেয়নি। ${detail}` : `The campus database rejected that change. ${detail}`)
       return error
+    })
+  }
+
+  const refineSosLocation = (id: string, place: { lat: number; lng: number; accuracy: number }) => {
+    const user = stateRef.current.users.find((item) => item.id === stateRef.current.sessionUserId)
+    if (!user) return Promise.resolve('rejected')
+    const current = (stateRef.current.sosAlerts ?? []).find((item) => item.id === id && item.userId === user.id && !item.resolvedAt)
+    if (!current) return Promise.resolve(null)
+    const next: LiveFix = { lat: place.lat, lng: place.lng, accuracy: place.accuracy, at: Date.now() }
+    if (!isPreciseFix(next)) return Promise.resolve(null)
+    const sent = typeof current.lat === 'number' && typeof current.lng === 'number'
+      ? { lat: current.lat, lng: current.lng, accuracy: current.accuracyM ?? next.accuracy, at: 0 }
+      : null
+    if (sent && !shouldPushLiveFix(sent, next)) return Promise.resolve(null)
+    return update((state) => ({
+      ...state,
+      sosAlerts: (state.sosAlerts ?? []).map((item) => (
+        item.id === id
+          ? { ...item, lat: place.lat, lng: place.lng, accuracyM: place.accuracy, message: sosMessage(item.senderName, place) }
+          : item
+      )),
+    }))
+  }
+
+  const startSosLiveShare = (id: string, place: { lat: number; lng: number; accuracy: number }) => {
+    stopSosLiveShare()
+    const initial: LiveFix = { lat: place.lat, lng: place.lng, accuracy: place.accuracy, at: Date.now() }
+    if (!isPreciseFix(initial)) return
+    let last: LiveFix = initial
+    const stopWatch = watchLiveLocation((fix) => {
+      if (!shouldPushLiveFix(last, fix)) return
+      last = fix
+      void refineSosLocation(id, { lat: fix.lat, lng: fix.lng, accuracy: fix.accuracy })
+    })
+    const timer = window.setTimeout(() => stopSosLiveShare(), LIVE_SHARE_MS)
+    sosShare.current = {
+      stop: () => {
+        stopWatch()
+        window.clearTimeout(timer)
+      },
+    }
+  }
+
+  const refreshSosAlerts = async () => {
+    if (!remote || !supabase || writing.current > 0) return
+    const rows = await pullSosAlerts()
+    if (!rows) return
+    setState((current) => {
+      const next = { ...current, sosAlerts: rows }
+      stateRef.current = next
+      return next
     })
   }
 
@@ -520,6 +581,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return startSession(email)
     },
     logout: () => {
+      stopSosLiveShare()
       if (remote && supabase) {
         void supabase.auth.signOut()
         return
@@ -1402,21 +1464,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (smsStatus === 'failed' || smsStatus === 'partial') return { status: 'sms-failed', id }
       return { status: 'desk', id }
     },
-    refineSosLocation: (id, place) => {
-      const user = stateRef.current.users.find((item) => item.id === stateRef.current.sessionUserId)
-      if (!user) return Promise.resolve('rejected')
-      const current = (stateRef.current.sosAlerts ?? []).find((item) => item.id === id && item.userId === user.id && !item.resolvedAt)
-      if (!current) return Promise.resolve(null)
-      if (typeof current.accuracyM === 'number' && place.accuracy >= current.accuracyM) return Promise.resolve(null)
-      return update((state) => ({
-        ...state,
-        sosAlerts: (state.sosAlerts ?? []).map((item) => (
-          item.id === id
-            ? { ...item, lat: place.lat, lng: place.lng, accuracyM: place.accuracy, message: sosMessage(item.senderName, place) }
-            : item
-        )),
-      }))
-    },
+    refineSosLocation,
+    startSosLiveShare,
+    refreshSosAlerts,
     resolveSos: (id) => {
       const user = stateRef.current.users.find((item) => item.id === stateRef.current.sessionUserId)
       if (!user || (user.role !== 'admin' && user.role !== 'security')) return Promise.resolve('rejected')

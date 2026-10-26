@@ -5,7 +5,7 @@ import { Button, Modal } from './ui'
 import { GooglePlaceMap } from './GooglePlaceMap'
 
 export function SosButton({ large = false }: { large?: boolean }) {
-  const { currentUser, state, tx, sendSos, refineSosLocation } = useApp()
+  const { currentUser, state, tx, sendSos, startSosLiveShare } = useApp()
   const [open, setOpen] = useState(false)
   const [left, setLeft] = useState(3)
   const [phase, setPhase] = useState<'locating' | 'count' | 'sending' | 'blocked' | 'done'>('locating')
@@ -15,14 +15,12 @@ export function SosButton({ large = false }: { large?: boolean }) {
   const startedRef = useRef(false)
   const [denied, setDenied] = useState(false)
   const fixRef = useRef<LiveFix | null>(null)
-  const sentRef = useRef<{ id: string; accuracy: number } | null>(null)
   const sendRef = useRef(sendSos)
-  const refineRef = useRef(refineSosLocation)
+  const shareRef = useRef(startSosLiveShare)
   const stopWatch = useRef<(() => void) | null>(null)
   sendRef.current = sendSos
-  refineRef.current = refineSosLocation
+  shareRef.current = startSosLiveShare
   const [fix, setFix] = useState<LiveFix | null>(null)
-  const [trackingId, setTrackingId] = useState<string | null>(null)
   const mine = (state.emergencyContacts ?? []).filter((item) => item.userId === currentUser?.id)
 
   const acceptFix = (next: LiveFix) => {
@@ -33,25 +31,6 @@ export function SosButton({ large = false }: { large?: boolean }) {
   }
 
   useEffect(() => () => stopWatch.current?.(), [])
-
-  useEffect(() => {
-    if (!trackingId || !fix) return
-    const sent = sentRef.current
-    if (!sent || sent.id !== trackingId) return
-    if (fix.accuracy + 20 >= sent.accuracy) return
-    sentRef.current = { id: sent.id, accuracy: fix.accuracy }
-    void refineRef.current(sent.id, { lat: fix.lat, lng: fix.lng, accuracy: fix.accuracy })
-  }, [trackingId, fix])
-
-  useEffect(() => {
-    if (!trackingId) return
-    const timer = window.setTimeout(() => {
-      stopWatch.current?.()
-      stopWatch.current = null
-      setTrackingId(null)
-    }, 90_000)
-    return () => window.clearTimeout(timer)
-  }, [trackingId])
 
   useEffect(() => {
     if (!open || phase !== 'locating') return
@@ -91,8 +70,9 @@ export function SosButton({ large = false }: { large?: boolean }) {
     const reading = { lat: place.lat, lng: place.lng, accuracy: place.accuracy }
     void sendRef.current(reading).then((outcome) => {
       if (cancelRef.current) return
-      sentRef.current = outcome.id ? { id: outcome.id, accuracy: place.accuracy } : null
-      if (outcome.id) setTrackingId(outcome.id)
+      stopWatch.current?.()
+      stopWatch.current = null
+      if (outcome.id) shareRef.current(outcome.id, reading)
       setResult(outcome.status)
       setResultDetail(outcome.detail ?? null)
       setPhase('done')
@@ -118,10 +98,8 @@ export function SosButton({ large = false }: { large?: boolean }) {
 
   const cancel = () => {
     cancelRef.current = true
-    if (!sentRef.current) {
-      stopWatch.current?.()
-      stopWatch.current = null
-    }
+    stopWatch.current?.()
+    stopWatch.current = null
     setOpen(false)
     setPhase('count')
   }
@@ -138,14 +116,14 @@ export function SosButton({ large = false }: { large?: boolean }) {
   const outcome = resultDetail
     ? resultDetail
     : result === 'sent'
-      ? tx('Help texts were sent with your location. The campus desk has the same alert.', 'লোকেশনসহ সাহায্যের বার্তা পাঠানো হয়েছে। ক্যাম্পাস ডেস্কও একই সতর্কতা পেয়েছে।')
+      ? tx('Help texts were sent with your location. The campus desk has the same alert. The pin follows you for three minutes.', 'লোকেশনসহ সাহায্যের বার্তা পাঠানো হয়েছে। ক্যাম্পাস ডেস্কও একই সতর্কতা পেয়েছে। পিন তিন মিনিট আপনাকে অনুসরণ করে।')
       : result === 'sms-failed'
         ? tx('The desk has the alert. One or more phone texts did not go through.', 'ডেস্ক সতর্কতা পেয়েছে। এক বা একাধিক ফোন বার্তা যায়নি।')
         : result === 'soon'
           ? tx('Wait a minute before sending another SOS.', 'আরেকটি SOS পাঠানোর আগে এক মিনিট অপেক্ষা করুন।')
           : result === 'rejected'
             ? tx('The alert was not saved. Try again in a moment.', 'সতর্কতা সেভ হয়নি। একটু পরে আবার চেষ্টা করুন।')
-            : tx('The campus desk has the alert. Phone texts start after Twilio is connected. See BACKEND.md.', 'ক্যাম্পাস ডেস্ক সতর্কতা পেয়েছে। Twilio যুক্ত হলে ফোন বার্তা যাবে। BACKEND.md দেখুন।')
+            : tx('The campus desk has the alert. The pin follows you for three minutes. Phone texts start after Twilio is connected. See BACKEND.md.', 'ক্যাম্পাস ডেস্ক সতর্কতা পেয়েছে। পিন তিন মিনিট আপনাকে অনুসরণ করে। Twilio যুক্ত হলে ফোন বার্তা যাবে। BACKEND.md দেখুন।')
 
   const pin = isPreciseFix(fix) ? (
     <GooglePlaceMap

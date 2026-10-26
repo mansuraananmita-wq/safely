@@ -686,3 +686,10 @@ export async function pushDiff(prev: AppState, next: AppState): Promise<string |
 
   return errors[0] ?? null
 }
+
+export async function pullSosAlerts(): Promise<SosAlert[] | null> {
+  if (!supabase) return null
+  const { data, error } = await supabase.from('sos_alerts').select('*')
+  if (error || !data) return null
+  return data.map((row) => sosFrom(row as Record<string, unknown>))
+}

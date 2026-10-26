@@ -105,13 +105,13 @@ The script reads `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` from the websi
 
 `flutter run` without the script keeps sample reports in memory for that session only. Those reports do not appear on the website.
 
-`flutter test` covers login smoke, SOS countdown cancel, shake-only-starts-countdown, and photo metadata strip.
+`flutter test` covers login smoke, SOS countdown cancel, live-location push rules, shake-only-starts-countdown, and photo metadata strip.
 
 Demo people in the app are Amina Rahman, Dr. Karim Hassan, and Nusrat Jahan. With the script, those buttons sign in with `padma1234`.
 
 ## SOS
 
-Press SOS on the website or on the phone home screen. The app uses the device GPS call (on a laptop, Windows location: GPS chip or Wi-Fi). When that reading is within 1 kilometre, the pin appears on a map and a 3-second countdown starts. A city or IP reading is ignored. Cancel sends nothing. If the countdown finishes, the campus desk gets that pin. If no device reading arrives, the person can still alert the desk without a map. Offline phone sends are refused plainly and offer the 999 dialer.
+Press SOS on the website or on the phone home screen. The app uses the device GPS call (on a laptop, Windows location: GPS chip or Wi-Fi). When that reading is within 1 kilometre, the pin appears on a map and a 3-second countdown starts. A city or IP reading is ignored. Cancel sends nothing. If the countdown finishes, the campus desk gets that pin and it follows the person for three minutes while GPS stays close. If no device reading arrives, the person can still alert the desk without a map. Offline phone sends are refused plainly and offer the 999 dialer.
 
 The desk sees the message on the dashboard and on `/admin/sos`. A database trigger sends the SOS bell notice to **admin** and **security** only. The sender can follow Sent → Seen by desk → Solved on their own alert. Marking an alert as solved removes it from the open count on the SOS button. Members and department accounts can only read their own SOS rows. The database also enforces one SOS per minute and at most 20 per day; rejected inserts surface the server message.
 

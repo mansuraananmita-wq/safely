@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:safely_mobile/remote_config.dart';
 import 'package:safely_mobile/safe_walk.dart';
 import 'package:safely_mobile/sos.dart';
@@ -281,6 +282,8 @@ class CampusStore extends ChangeNotifier {
   final List<EmergencyContact> _emergencyContacts = [];
   int _next = 10530;
   int _walkNext = 1;
+  StreamSubscription<Position>? _sosLive;
+  Timer? _sosLiveTimer;
   static const _securitySmsCacheKey = 'safely_security_sms_number';
 
   bool get remote => remoteReady && Supabase.instance.isInitialized;
@@ -349,6 +352,7 @@ class CampusStore extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    stopSosLiveShare();
     member = null;
     error = null;
     _sosAlerts.clear();
@@ -810,6 +814,83 @@ class CampusStore extends ChangeNotifier {
         ..addAll([for (final row in rows as List) SosAlert.fromRow(Map<String, dynamic>.from(row as Map))]);
       notifyListeners();
     } catch (_) {}
+  }
+
+  void stopSosLiveShare() {
+    _sosLive?.cancel();
+    _sosLiveTimer?.cancel();
+    _sosLive = null;
+    _sosLiveTimer = null;
+  }
+
+  Future<String?> refineSosLocation(String id, LiveFix place) async {
+    final who = member;
+    if (who == null) return 'rejected';
+    if (!isPreciseFix(place)) return null;
+    final index = _sosAlerts.indexWhere((item) => item.id == id && item.userId == who.id && item.resolvedAt == null);
+    if (index < 0) return null;
+    final current = _sosAlerts[index];
+    final sent = current.lat != null && current.lng != null
+        ? LiveFix(
+            lat: current.lat!,
+            lng: current.lng!,
+            accuracy: current.accuracyM ?? place.accuracy,
+            at: DateTime.fromMillisecondsSinceEpoch(0),
+          )
+        : null;
+    if (sent != null && !shouldPushLiveFix(sent, place)) return null;
+    final next = SosAlert(
+      id: current.id,
+      userId: current.userId,
+      senderName: current.senderName,
+      lat: place.lat,
+      lng: place.lng,
+      accuracyM: place.accuracy,
+      message: sosMessage(current.senderName, place),
+      createdAt: current.createdAt,
+      seenAt: current.seenAt,
+      resolvedAt: current.resolvedAt,
+      smsStatus: current.smsStatus,
+      smsDetail: current.smsDetail,
+    );
+    if (!remote) {
+      _sosAlerts[index] = next;
+      notifyListeners();
+      return null;
+    }
+    try {
+      await Supabase.instance.client.from('sos_alerts').update({
+        'lat': place.lat,
+        'lng': place.lng,
+        'accuracy_m': place.accuracy,
+        'message': next.message,
+      }).eq('id', id);
+      _sosAlerts[index] = next;
+      notifyListeners();
+      return null;
+    } catch (caught) {
+      return caught.toString();
+    }
+  }
+
+  void startSosLiveShare(String id, LiveFix place) {
+    stopSosLiveShare();
+    if (!isPreciseFix(place)) return;
+    var last = place;
+    _sosLive = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.best, distanceFilter: 15),
+    ).listen((position) {
+      final next = LiveFix(
+        lat: position.latitude,
+        lng: position.longitude,
+        accuracy: position.accuracy,
+        at: position.timestamp,
+      );
+      if (!shouldPushLiveFix(last, next)) return;
+      last = next;
+      unawaited(refineSosLocation(id, next));
+    });
+    _sosLiveTimer = Timer(const Duration(milliseconds: liveShareMs), stopSosLiveShare);
   }
 
   Future<SosSendResult> sendSos({LiveFix? place}) async {

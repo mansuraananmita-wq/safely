@@ -1,6 +1,11 @@
 // Shared SOS helpers matching the website (`src/lib/sos.ts` / desk status).
 
+import 'dart:math';
+
 const liveMaxM = 1000.0;
+const liveShareMs = 180000;
+const liveMoveM = 15.0;
+const liveAccuracySlackM = 80.0;
 
 class LiveFix {
   const LiveFix({required this.lat, required this.lng, required this.accuracy, required this.at});
@@ -19,6 +24,23 @@ LiveFix? preferLiveFix(LiveFix? previous, LiveFix next) {
   if (next.accuracy + 5 < previous!.accuracy) return next;
   if (!next.at.isBefore(previous.at) && next.accuracy <= previous.accuracy + 25) return next;
   return previous;
+}
+
+double metersBetween(LiveFix a, LiveFix b) {
+  const radius = 6371000.0;
+  final dLat = (b.lat - a.lat) * pi / 180;
+  final dLng = (b.lng - a.lng) * pi / 180;
+  final hav = sin(dLat / 2) * sin(dLat / 2) +
+      cos(a.lat * pi / 180) * cos(b.lat * pi / 180) * sin(dLng / 2) * sin(dLng / 2);
+  return 2 * radius * asin(sqrt(hav.clamp(0, 1)));
+}
+
+bool shouldPushLiveFix(LiveFix? sent, LiveFix next) {
+  if (!isPreciseFix(next)) return false;
+  if (!isPreciseFix(sent)) return true;
+  if (next.accuracy > sent!.accuracy + liveAccuracySlackM) return false;
+  if (next.accuracy + 5 < sent.accuracy) return true;
+  return metersBetween(sent, next) >= liveMoveM;
 }
 
 String sosMessage(String name, LiveFix? place) {

@@ -36,6 +36,37 @@ export function preferLiveFix(previous: LiveFix | null, next: LiveFix): LiveFix 
   return previous
 }
 
+/** Keep pushing after send for as long as the database allows. */
+export const LIVE_SHARE_MS = 3 * 60_000
+
+/** Ignore GPS jitter smaller than a short walk. */
+export const LIVE_MOVE_M = 15
+
+/** Allow a later GPS reading that is a bit noisier than the last shared pin. */
+export const LIVE_ACCURACY_SLACK_M = 80
+
+export function metersBetween(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const toRad = (degrees: number) => (degrees * Math.PI) / 180
+  const dLat = toRad(b.lat - a.lat)
+  const dLng = toRad(b.lng - a.lng)
+  const hav = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2
+  return 2 * 6_371_000 * Math.asin(Math.min(1, Math.sqrt(hav)))
+}
+
+export function shouldPushLiveFix(sent: LiveFix | null, next: LiveFix): boolean {
+  if (!isPreciseFix(next)) return false
+  if (!isPreciseFix(sent)) return true
+  if (next.accuracy > sent.accuracy + LIVE_ACCURACY_SLACK_M) return false
+  if (next.accuracy + 5 < sent.accuracy) return true
+  return metersBetween(sent, next) >= LIVE_MOVE_M
+}
+
+export function sosLiveOpen(createdAt: string, now = Date.now()): boolean {
+  const started = new Date(createdAt).getTime()
+  if (!Number.isFinite(started)) return false
+  return now - started < LIVE_SHARE_MS
+}
+
 export function watchLiveLocation(onFix: (fix: LiveFix) => void, onDenied?: () => void): () => void {
   if (typeof navigator === 'undefined' || !navigator.geolocation) {
     onDenied?.()

@@ -1437,6 +1437,20 @@ create trigger sos_alerts_notify_desk
   after insert on public.sos_alerts
   for each row execute function public.notify_sos_desk();
 
+create or replace function public.sos_live_accuracy_ok(old_accuracy double precision, new_accuracy double precision)
+returns boolean
+language sql
+immutable
+as $$
+  select new_accuracy is not null
+    and new_accuracy > 0
+    and new_accuracy <= 1000
+    and (
+      old_accuracy is null
+      or new_accuracy <= greatest(old_accuracy + 80, old_accuracy * 2)
+    );
+$$;
+
 create or replace function public.guard_sos_alert()
 returns trigger
 language plpgsql
@@ -1481,8 +1495,8 @@ begin
     if old.created_at < now() - interval '3 minutes' then
       raise exception 'The live location window has closed';
     end if;
-    if old.accuracy_m is not null and (new.accuracy_m is null or new.accuracy_m > old.accuracy_m) then
-      raise exception 'A later fix must be closer';
+    if new.lat is null or new.lng is null or not public.sos_live_accuracy_ok(old.accuracy_m, new.accuracy_m) then
+      raise exception 'A later fix must stay close enough to find you';
     end if;
   end if;
   return new;

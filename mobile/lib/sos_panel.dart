@@ -376,6 +376,9 @@ class _SosFlowSheetState extends State<SosFlowSheet> {
     }
     final result = await widget.store.sendSos(place: place);
     if (_cancelled || !mounted) return;
+    if (result.id != null && isPreciseFix(place)) {
+      widget.store.startSosLiveShare(result.id!, place!);
+    }
     setState(() {
       _result = result;
       _phase = _SosPhase.done;
