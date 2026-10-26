@@ -59,6 +59,7 @@ function shell(): AppState {
     sosAlerts: [],
     safeWalks: [],
     appSettings: {},
+    reportFlags: [],
     reportIdentities: {},
     identityRevealedAt: {},
     revealRequests: [],
@@ -81,6 +82,7 @@ function load(): AppState {
       sosAlerts: state.sosAlerts ?? [],
       safeWalks: state.safeWalks ?? [],
       appSettings: state.appSettings ?? {},
+      reportFlags: state.reportFlags ?? [],
       reportIdentities: state.reportIdentities ?? {},
       identityRevealedAt: state.identityRevealedAt ?? {},
       revealRequests: state.revealRequests ?? [],
@@ -249,6 +251,7 @@ type Api = {
   }) => void
   setSupportContactActive: (id: string, isActive: boolean) => void
   saveAppSetting: (key: string, value: string) => void
+  flagReport: (reportId: string, kind: 'invalid' | 'malicious', reason: string) => Promise<string | null>
   addLost: (input: { title: string; place: string; detail: string; kind: LostItem['kind']; contact: string }) => void
   setLostStatus: (id: string, status: LostItem['status']) => void
   updateUser: (id: string, patch: Partial<Pick<User, 'role' | 'suspended' | 'departmentId'>>) => void
@@ -622,8 +625,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const recent = current.reports.filter(
         (report) => isReportOwner(user, report, current.reportIdentities) && report.status !== 'draft' && new Date(report.createdAt).getTime() > dayAgo,
       )
-      if (recent.length >= 5) {
-        say('One account can file five reports a day.', 'একটি অ্যাকাউন্ট থেকে দিনে পাঁচটি রিপোর্ট যায়।')
+      if (recent.length >= 10) {
+        say('One account can file ten reports a day.', 'একটি অ্যাকাউন্ট থেকে দিনে দশটি রিপোর্ট যায়।')
         return null
       }
       const issued = input.id || !remote ? input : { ...input, id: (await allocateReportId()) ?? undefined }
@@ -1116,6 +1119,46 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         appSettings: { ...(current.appSettings ?? {}), [key]: trimmed },
       }, user.name, 'Updated app setting', key))
       say('Setting saved.', 'সেটিং সেভ হয়েছে।')
+    },
+    flagReport: async (reportId, kind, reason) => {
+      const current = stateRef.current
+      const user = current.users.find((item) => item.id === current.sessionUserId)
+      if (!user || user.role !== 'admin') return 'Only the operations desk can flag a report.'
+      const text = reason.trim()
+      if (text.length < 3) return 'Add a short reason.'
+      const report = current.reports.find((item) => item.id === reportId)
+      if (!report) return 'Report not found.'
+      if ((current.reportFlags ?? []).some((item) => item.reportId === reportId)) return 'This report is already flagged.'
+      const action = report.anonymous
+        ? `Flagged anonymous report as ${kind}: ${text}`
+        : `Flagged report as ${kind}: ${text}`
+      if (remote && supabase) {
+        const { error } = await supabase.rpc('flag_report', { p_report_id: reportId, p_kind: kind, p_reason: text })
+        if (error) return error.message
+        const { data } = await supabase.auth.getSession()
+        if (data.session) {
+          const next = await pullCampus(data.session)
+          next.prefs = stateRef.current.prefs
+          stateRef.current = next
+          setState(next)
+        }
+        say('Report flagged.', 'রিপোর্ট ফ্ল্যাগ হয়েছে।')
+        return null
+      }
+      const flag = {
+        id: uid('rf'),
+        reportId,
+        kind,
+        reason: text,
+        flaggedBy: user.id,
+        createdAt: nowIso(),
+      }
+      update((prev) => withAudit({
+        ...prev,
+        reportFlags: [flag, ...(prev.reportFlags ?? [])],
+      }, user.name, action, reportId))
+      say('Report flagged.', 'রিপোর্ট ফ্ল্যাগ হয়েছে।')
+      return null
     },
     addLost: (input) => {
       const user = stateRef.current.users.find((item) => item.id === stateRef.current.sessionUserId)

@@ -41,6 +41,8 @@ Supabase প্রজেক্ট এই রিপোজিটরি তৈর�
 - `emergency_contacts`, `sos_alerts` (`seen_at`, `resolved_at` সহ)
 - `safe_walks` — Safe Walk check-ins; optional location; `expire_due_safe_walks` / `cleanup_safe_walk_locations`; owner reads own, desk reads expired only
 - `app_settings` — key/value (যেমন `security_sms_number`); signed-in read; শুধু admin write
+- `report_flags` — অ্যাডমিন invalid/malicious ফ্ল্যাগ; বেনামি রিপোর্টে শুধু বিষয়বস্তু
+- `account_report_flags` / `account_report_caps` — অ্যাকাউন্ট ফ্ল্যাগ গণনা; ক্লায়েন্ট পড়তে পারে না; দিনে ১০টি, ৩০ দিনে ৩ ফ্ল্যাগের পর ১৪ দিন দিনে ৩টি
 - `public_reports` ভিউ। হয়রানি, গোপন, বেনামি, এবং safety রিপোর্ট এই ভিউতে নেই।
 - `public_status_by_category`, `public_status_by_office`, `public_status_summary` — `/status` এর গণনা; ৫-এর কম সংখ্যা `fewer than 5`; সংবেদনশীল রিপোর্ট বাদ।
 - Row Level Security। কে কোন রিপোর্ট/SOS দেখতে পাবে সেটা ডেটাবেসও ঠিক রাখে।
@@ -96,8 +98,9 @@ Run-এর পর নিচে **Success** দেখা উচিত। error �
 - `20261027020000_reveal_dual_control.sql` — `reveal_requests`, dual-control `reveal_reporter`, `revealed_at`
 - `20261027030000_safe_walks.sql` — Safe Walk table, expire + 24h location cleanup, RLS
 - `20261027040000_app_settings.sql` — `app_settings` + `security_sms_number`; signed-in read, admin write
+- `20261027050000_report_abuse.sql` — report flags, hidden account counts, daily caps (10, or 3 for 14 days)
 
-টেস্ট SQL: `supabase/tests/` (SOS রেট লিমিট, SOS RLS, বেনামি রিপোর্টার আইসোলেশন, support_contacts, public status counts, reveal dual-control, Safe Walk RLS/cleanup, app_settings RLS)। `npm run test` linked প্রজেক্টে এগুলো চালায়।
+টেস্ট SQL: `supabase/tests/` (SOS রেট লিমিট, SOS RLS, বেনামি রিপোর্টার আইসোলেশন, support_contacts, public status counts, reveal dual-control, Safe Walk RLS/cleanup, app_settings RLS, report caps)। `npm run test` linked প্রজেক্টে এগুলো চালায়।
 
 ### SQL যদি auth.users-এ আটকায়
 

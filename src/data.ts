@@ -818,6 +818,7 @@ export function buildSeed(): AppState {
     sosAlerts: [],
     safeWalks: [],
     appSettings: { security_sms_number: '01XXXXXXXXX' },
+    reportFlags: [],
     reportIdentities: { 'SF-10508': 'u-amina' },
     identityRevealedAt: {},
     revealRequests: [],

@@ -183,6 +183,17 @@ export interface AuditEntry {
   target: string
 }
 
+export type ReportFlagKind = 'invalid' | 'malicious'
+
+export interface ReportFlag {
+  id: string
+  reportId: string
+  kind: ReportFlagKind
+  reason: string
+  flaggedBy: string
+  createdAt: string
+}
+
 export interface EmergencyContact {
   id: string
   userId: string
@@ -269,6 +280,7 @@ export interface AppState {
   sosAlerts: SosAlert[]
   safeWalks: SafeWalk[]
   appSettings: Record<string, string>
+  reportFlags: ReportFlag[]
   categories: Category[]
   departments: Department[]
   codes: Record<string, string>

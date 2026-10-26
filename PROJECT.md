@@ -178,6 +178,7 @@ Env কী না থাকলে ওয়েবসাইট `localStorage`-এ �
 | স্ট্যাটাস বদল | under review, assigned, in progress, resolved, closed, rejected, reopened |
 | তথ্য চাওয়া | রিপোর্টারকে প্রশ্ন; তিনি উত্তর দিলে নোটিস |
 | অভ্যন্তরীণ নোট | শুধু স্টাফ দেখে |
+| অপব্যবহার ফ্ল্যাগ | invalid বা malicious, কারণসহ; বেনামি হলে শুধু বিষয়বস্তু, রিপোর্টকারী দেখায় না; অডিটে লেখা হয় |
 | অগ্রাধিকার | low / medium / high / urgent |
 | বেনামি পরিচয় রিভিল | শুধু harassment/safety জরুরি; **দুইজন** অফিসার লাগে |
 

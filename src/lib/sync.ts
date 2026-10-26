@@ -1,7 +1,7 @@
 import type { Session } from '@supabase/supabase-js'
 import { buildSeed } from '../data'
 import { supabase } from './supabase'
-import type { Activity, Announcement, AppNotification, AppState, AuditEntry, Category, Department, EmergencyContact, LostItem, Photo, Report, RevealRequest, SafeWalk, SosAlert, SupportContact, SupportCategory, User } from '../types'
+import type { Activity, Announcement, AppNotification, AppState, AuditEntry, Category, Department, EmergencyContact, LostItem, Photo, Report, ReportFlag, RevealRequest, SafeWalk, SosAlert, SupportContact, SupportCategory, User } from '../types'
 
 let signedIn: User | null = null
 let pullError: string | null = null
@@ -202,6 +202,7 @@ export async function pullCampus(session: Session | null): Promise<AppState> {
     sosAlerts: [],
     safeWalks: [],
     appSettings: {},
+    reportFlags: [],
     codes: {},
     sessionUserId: null,
   }
@@ -247,7 +248,7 @@ export async function pullCampus(session: Session | null): Promise<AppState> {
     supabase.rpc('cleanup_safe_walk_locations'),
   ])
 
-  const [profiles, reports, activities, confirmations, notifications, lost, audit, contacts, alerts, walks, identities, reveals] = await Promise.all([
+  const [profiles, reports, activities, confirmations, notifications, lost, audit, contacts, alerts, walks, identities, reveals, flags] = await Promise.all([
     rows('profiles'),
     rows('reports'),
     rows('report_activities'),
@@ -260,6 +261,7 @@ export async function pullCampus(session: Session | null): Promise<AppState> {
     rows('safe_walks'),
     rows('report_identities'),
     rows('reveal_requests'),
+    rows('report_flags'),
   ])
 
   empty.users = profiles.data.map(userFrom)
@@ -340,6 +342,14 @@ export async function pullCampus(session: Session | null): Promise<AppState> {
   empty.emergencyContacts = contacts.data.map(contactFrom)
   empty.sosAlerts = alerts.data.map(sosFrom)
   empty.safeWalks = walks.data.map(safeWalkFrom)
+  empty.reportFlags = flags.data.map((row): ReportFlag => ({
+    id: String(row.id),
+    reportId: String(row.report_id),
+    kind: row.kind as ReportFlag['kind'],
+    reason: String(row.reason ?? ''),
+    flaggedBy: String(row.flagged_by ?? ''),
+    createdAt: String(row.created_at),
+  }))
   return empty
 }
 

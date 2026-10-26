@@ -20,6 +20,8 @@ const safeWalkMigration = path.resolve('supabase/migrations/20261027030000_safe_
 const safeWalkSql = path.resolve('supabase/tests/safe_walks_rls.sql')
 const appSettingsMigration = path.resolve('supabase/migrations/20261027040000_app_settings.sql')
 const appSettingsSql = path.resolve('supabase/tests/app_settings_rls.sql')
+const reportCapsMigration = path.resolve('supabase/migrations/20261027050000_report_abuse.sql')
+const reportCapsSql = path.resolve('supabase/tests/report_caps.sql')
 
 function runSqlFile(file: string) {
   try {
@@ -106,5 +108,17 @@ describe('sos database guards', () => {
     expect(output).not.toMatch(/student inserted into app_settings/i)
     expect(output).not.toMatch(/student updated app_settings/i)
     expect(output).not.toMatch(/admin could not update security_sms_number/i)
+  }, 120_000)
+
+  it('enforces daily report caps and hides anonymous flag counts from staff', () => {
+    expect(existsSync(reportCapsMigration)).toBe(true)
+    expect(existsSync(reportCapsSql)).toBe(true)
+    const output = runSqlFile(reportCapsSql)
+    expect(output).not.toMatch(/daily cap of 10 did not block/i)
+    expect(output).not.toMatch(/tight cap of 3 did not block/i)
+    expect(output).not.toMatch(/admin read account_report_flags/i)
+    expect(output).not.toMatch(/authenticated called account_recent_flag_count/i)
+    expect(output).not.toMatch(/anonymous flag audit exposed the reporter/i)
+    expect(output).not.toMatch(/report_flags stores a reporter id/i)
   }, 120_000)
 })

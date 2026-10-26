@@ -9,7 +9,7 @@ import type { Photo, Status } from '../../types'
 
 export function ReviewPage() {
   const { id } = useParams()
-  const { currentUser, state, tx, lang, setStatus, addComment, requestInfo, extendDue, requestReveal, decideReveal, revealReporter } = useApp()
+  const { currentUser, state, tx, lang, setStatus, addComment, requestInfo, extendDue, requestReveal, decideReveal, revealReporter, flagReport } = useApp()
   const report = state.reports.find((item) => item.id === id)
   const [status, setNext] = useState<Status | ''>('')
   const [note, setNote] = useState('')
@@ -17,6 +17,9 @@ export function ReviewPage() {
   const [internal, setInternal] = useState('')
   const [photoName, setPhotoName] = useState('')
   const [revealReason, setRevealReason] = useState('')
+  const [flagKind, setFlagKind] = useState<'invalid' | 'malicious'>('invalid')
+  const [flagReason, setFlagReason] = useState('')
+  const [flagError, setFlagError] = useState<string | null>(null)
   const [revealed, setRevealed] = useState<{ name: string; email: string } | null>(null)
   const [revealError, setRevealError] = useState<string | null>(null)
   const visible = Boolean(currentUser && report && report.status !== 'draft' && canView(currentUser, report, state.reportIdentities))
@@ -28,6 +31,8 @@ export function ReviewPage() {
     setRevealed(null)
     setRevealError(null)
     setRevealReason('')
+    setFlagReason('')
+    setFlagError(null)
   }, [report])
 
   if (!currentUser || !report || report.status === 'draft' || !canView(currentUser, report, state.reportIdentities)) {
@@ -43,6 +48,7 @@ export function ReviewPage() {
   const pendingRequest = state.revealRequests.find((item) => item.reportId === report.id && item.status === 'pending')
   const approvedRequest = state.revealRequests.find((item) => item.reportId === report.id && item.status === 'approved')
   const alreadyRevealed = Boolean((approvedRequest && approvedRequest.openedAt) || state.identityRevealedAt[report.id] || revealed)
+  const flags = (state.reportFlags ?? []).filter((item) => item.reportId === report.id)
 
   return (
     <div className="grid gap-6 xl:grid-cols-[1fr_340px]">
@@ -149,6 +155,54 @@ export function ReviewPage() {
             {revealed ? <p className="text-sm font-semibold">{revealed.name} · {revealed.email}</p> : null}
             {alreadyRevealed && !revealed ? <p className="text-sm text-ink/70">{tx('Identity was revealed after dual approval. Check the audit log.', 'দ্বৈত অনুমোদনের পর পরিচয় খোলা হয়েছে। অডিট লগ দেখুন।')}</p> : null}
           </div>
+        ) : null}
+
+        {operations ? (
+          <form
+            className="panel space-y-3 p-4"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void flagReport(report.id, flagKind, flagReason).then((error) => {
+                setFlagError(error)
+                if (!error) setFlagReason('')
+              })
+            }}
+          >
+            <h2 className="font-display text-2xl">{tx('Flag report', 'রিপোর্ট ফ্ল্যাগ')}</h2>
+            <p className="text-sm text-ink/70">
+              {report.anonymous
+                ? tx(
+                    'Only the content is flagged. The reporter stays hidden from staff. Three flagged reports in 30 days limit that account to 3 reports a day for 14 days.',
+                    'শুধু বিষয়বস্তু ফ্ল্যাগ হয়। রিপোর্টকারী কর্মকর্তাদের কাছে লুকানো থাকে। ৩০ দিনে তিনটি ফ্ল্যাগ হলে ১৪ দিন সেই অ্যাকাউন্ট দিনে ৩টি রিপোর্ট দিতে পারে।',
+                  )
+                : tx(
+                    'Mark this report invalid or malicious. Three flagged reports in 30 days limit that account to 3 reports a day for 14 days. Every account is limited to 10 reports a day.',
+                    'এই রিপোর্ট অকার্যকর বা ক্ষতিকর হিসেবে চিহ্নিত করুন। ৩০ দিনে তিনটি ফ্ল্যাগ হলে ১৪ দিন সেই অ্যাকাউন্ট দিনে ৩টি রিপোর্ট দিতে পারে। প্রতিটি অ্যাকাউন্ট দিনে ১০টির মধ্যে।',
+                  )}
+            </p>
+            {flags.map((item) => (
+              <p key={item.id} className="rounded-xl bg-frost p-3 text-sm">
+                <span className="font-semibold">{item.kind === 'malicious' ? tx('Malicious', 'ক্ষতিকর') : tx('Invalid', 'অকার্যকর')}</span>
+                {' · '}
+                {item.reason}
+              </p>
+            ))}
+            {flags.length === 0 ? (
+              <>
+                <Field label={tx('Kind', 'ধরন')}>
+                  <select className="input" value={flagKind} onChange={(event) => setFlagKind(event.target.value as 'invalid' | 'malicious')}>
+                    <option value="invalid">{tx('Invalid', 'অকার্যকর')}</option>
+                    <option value="malicious">{tx('Malicious', 'ক্ষতিকর')}</option>
+                  </select>
+                </Field>
+                <Field label={tx('Reason', 'কারণ')}>
+                  <textarea className="input min-h-20" value={flagReason} onChange={(event) => setFlagReason(event.target.value)} required />
+                </Field>
+                <Button type="submit" variant="secondary" className="w-full">{tx('Flag this report', 'এই রিপোর্ট ফ্ল্যাগ')}</Button>
+              </>
+            ) : null}
+            {flagError ? <p className="text-sm text-clay">{flagError}</p> : null}
+          </form>
         ) : null}
 
         {operations ? <AssignOffice report={report} /> : null}

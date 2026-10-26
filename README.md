@@ -29,6 +29,7 @@ The operations desk can:
 - Mark SOS alerts as seen and solved; the sender sees Sent → Seen by desk → Solved
 - See Safe Walks that expired without “I arrived” on `/admin/safe-walk` (shared pins clear 24 hours after close)
 - Assign a report to an office, change status, ask for information, and leave an internal note
+- Flag a report as invalid or malicious (anonymous reports flag the content only; the reporter stays hidden). Three flags in 30 days limit that account to 3 reports a day for 14 days. Every account is limited to 10 reports a day
 - Open each office queue, including Facilities and Cleaning
 - Manage users, categories, alerts, Get help contacts, and the audit log
 - For a harassment or safety emergency only, request an anonymous reveal; a second admin or Student Affairs officer must approve before `reveal_reporter` returns the identity
@@ -63,7 +64,7 @@ npm run dev
 
 Open [http://localhost:5173/](http://localhost:5173/).
 
-`npm run test` checks privacy rules, SOS helpers, image EXIF strip helpers, public count labels, and linked-database guards (rate limit, SOS RLS, anonymous reporter isolation, support_contacts write lock, public status count bucketing, reveal dual-control, Safe Walk RLS and 24-hour location cleanup, app_settings RLS). `npm run build` typechecks and builds the site. `npm run preview` serves that build.
+`npm run test` checks privacy rules, SOS helpers, image EXIF strip helpers, public count labels, and linked-database guards (rate limit, SOS RLS, anonymous reporter isolation, support_contacts write lock, public status count bucketing, reveal dual-control, Safe Walk RLS and 24-hour location cleanup, app_settings RLS, daily report caps). `npm run build` typechecks and builds the site. `npm run preview` serves that build.
 
 To use the campus database, copy `.env.example` to `.env.local` and set:
 
