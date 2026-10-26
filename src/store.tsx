@@ -303,7 +303,7 @@ type Api = {
   removeEmergencyContact: (id: string) => Promise<string | null>
   sendSos: (place: { lat: number; lng: number; accuracy: number } | null) => Promise<{ status: 'sent' | 'desk' | 'sms-failed' | 'soon' | 'empty' | 'rejected'; id: string | null; detail?: string | null }>
   refineSosLocation: (id: string, place: { lat: number; lng: number; accuracy: number }) => Promise<string | null>
-  startSosLiveShare: (id: string, place: { lat: number; lng: number; accuracy: number }) => void
+  startSosLiveShare: (id: string, place: LiveFix) => void
   refreshSosAlerts: () => Promise<void>
   resolveSos: (id: string) => Promise<string | null>
   markSosSeen: () => Promise<string | null>
@@ -453,9 +453,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }))
   }
 
-  const startSosLiveShare = (id: string, place: { lat: number; lng: number; accuracy: number }) => {
+  const startSosLiveShare = (id: string, place: LiveFix) => {
     stopSosLiveShare()
-    const initial: LiveFix = { lat: place.lat, lng: place.lng, accuracy: place.accuracy, at: Date.now() }
+    const initial: LiveFix = { ...place, at: place.at || Date.now() }
     if (!isPreciseFix(initial)) return
     let last: LiveFix = initial
     const stopWatch = watchLiveLocation((fix) => {

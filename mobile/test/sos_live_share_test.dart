@@ -14,4 +14,26 @@ void main() {
     expect(isPreciseFix(neighbourhood), isFalse);
     expect(shouldPushLiveFix(sent, neighbourhood), isFalse);
   });
+
+  test('Wi-Fi hall pin is not GPS and does not overwrite a GPS share', () {
+    final gps = LiveFix(
+      lat: 24.0615424,
+      lng: 90.2201434,
+      accuracy: 8,
+      at: DateTime(2026, 1, 1),
+      altitudeAccuracy: 4,
+    );
+    final hallWifi = LiveFix(
+      lat: 24.071387,
+      lng: 90.216199,
+      accuracy: 62,
+      at: DateTime(2026, 1, 1, 0, 0, 8),
+    );
+    expect(locationSource(hallWifi), LocationSource.wifi);
+    expect(isGpsFix(gps), isTrue);
+    expect(sendDecision(hallWifi, 0, false), SosSendDecision.confirm);
+    expect(sendDecision(gps, 0, false), SosSendDecision.send);
+    expect(shouldPushLiveFix(gps, hallWifi), isFalse);
+    expect(preferLiveFix(hallWifi, gps), gps);
+  });
 }

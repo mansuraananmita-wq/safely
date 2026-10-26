@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { assignmentBlocked, deskReports, identityMode, inboxNotifications, isPublicFeed, isReportOwner, officeCanRead, QUEUE_OFFICES, sosDeskStatus, staffVisibleReporterId } from './logic'
-import { isPreciseFix, mapsPinHref, preferLiveFix, normalizePhone, readCloseLocation, sendDecision, shouldPushLiveFix, sosLiveOpen, sosMessage } from './lib/sos'
+import { isGpsFix, isPreciseFix, locationSource, mapsPinHref, preferLiveFix, normalizePhone, readCloseLocation, sendDecision, shouldPushLiveFix, sosLiveOpen, sosMessage } from './lib/sos'
 import type { Report, User } from './types'
 
 function user(partial: Partial<User> & Pick<User, 'id' | 'role'>): User {
@@ -124,7 +124,7 @@ describe('sos live location', () => {
     expect(sosMessage('Amina Rahman', null)).toContain('Location was not available.')
   })
 
-  it('sends a GPS or Wi-Fi fix and never a city or IP pin', () => {
+  it('sends a GPS fix, asks to confirm Wi-Fi, and never sends a city or IP pin', () => {
     const precise = { lat: 23.8103, lng: 90.4125, accuracy: 18, at: 2_000 }
     const wifi = { lat: 24.724182, lng: 89.315582, accuracy: 90, at: 2_000 }
     const neighbourhood = { lat: 24.071, lng: 90.219, accuracy: 500, at: 2_000 }
@@ -134,8 +134,12 @@ describe('sos live location', () => {
     expect(isPreciseFix(wifi)).toBe(true)
     expect(isPreciseFix(neighbourhood)).toBe(false)
     expect(isPreciseFix(city)).toBe(false)
-    expect(sendDecision(precise, 0, false)).toBe('send')
-    expect(sendDecision(wifi, 0, false)).toBe('send')
+    expect(sendDecision({ ...precise, altitudeAccuracy: 4 }, 0, false)).toBe('send')
+    expect(sendDecision({ ...precise, altitude: 12 }, 0, false)).toBe('confirm')
+    expect(sendDecision(precise, 0, false)).toBe('confirm')
+    expect(sendDecision(wifi, 0, false)).toBe('confirm')
+    expect(locationSource({ lat: 24.071387, lng: 90.216199, accuracy: 62, at: 1, altitude: 8 })).toBe('wifi')
+    expect(isGpsFix({ lat: 24.0615424, lng: 90.2201434, accuracy: 8, at: 1, altitudeAccuracy: 4 })).toBe(true)
     expect(sendDecision(neighbourhood, 0, false)).toBe('wait')
     expect(sendDecision(neighbourhood, 25_000, false)).toBe('blocked')
     expect(sendDecision(city, 4_000, false)).toBe('wait')
@@ -154,7 +158,7 @@ describe('sos live location', () => {
     const geo = {
       getCurrentPosition(ok: (position: GeolocationPosition) => void) {
         ok({
-          coords: { latitude: 24.071391, longitude: 90.21624, accuracy: 12, altitude: null, altitudeAccuracy: null, heading: null, speed: null },
+          coords: { latitude: 24.0615424, longitude: 90.2201434, accuracy: 8, altitude: 14, altitudeAccuracy: 4, heading: null, speed: 0 },
           timestamp: 1,
         } as GeolocationPosition)
       },
@@ -167,7 +171,7 @@ describe('sos live location', () => {
       readCloseLocation((fix) => resolve({ lat: fix.lat, accuracy: fix.accuracy }), (reason) => resolve(reason), 1_000)
     })
     Object.defineProperty(globalThis, 'navigator', { configurable: true, value: previous })
-    expect(got).toEqual({ lat: 24.071391, accuracy: 12 })
+    expect(got).toEqual({ lat: 24.0615424, accuracy: 8 })
   })
 
   it('pushes a walk of similar GPS accuracy and rejects a city-wide later guess', () => {
@@ -178,6 +182,9 @@ describe('sos live location', () => {
     expect(shouldPushLiveFix(sent, walked)).toBe(true)
     expect(shouldPushLiveFix(sent, jitter)).toBe(false)
     expect(shouldPushLiveFix(sent, city)).toBe(false)
+    const gps = { lat: 24.0615424, lng: 90.2201434, accuracy: 8, at: 1_000, altitudeAccuracy: 4 }
+    const hallWifi = { lat: 24.071387, lng: 90.216199, accuracy: 62, at: 8_000 }
+    expect(shouldPushLiveFix(gps, hallWifi)).toBe(false)
     expect(sosLiveOpen(new Date(Date.now() - 30_000).toISOString())).toBe(true)
     expect(sosLiveOpen(new Date(Date.now() - 4 * 60_000).toISOString())).toBe(false)
   })

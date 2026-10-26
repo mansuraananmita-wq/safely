@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { isPreciseFix, preferLiveFix, watchLiveLocation, type LiveFix } from '../lib/sos'
+import { isGpsFix, isPreciseFix, nearbyPlaceName, preferLiveFix, watchLiveLocation, type LiveFix } from '../lib/sos'
 import { useApp } from '../store'
 import { Button, Modal } from './ui'
 import { GooglePlaceMap } from './GooglePlaceMap'
@@ -8,7 +8,8 @@ export function SosButton({ large = false }: { large?: boolean }) {
   const { currentUser, state, tx, sendSos, startSosLiveShare } = useApp()
   const [open, setOpen] = useState(false)
   const [left, setLeft] = useState(3)
-  const [phase, setPhase] = useState<'locating' | 'count' | 'sending' | 'blocked' | 'done'>('locating')
+  const [phase, setPhase] = useState<'locating' | 'confirm' | 'count' | 'sending' | 'blocked' | 'done'>('locating')
+  const [placeName, setPlaceName] = useState<string | null>(null)
   const [result, setResult] = useState<'sent' | 'desk' | 'sms-failed' | 'soon' | 'empty' | 'rejected' | null>(null)
   const [resultDetail, setResultDetail] = useState<string | null>(null)
   const cancelRef = useRef(false)
@@ -42,10 +43,27 @@ export function SosButton({ large = false }: { large?: boolean }) {
   }, [open, phase, denied])
 
   useEffect(() => {
-    if (!open || phase !== 'locating' || !isPreciseFix(fix)) return
-    setLeft(3)
-    setPhase('count')
+    if (!open || !isPreciseFix(fix)) return
+    if (phase !== 'locating' && phase !== 'confirm') return
+    if (isGpsFix(fix)) {
+      setLeft(3)
+      setPhase('count')
+      return
+    }
+    if (phase === 'locating') setPhase('confirm')
   }, [open, phase, fix])
+
+  useEffect(() => {
+    if (!open || !isPreciseFix(fix)) {
+      setPlaceName(null)
+      return
+    }
+    let alive = true
+    void nearbyPlaceName(fix.lat, fix.lng).then((name) => {
+      if (alive) setPlaceName(name)
+    })
+    return () => { alive = false }
+  }, [open, fix])
 
   useEffect(() => {
     if (!open || phase !== 'count' || left <= 0) return
@@ -72,7 +90,7 @@ export function SosButton({ large = false }: { large?: boolean }) {
       if (cancelRef.current) return
       stopWatch.current?.()
       stopWatch.current = null
-      if (outcome.id) shareRef.current(outcome.id, reading)
+      if (outcome.id) shareRef.current(outcome.id, place)
       setResult(outcome.status)
       setResultDetail(outcome.detail ?? null)
       setPhase('done')
@@ -90,6 +108,7 @@ export function SosButton({ large = false }: { large?: boolean }) {
     setResult(null)
     setResultDetail(null)
     setLeft(3)
+    setPlaceName(null)
     setPhase('locating')
     stopWatch.current?.()
     stopWatch.current = watchLiveLocation(acceptFix, () => setDenied(true))
@@ -105,6 +124,8 @@ export function SosButton({ large = false }: { large?: boolean }) {
   }
 
   const sendWithoutLocation = () => {
+    stopWatch.current?.()
+    stopWatch.current = null
     void sendRef.current(null).then((outcome) => {
       if (cancelRef.current) return
       setResult(outcome.status)
@@ -133,7 +154,9 @@ export function SosButton({ large = false }: { large?: boolean }) {
       compact
       eager
       label={tx('This pin will be sent', 'এই পিন যাবে')}
-      note={tx(`Within ${Math.round(fix.accuracy)} m of you`, `আপনার ${Math.round(fix.accuracy)} মিটারের মধ্যে`)}
+      note={placeName
+        ? tx(`${placeName} · ${Math.round(fix.accuracy)} m (${isGpsFix(fix) ? 'GPS' : 'Wi-Fi'})`, `${placeName} · ${Math.round(fix.accuracy)} মি (${isGpsFix(fix) ? 'GPS' : 'Wi-Fi'})`)
+        : tx(`${Math.round(fix.accuracy)} m · ${isGpsFix(fix) ? 'GPS' : 'Wi-Fi — check the map'}`, `${Math.round(fix.accuracy)} মি · ${isGpsFix(fix) ? 'GPS' : 'Wi-Fi — ম্যাপ দেখুন'}`)}
     />
   ) : null
 
@@ -154,11 +177,25 @@ export function SosButton({ large = false }: { large?: boolean }) {
             <p className="text-sm font-semibold">{tx('Reading your live location…', 'আপনার লাইভ লোকেশন পড়া হচ্ছে…')}</p>
             <p className="text-sm text-ink/75">
               {tx(
-                'The desk receives the pin only when it is close enough to find you. Allow location if Chrome asks. A city or IP location is not sent.',
-                'পিনটা আপনাকে খুঁজে পাওয়ার মতো কাছে এলেই ডেস্ক পায়। Chrome চাইলে লোকেশন অনুমতি দিন। শহর বা আইপি লোকেশন পাঠানো হয় না।',
+                'Waiting for GPS. Laptop Wi-Fi often pins a nearby campus hall, not you — that pin will not send until you check the map. Allow location if Chrome asks.',
+                'GPS-এর জন্য অপেক্ষা। ল্যাপটপের Wi-Fi কাছের ক্যাম্পাস হলে বসে, আপনাতে নয় — ম্যাপ না দেখে সেই পিন যাবে না। Chrome চাইলে লোকেশন অনুমতি দিন।',
               )}
             </p>
             <Button variant="secondary" className="w-full" onClick={cancel} autoFocus>{tx('Cancel', 'বাতিল')}</Button>
+          </div>
+        ) : null}
+        {phase === 'confirm' ? (
+          <div className="space-y-4">
+            {pin}
+            <p className="text-sm font-semibold text-clay">
+              {tx('This pin is from Wi-Fi, not GPS. On a laptop it often sits on a nearby campus hall — not where you are standing.', 'এই পিন Wi-Fi থেকে, GPS থেকে নয়। ল্যাপটপে এটা কাছের ক্যাম্পাস হলে বসে, আপনি যেখানে দাঁড়িয়ে আছেন সেখানে নয়।')}
+            </p>
+            <p className="text-sm text-ink/75">
+              {tx('Look at the map. If it is wrong, wait or send without a map. Only send this pin if it really is you.', 'ম্যাপ দেখুন। ভুল হলে অপেক্ষা করুন, অথবা ম্যাপ ছাড়া পাঠান। পিনটা সত্যি আপনি হলেই পাঠান।')}
+            </p>
+            <Button className="w-full" onClick={() => { startedRef.current = true; setPhase('sending') }}>{tx('Send this pin anyway', 'তবু এই পিন পাঠান')}</Button>
+            <Button variant="secondary" className="w-full" onClick={sendWithoutLocation}>{tx('Alert the desk without a map', 'ম্যাপ ছাড়া ডেস্ককে জানান')}</Button>
+            <Button variant="secondary" className="w-full" onClick={cancel}>{tx('Cancel', 'বাতিল')}</Button>
           </div>
         ) : null}
         {phase === 'count' ? (

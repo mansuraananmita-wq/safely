@@ -12,7 +12,30 @@ export function normalizePhone(raw: string): string | null {
   return null
 }
 
-export type LiveFix = { lat: number; lng: number; accuracy: number; at: number }
+export type LiveFix = {
+  lat: number
+  lng: number
+  accuracy: number
+  at: number
+  altitude?: number | null
+  altitudeAccuracy?: number | null
+  speed?: number | null
+}
+
+export type LocationSource = 'gps' | 'wifi' | 'coarse'
+
+/** Wi-Fi/OS location often reports 20–80 m accuracy while sitting on a campus hall kilometres away. */
+export function locationSource(fix: LiveFix | null): LocationSource {
+  if (!isPreciseFix(fix)) return 'coarse'
+  const measuredHeight = typeof fix.altitudeAccuracy === 'number' && Number.isFinite(fix.altitudeAccuracy) && fix.altitudeAccuracy > 0
+  const moving = typeof fix.speed === 'number' && Number.isFinite(fix.speed) && fix.speed > 0.4
+  if (measuredHeight || moving) return 'gps'
+  return 'wifi'
+}
+
+export function isGpsFix(fix: LiveFix | null): boolean {
+  return locationSource(fix) === 'gps'
+}
 
 /** Wider than this is a neighbourhood, city, or IP guess — not close enough to find someone. */
 export const LIVE_MAX_M = 150
@@ -29,6 +52,8 @@ export function sosMessage(name: string, place: { lat: number; lng: number } | n
 export function preferLiveFix(previous: LiveFix | null, next: LiveFix): LiveFix | null {
   if (!isPreciseFix(next)) return isPreciseFix(previous) ? previous : null
   if (!isPreciseFix(previous)) return next
+  if (locationSource(next) === 'gps' && locationSource(previous) !== 'gps') return next
+  if (locationSource(previous) === 'gps' && locationSource(next) !== 'gps') return previous
   if (next.accuracy + 5 < previous.accuracy) return next
   if (next.at >= previous.at && next.accuracy <= previous.accuracy + 25) return next
   return previous
@@ -54,6 +79,7 @@ export function metersBetween(a: { lat: number; lng: number }, b: { lat: number;
 export function shouldPushLiveFix(sent: LiveFix | null, next: LiveFix): boolean {
   if (!isPreciseFix(next)) return false
   if (!isPreciseFix(sent)) return true
+  if (locationSource(sent) === 'gps' && locationSource(next) !== 'gps') return false
   if (next.accuracy > sent.accuracy + LIVE_ACCURACY_SLACK_M) return false
   if (next.accuracy + 5 < sent.accuracy) return true
   return metersBetween(sent, next) >= LIVE_MOVE_M
@@ -73,11 +99,14 @@ export function watchLiveLocation(onFix: (fix: LiveFix) => void, onDenied?: () =
     return () => {}
   }
   const take = (position: GeolocationPosition) => {
-    const next = {
+    const next: LiveFix = {
       lat: position.coords.latitude,
       lng: position.coords.longitude,
       accuracy: position.coords.accuracy,
       at: position.timestamp || Date.now(),
+      altitude: Number.isFinite(position.coords.altitude ?? NaN) ? position.coords.altitude : null,
+      altitudeAccuracy: Number.isFinite(position.coords.altitudeAccuracy ?? NaN) ? position.coords.altitudeAccuracy : null,
+      speed: Number.isFinite(position.coords.speed ?? NaN) ? position.coords.speed : null,
     }
     if (!isPreciseFix(next)) return
     queueMicrotask(() => onFix(next))
@@ -110,7 +139,10 @@ export function readCloseLocation(
     next()
   }
   stopWatch = watchLiveLocation(
-    (fix) => finish(() => onFix(fix)),
+    (fix) => {
+      if (!isGpsFix(fix)) return
+      finish(() => onFix(fix))
+    },
     () => finish(() => onFail('denied')),
   )
   timer = setTimeout(() => finish(() => onFail('weak')), waitMs) as unknown as number
@@ -126,9 +158,24 @@ export function mapsDirectionsHref(lat: number, lng: number): string {
   return `https://www.google.com/maps/dir/?api=1&destination=${lat.toFixed(6)},${lng.toFixed(6)}`
 }
 
-export function sendDecision(fix: LiveFix | null, waitedMs: number, denied: boolean): 'wait' | 'send' | 'blocked' {
-  if (isPreciseFix(fix)) return 'send'
+export function sendDecision(fix: LiveFix | null, waitedMs: number, denied: boolean): 'wait' | 'send' | 'confirm' | 'blocked' {
+  if (isGpsFix(fix)) return 'send'
+  if (isPreciseFix(fix)) return 'confirm'
   if (denied && waitedMs >= 8_000) return 'blocked'
   if (waitedMs >= 25_000) return 'blocked'
   return 'wait'
+}
+
+export async function nearbyPlaceName(lat: number, lng: number): Promise<string | null> {
+  try {
+    const response = await fetch(`https://photon.komoot.io/reverse?lon=${encodeURIComponent(String(lng))}&lat=${encodeURIComponent(String(lat))}`)
+    if (!response.ok) return null
+    const data = await response.json() as { features?: { properties?: Record<string, string | undefined> }[] }
+    const props = data.features?.[0]?.properties
+    if (!props) return null
+    const parts = [props.name, props.street, props.city || props.district || props.county].filter(Boolean)
+    return parts.length ? parts.join(', ') : null
+  } catch {
+    return null
+  }
 }

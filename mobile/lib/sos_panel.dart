@@ -1,12 +1,41 @@
 import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:safely_mobile/campus.dart';
 import 'package:safely_mobile/live_map.dart';
 import 'package:safely_mobile/sos.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+LocationSettings sosLocationSettings({Duration? timeLimit, int distanceFilter = 0}) {
+  if (defaultTargetPlatform == TargetPlatform.android) {
+    return AndroidSettings(
+      accuracy: LocationAccuracy.best,
+      distanceFilter: distanceFilter,
+      forceLocationManager: true,
+      timeLimit: timeLimit,
+    );
+  }
+  return LocationSettings(
+    accuracy: LocationAccuracy.best,
+    distanceFilter: distanceFilter,
+    timeLimit: timeLimit,
+  );
+}
+
+LiveFix liveFixFrom(Position position) {
+  return LiveFix(
+    lat: position.latitude,
+    lng: position.longitude,
+    accuracy: position.accuracy,
+    at: position.timestamp,
+    altitude: position.altitude.isFinite ? position.altitude : null,
+    altitudeAccuracy: position.altitudeAccuracy.isFinite && position.altitudeAccuracy > 0 ? position.altitudeAccuracy : null,
+    speed: position.speed.isFinite ? position.speed : null,
+  );
+}
 
 Future<void> dialEmergency999() async {
   final uri = Uri(scheme: 'tel', path: '999');
@@ -130,8 +159,8 @@ class _SosHomeSectionState extends State<SosHomeSection> {
         title: Text(tx('Location for SOS', 'SOS-এর লোকেশন')),
         content: Text(
           tx(
-            'Safely needs your live GPS so the campus desk can find you. Readings worse than 1 kilometre are ignored. SOS does not call 999.',
-            'ডেস্ক আপনাকে খুঁজে পেতে Safely-এর লাইভ GPS লাগে। ১ কিলোমিটারের চেয়ে খারাপ রিডিং বাদ। SOS ৯৯৯-এ কল করে না।',
+            'Safely needs GPS so the campus desk can find you. Laptop Wi-Fi often pins a nearby hall, not you. SOS does not call 999.',
+            'ডেস্ক আপনাকে খুঁজে পেতে Safely-এর GPS লাগে। ল্যাপটপের Wi-Fi কাছের হলে বসে, আপনাতে নয়। SOS ৯৯৯-এ কল করে না।',
           ),
         ),
         actions: [
@@ -193,8 +222,8 @@ class _SosHomeSectionState extends State<SosHomeSection> {
         const SizedBox(height: 8),
         Text(
           tx(
-            'Press SOS for a 3-second countdown. Cancel anytime. A close pin goes to the campus desk.',
-            'SOS চাপলে ৩ সেকেন্ড গুনতি। যেকোনো সময় বাতিল। কাছের পিন ক্যাম্পাস ডেস্কে যায়।',
+            'Press SOS. GPS starts a 3-second countdown. Wi-Fi pins a nearby hall until you check the map. Cancel anytime.',
+            'SOS চাপুন। GPS-এ ৩ সেকেন্ড গুনতি। Wi-Fi কাছের হলে বসে যতক্ষণ ম্যাপ না দেখেন। যেকোনো সময় বাতিল।',
           ),
           style: TextStyle(color: Colors.blueGrey.shade700, fontSize: 13, height: 1.35),
         ),
@@ -277,7 +306,7 @@ class SosFlowSheet extends StatefulWidget {
   State<SosFlowSheet> createState() => _SosFlowSheetState();
 }
 
-enum _SosPhase { locating, count, sending, blocked, done }
+enum _SosPhase { locating, confirm, count, sending, blocked, done }
 
 class _SosFlowSheetState extends State<SosFlowSheet> {
   late _SosPhase _phase;
@@ -324,12 +353,12 @@ class _SosFlowSheetState extends State<SosFlowSheet> {
     });
     try {
       final current = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 10)),
+        locationSettings: sosLocationSettings(timeLimit: const Duration(seconds: 10)),
       );
       _accept(current);
     } catch (_) {}
     _watch = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(accuracy: LocationAccuracy.best, distanceFilter: 0),
+      locationSettings: sosLocationSettings(),
     ).listen(_accept, onError: (_) {
       if (!mounted) return;
       setState(() => _denied = true);
@@ -338,18 +367,17 @@ class _SosFlowSheetState extends State<SosFlowSheet> {
 
   void _accept(Position position) {
     if (_cancelled || !mounted) return;
-    final next = LiveFix(
-      lat: position.latitude,
-      lng: position.longitude,
-      accuracy: position.accuracy,
-      at: position.timestamp,
-    );
-    final chosen = preferLiveFix(_fix, next);
+    final chosen = preferLiveFix(_fix, liveFixFrom(position));
     if (chosen == null) return;
     setState(() {
       _fix = chosen;
-      if (_phase == _SosPhase.locating && isPreciseFix(chosen)) {
+      if (_phase == _SosPhase.locating && isGpsFix(chosen)) {
         _locateTimer?.cancel();
+        _phase = _SosPhase.count;
+      } else if (_phase == _SosPhase.locating && isPreciseFix(chosen)) {
+        _locateTimer?.cancel();
+        _phase = _SosPhase.confirm;
+      } else if (_phase == _SosPhase.confirm && isGpsFix(chosen)) {
         _phase = _SosPhase.count;
       }
     });
@@ -433,8 +461,8 @@ class _SosFlowSheetState extends State<SosFlowSheet> {
       label: widget.store.tx('This pin will be sent', 'এই পিন যাবে'),
       height: 160,
       noteOverride: widget.store.tx(
-        'Within ${fix.accuracy.round()} m of you',
-        'আপনার ${fix.accuracy.round()} মিটারের মধ্যে',
+        '${fix.accuracy.round()} m · ${isGpsFix(fix) ? 'GPS' : 'Wi-Fi — check the map'}',
+        '${fix.accuracy.round()} মি · ${isGpsFix(fix) ? 'GPS' : 'Wi-Fi — ম্যাপ দেখুন'}',
       ),
     );
   }
@@ -457,12 +485,50 @@ class _SosFlowSheetState extends State<SosFlowSheet> {
                 const SizedBox(height: 8),
                 Text(
                   tx(
-                    'The desk receives the pin only when it is close enough to find you. Allow location when the phone asks. A city-wide guess is not sent.',
-                    'পিনটা আপনাকে খুঁজে পাওয়ার মতো কাছে এলেই ডেস্ক পায়। ফোন চাইলে লোকেশন অনুমতি দিন। শহরজুড়ে অনুমান পাঠানো হয় না।',
+                    'Waiting for GPS. Wi-Fi often pins a nearby campus hall, not you. Allow location when the phone asks.',
+                    'GPS-এর জন্য অপেক্ষা। Wi-Fi কাছের ক্যাম্পাস হলে বসে, আপনাতে নয়। ফোন চাইলে লোকেশন অনুমতি দিন।',
                   ),
                   style: TextStyle(color: Colors.blueGrey.shade700, height: 1.35),
                 ),
                 const SizedBox(height: 16),
+                OutlinedButton(onPressed: _cancel, child: Text(tx('Cancel', 'বাতিল'))),
+              ],
+              if (_phase == _SosPhase.confirm) ...[
+                ?pin,
+                const SizedBox(height: 12),
+                Text(
+                  tx(
+                    'This pin is from Wi-Fi, not GPS. On a laptop it often sits on a nearby campus hall — not where you are standing.',
+                    'এই পিন Wi-Fi থেকে, GPS থেকে নয়। ল্যাপটপে এটা কাছের ক্যাম্পাস হলে বসে, আপনি যেখানে দাঁড়িয়ে আছেন সেখানে নয়।',
+                  ),
+                  style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFFB42318), height: 1.35),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  tx(
+                    'Look at the map. If it is wrong, wait or send without a map. Only send this pin if it really is you.',
+                    'ম্যাপ দেখুন। ভুল হলে অপেক্ষা করুন, অথবা ম্যাপ ছাড়া পাঠান। পিনটা সত্যি আপনি হলেই পাঠান।',
+                  ),
+                  style: TextStyle(color: Colors.blueGrey.shade700, height: 1.35),
+                ),
+                const SizedBox(height: 12),
+                FilledButton(
+                  onPressed: () {
+                    final place = _fix;
+                    if (!isPreciseFix(place)) {
+                      setState(() => _phase = _SosPhase.blocked);
+                      return;
+                    }
+                    _send(place);
+                  },
+                  child: Text(tx('Send this pin anyway', 'তবু এই পিন পাঠান')),
+                ),
+                const SizedBox(height: 8),
+                FilledButton(
+                  onPressed: () => _send(null),
+                  child: Text(tx('Alert the desk without a map', 'ম্যাপ ছাড়া ডেস্ককে জানান')),
+                ),
+                const SizedBox(height: 8),
                 OutlinedButton(onPressed: _cancel, child: Text(tx('Cancel', 'বাতিল'))),
               ],
               if (_phase == _SosPhase.count)
@@ -473,11 +539,15 @@ class _SosFlowSheetState extends State<SosFlowSheet> {
                   onComplete: () {
                     if (_cancelled) return;
                     final place = _fix;
-                    if (!isPreciseFix(place)) {
-                      setState(() => _phase = _SosPhase.blocked);
+                    if (isGpsFix(place)) {
+                      _send(place);
                       return;
                     }
-                    _send(place);
+                    if (isPreciseFix(place)) {
+                      setState(() => _phase = _SosPhase.confirm);
+                      return;
+                    }
+                    setState(() => _phase = _SosPhase.blocked);
                   },
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,

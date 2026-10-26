@@ -878,13 +878,22 @@ class CampusStore extends ChangeNotifier {
     if (!isPreciseFix(place)) return;
     var last = place;
     _sosLive = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(accuracy: LocationAccuracy.best, distanceFilter: 15),
+      locationSettings: defaultTargetPlatform == TargetPlatform.android
+          ? AndroidSettings(
+              accuracy: LocationAccuracy.best,
+              distanceFilter: 15,
+              forceLocationManager: true,
+            )
+          : const LocationSettings(accuracy: LocationAccuracy.best, distanceFilter: 15),
     ).listen((position) {
       final next = LiveFix(
         lat: position.latitude,
         lng: position.longitude,
         accuracy: position.accuracy,
         at: position.timestamp,
+        altitude: position.altitude.isFinite ? position.altitude : null,
+        altitudeAccuracy: position.altitudeAccuracy.isFinite && position.altitudeAccuracy > 0 ? position.altitudeAccuracy : null,
+        speed: position.speed.isFinite ? position.speed : null,
       );
       if (!shouldPushLiveFix(last, next)) return;
       last = next;

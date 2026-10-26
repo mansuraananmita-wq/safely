@@ -8,19 +8,44 @@ const liveMoveM = 15.0;
 const liveAccuracySlackM = 80.0;
 
 class LiveFix {
-  const LiveFix({required this.lat, required this.lng, required this.accuracy, required this.at});
+  const LiveFix({
+    required this.lat,
+    required this.lng,
+    required this.accuracy,
+    required this.at,
+    this.altitude,
+    this.altitudeAccuracy,
+    this.speed,
+  });
 
   final double lat;
   final double lng;
   final double accuracy;
   final DateTime at;
+  final double? altitude;
+  final double? altitudeAccuracy;
+  final double? speed;
 }
+
+enum LocationSource { gps, wifi, coarse }
+
+LocationSource locationSource(LiveFix? fix) {
+  if (!isPreciseFix(fix)) return LocationSource.coarse;
+  final measuredHeight = fix!.altitudeAccuracy != null && fix.altitudeAccuracy!.isFinite && fix.altitudeAccuracy! > 0;
+  final moving = fix.speed != null && fix.speed!.isFinite && fix.speed! > 0.4;
+  if (measuredHeight || moving) return LocationSource.gps;
+  return LocationSource.wifi;
+}
+
+bool isGpsFix(LiveFix? fix) => locationSource(fix) == LocationSource.gps;
 
 bool isPreciseFix(LiveFix? fix) => fix != null && fix.accuracy > 0 && fix.accuracy <= liveMaxM;
 
 LiveFix? preferLiveFix(LiveFix? previous, LiveFix next) {
   if (!isPreciseFix(next)) return isPreciseFix(previous) ? previous : null;
   if (!isPreciseFix(previous)) return next;
+  if (locationSource(next) == LocationSource.gps && locationSource(previous) != LocationSource.gps) return next;
+  if (locationSource(previous) == LocationSource.gps && locationSource(next) != LocationSource.gps) return previous;
   if (next.accuracy + 5 < previous!.accuracy) return next;
   if (!next.at.isBefore(previous.at) && next.accuracy <= previous.accuracy + 25) return next;
   return previous;
@@ -38,9 +63,20 @@ double metersBetween(LiveFix a, LiveFix b) {
 bool shouldPushLiveFix(LiveFix? sent, LiveFix next) {
   if (!isPreciseFix(next)) return false;
   if (!isPreciseFix(sent)) return true;
+  if (locationSource(sent) == LocationSource.gps && locationSource(next) != LocationSource.gps) return false;
   if (next.accuracy > sent!.accuracy + liveAccuracySlackM) return false;
   if (next.accuracy + 5 < sent.accuracy) return true;
   return metersBetween(sent, next) >= liveMoveM;
+}
+
+enum SosSendDecision { wait, send, confirm, blocked }
+
+SosSendDecision sendDecision(LiveFix? fix, int waitedMs, bool denied) {
+  if (isGpsFix(fix)) return SosSendDecision.send;
+  if (isPreciseFix(fix)) return SosSendDecision.confirm;
+  if (denied && waitedMs >= 8000) return SosSendDecision.blocked;
+  if (waitedMs >= 25000) return SosSendDecision.blocked;
+  return SosSendDecision.wait;
 }
 
 String mapsPinHref(double lat, double lng) {

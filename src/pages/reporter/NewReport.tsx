@@ -283,7 +283,7 @@ export function NewReportPage() {
           toast(tx('Location was blocked. The building pin is enough.', 'লোকেশন বন্ধ আছে। ভবনের পিনই যথেষ্ট।'))
           return
         }
-        toast(tx('A close location did not arrive, so the pin stayed on the building. A city or IP pin is not used.', 'কাছের লোকেশন আসেনি, তাই পিন ভবনেই আছে। শহর বা আইপি পিন ব্যবহার হয় না।'))
+        toast(tx('GPS did not arrive, so the pin stayed on the building. Laptop Wi-Fi often pins a nearby hall, not you — drag the pin yourself.', 'GPS আসেনি, তাই পিন ভবনেই আছে। ল্যাপটপের Wi-Fi কাছের হলে বসে, আপনাতে নয় — পিন নিজে সরিয়ে নিন।'))
       },
     )
   }
