@@ -19,6 +19,7 @@ Campus members can:
 - Save up to five personal phone numbers that also receive the SOS text once Twilio is connected
 - Open Get help for campus support numbers (tap-to-call), including 999
 - Start a Safe Walk on the phone: pick a campus place, a 5–60 minute timer, and the desk and/or a saved contact. This does not replace 999
+- On the phone, use Fake Call (delayed fake incoming call) and optional shake-to-start SOS countdown (off by default; never sends instantly)
 - Read alerts, use lost and found, and switch between English and Bangla
 
 The operations desk can:
@@ -103,7 +104,7 @@ The script reads `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` from the websi
 
 `flutter run` without the script keeps sample reports in memory for that session only. Those reports do not appear on the website.
 
-`flutter test` covers login smoke, SOS countdown cancel, and photo metadata strip.
+`flutter test` covers login smoke, SOS countdown cancel, shake-only-starts-countdown, and photo metadata strip.
 
 Demo people in the app are Amina Rahman, Dr. Karim Hassan, and Nusrat Jahan. With the script, those buttons sign in with `padma1234`.
 

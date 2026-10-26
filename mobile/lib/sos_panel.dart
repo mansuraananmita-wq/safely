@@ -132,14 +132,7 @@ class _SosHomeSectionState extends State<SosHomeSection> {
     );
     if (allowed != true || !mounted) return;
 
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      isDismissible: false,
-      enableDrag: false,
-      builder: (context) => SosFlowSheet(store: store),
-    );
-    await store.refreshSosAlerts();
+    await openSosFlow(context, store);
   }
 
   @override
@@ -251,10 +244,24 @@ class _SosStatusTile extends StatelessWidget {
   }
 }
 
+/// Opens the cancelable SOS sheet. When [startInCountdown] is true (shake quick-exit),
+/// skips straight to the 3-second countdown and never sends until that finishes.
+Future<void> openSosFlow(BuildContext context, CampusStore store, {bool startInCountdown = false}) async {
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    isDismissible: false,
+    enableDrag: false,
+    builder: (context) => SosFlowSheet(store: store, startInCountdown: startInCountdown),
+  );
+  await store.refreshSosAlerts();
+}
+
 class SosFlowSheet extends StatefulWidget {
-  const SosFlowSheet({super.key, required this.store});
+  const SosFlowSheet({super.key, required this.store, this.startInCountdown = false});
 
   final CampusStore store;
+  final bool startInCountdown;
 
   @override
   State<SosFlowSheet> createState() => _SosFlowSheetState();
@@ -263,7 +270,7 @@ class SosFlowSheet extends StatefulWidget {
 enum _SosPhase { locating, count, sending, blocked, done }
 
 class _SosFlowSheetState extends State<SosFlowSheet> {
-  _SosPhase _phase = _SosPhase.locating;
+  late _SosPhase _phase;
   LiveFix? _fix;
   bool _denied = false;
   bool _cancelled = false;
@@ -274,6 +281,7 @@ class _SosFlowSheetState extends State<SosFlowSheet> {
   @override
   void initState() {
     super.initState();
+    _phase = widget.startInCountdown ? _SosPhase.count : _SosPhase.locating;
     _startLocate();
   }
 
@@ -300,6 +308,8 @@ class _SosFlowSheetState extends State<SosFlowSheet> {
     _locateTimer = Timer(Duration(milliseconds: _denied ? 8000 : 25000), () {
       if (!mounted || _cancelled) return;
       if (isPreciseFix(_fix)) return;
+      // Do not interrupt an open countdown (shake quick-exit starts there).
+      if (_phase == _SosPhase.count) return;
       setState(() => _phase = _SosPhase.blocked);
     });
     try {

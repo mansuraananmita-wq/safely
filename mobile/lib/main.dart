@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:safely_mobile/campus.dart';
+import 'package:safely_mobile/fake_call.dart';
 import 'package:safely_mobile/help.dart';
 import 'package:safely_mobile/live_map.dart';
+import 'package:safely_mobile/quick_exit_prefs.dart';
+import 'package:safely_mobile/quick_exit_settings.dart';
 import 'package:safely_mobile/remote_config.dart';
 import 'package:safely_mobile/safe_walk.dart';
+import 'package:safely_mobile/shake_sos.dart';
 import 'package:safely_mobile/sos_panel.dart';
 import 'package:safely_mobile/strip_image_meta.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -152,56 +156,86 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
+  final QuickExitPrefs _quickExit = QuickExitPrefs();
+
+  @override
+  void initState() {
+    super.initState();
+    _quickExit.load();
+  }
 
   @override
   Widget build(BuildContext context) {
     final store = widget.store;
     final tx = store.tx;
-    final pages = [
-      MemberHome(store: store, onReport: () => setState(() => _index = 2)),
-      ReportList(store: store),
-      NewReport(store: store, onDone: (id) {
-        setState(() => _index = 1);
-        Navigator.of(context).push(MaterialPageRoute(builder: (_) => ReportDetail(store: store, id: id)));
-      }),
-      AlertsPage(store: store),
-    ];
-    return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.asset('assets/safely-logo.png', width: 28, height: 28, fit: BoxFit.cover),
+    return ListenableBuilder(
+      listenable: _quickExit,
+      builder: (context, _) {
+        final pages = [
+          MemberHome(
+            store: store,
+            prefs: _quickExit,
+            onReport: () => setState(() => _index = 2),
+          ),
+          ReportList(store: store),
+          NewReport(store: store, onDone: (id) {
+            setState(() => _index = 1);
+            Navigator.of(context).push(MaterialPageRoute(builder: (_) => ReportDetail(store: store, id: id)));
+          }),
+          AlertsPage(store: store),
+        ];
+        return ShakeToSosListener(
+          enabled: _quickExit.shakeToSos,
+          onStartCountdown: () => openSosFlow(context, store, startInCountdown: true),
+          child: Scaffold(
+            appBar: AppBar(
+              title: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.asset('assets/safely-logo.png', width: 28, height: 28, fit: BoxFit.cover),
+                  ),
+                  const SizedBox(width: 10),
+                  const Text('Safely'),
+                ],
+              ),
+              actions: [
+                IconButton(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => QuickExitSettingsScreen(store: store, prefs: _quickExit)),
+                    );
+                  },
+                  icon: const Icon(Icons.settings_outlined),
+                  tooltip: tx('Quick exit', 'দ্রুত বেরোনো'),
+                ),
+                TextButton(onPressed: store.toggleLanguage, child: Text(store.bangla ? 'EN' : 'বাংলা')),
+                IconButton(onPressed: () { store.logout(); }, icon: const Icon(Icons.logout), tooltip: tx('Sign out', 'সাইন আউট')),
+              ],
             ),
-            const SizedBox(width: 10),
-            const Text('Safely'),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: store.toggleLanguage, child: Text(store.bangla ? 'EN' : 'বাংলা')),
-          IconButton(onPressed: () { store.logout(); }, icon: const Icon(Icons.logout), tooltip: tx('Sign out', 'সাইন আউট')),
-        ],
-      ),
-      body: pages[_index],
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (value) => setState(() => _index = value),
-        destinations: [
-          NavigationDestination(icon: const Icon(Icons.home_outlined), selectedIcon: const Icon(Icons.home), label: tx('Home', 'হোম')),
-          NavigationDestination(icon: const Icon(Icons.list_alt_outlined), selectedIcon: const Icon(Icons.list_alt), label: tx('Reports', 'রিপোর্ট')),
-          NavigationDestination(icon: const Icon(Icons.add_circle_outline), selectedIcon: const Icon(Icons.add_circle), label: tx('New', 'নতুন')),
-          NavigationDestination(icon: const Icon(Icons.campaign_outlined), selectedIcon: const Icon(Icons.campaign), label: tx('Alerts', 'সতর্কতা')),
-        ],
-      ),
+            body: pages[_index],
+            bottomNavigationBar: NavigationBar(
+              selectedIndex: _index,
+              onDestinationSelected: (value) => setState(() => _index = value),
+              destinations: [
+                NavigationDestination(icon: const Icon(Icons.home_outlined), selectedIcon: const Icon(Icons.home), label: tx('Home', 'হোম')),
+                NavigationDestination(icon: const Icon(Icons.list_alt_outlined), selectedIcon: const Icon(Icons.list_alt), label: tx('Reports', 'রিপোর্ট')),
+                NavigationDestination(icon: const Icon(Icons.add_circle_outline), selectedIcon: const Icon(Icons.add_circle), label: tx('New', 'নতুন')),
+                NavigationDestination(icon: const Icon(Icons.campaign_outlined), selectedIcon: const Icon(Icons.campaign), label: tx('Alerts', 'সতর্কতা')),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
 
 class MemberHome extends StatelessWidget {
-  const MemberHome({super.key, required this.store, required this.onReport});
+  const MemberHome({super.key, required this.store, required this.prefs, required this.onReport});
 
   final CampusStore store;
+  final QuickExitPrefs prefs;
   final VoidCallback onReport;
 
   @override
@@ -227,6 +261,13 @@ class MemberHome extends StatelessWidget {
           onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SafeWalkScreen(store: store))),
           child: Text(tx('Safe Walk', 'সেইফ ওয়াক')),
         ),
+        if (prefs.fakeCallShortcut) ...[
+          const SizedBox(height: 10),
+          OutlinedButton(
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => FakeCallScreen(store: store, prefs: prefs))),
+            child: Text(tx('Fake Call', 'নকল কল')),
+          ),
+        ],
         const SizedBox(height: 10),
         OutlinedButton(
           onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => HelpScreen(store: store))),
