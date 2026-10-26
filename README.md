@@ -11,6 +11,7 @@ The brand mark is the shield logo in `public/safely-logo.png` (also used as the 
 Campus members can:
 
 - File a report with a category, a campus place, photos, and an optional device pin
+- Attach photos with EXIF/GPS stripped before upload (map pin stays a separate choice); Anonymous shows a warning that faces and uniforms can still identify someone
 - Choose Confidential and/or Anonymous on the form, with clear wording about who sees what
 - Follow status from submitted through review, assignment, work, resolution, and close
 - Confirm someone else’s open report at the same place instead of filing a copy
@@ -59,7 +60,7 @@ npm run dev
 
 Open [http://localhost:5173/](http://localhost:5173/).
 
-`npm run test` checks privacy rules, SOS helpers, and linked-database guards (rate limit, SOS RLS, anonymous reporter isolation, support_contacts write lock). `npm run build` typechecks and builds the site. `npm run preview` serves that build.
+`npm run test` checks privacy rules, SOS helpers, image EXIF strip helpers, and linked-database guards (rate limit, SOS RLS, anonymous reporter isolation, support_contacts write lock). `npm run build` typechecks and builds the site. `npm run preview` serves that build.
 
 To use the campus database, copy `.env.example` to `.env.local` and set:
 
@@ -100,7 +101,7 @@ The script reads `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` from the websi
 
 `flutter run` without the script keeps sample reports in memory for that session only. Those reports do not appear on the website.
 
-`flutter test` covers login smoke and SOS countdown cancel.
+`flutter test` covers login smoke, SOS countdown cancel, and photo metadata strip.
 
 Demo people in the app are Amina Rahman, Dr. Karim Hassan, and Nusrat Jahan. With the script, those buttons sign in with `padma1234`.
 

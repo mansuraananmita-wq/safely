@@ -350,9 +350,13 @@ class CampusStore extends ChangeNotifier {
     required String locationDetail,
     required double lat,
     required double lng,
+    List<Map<String, String>> photos = const [],
+    bool anonymous = false,
   }) async {
     final who = member;
     if (who == null) return null;
+    final limitedPhotos = photos.take(3).toList();
+    final confidential = anonymous || category == 'harassment';
     if (!remote) {
       final report = Report(
         id: 'SF-$_next',
@@ -388,14 +392,14 @@ class CampusStore extends ChangeNotifier {
         'lat': lat,
         'lng': lng,
         'status': 'submitted',
-        'priority': category == 'safety' ? 'high' : 'medium',
-        'reporter_id': who.id,
+        'priority': category == 'safety' || category == 'harassment' ? 'high' : 'medium',
+        'reporter_id': anonymous ? null : who.id,
         'created_at': now.toIso8601String(),
         'updated_at': now.toIso8601String(),
         'due_at': due.toIso8601String(),
-        'confidential': false,
-        'anonymous': false,
-        'photos': <Map<String, String>>[],
+        'confidential': confidential,
+        'anonymous': anonymous,
+        'photos': limitedPhotos,
         'info_requested': false,
         'blocks_access': false,
         'contact_window': '',

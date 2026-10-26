@@ -5,6 +5,7 @@ import { GooglePlaceMap } from '../../components/GooglePlaceMap'
 import { PinPicker } from '../../components/PinPicker'
 import { Button, Field, useTitle } from '../../components/ui'
 import { PLACES, SUBCATEGORIES, subcategoryLabel } from '../../data'
+import { stripImageMeta } from '../../lib/stripImageMeta'
 import { isMapPin, isOpen, isPublicFeed, priorityLabel } from '../../logic'
 import { useApp, type ReportInput } from '../../store'
 import type { CategoryId, Photo, Priority } from '../../types'
@@ -50,15 +51,6 @@ const empty = (): FormState => ({
   pinFromDevice: false,
   pinMoved: false,
 })
-
-function readFile(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result))
-    reader.onerror = () => reject(new Error('unreadable'))
-    reader.readAsDataURL(file)
-  })
-}
 
 export function NewReportPage() {
   const { state, tx, lang, toast, saveDraft, submitReport, confirm } = useApp()
@@ -180,7 +172,12 @@ export function NewReportPage() {
         toast(tx('Each photo must be under 5 MB.', 'প্রতিটি ছবি ৫ এমবির কম হতে হবে।'))
         continue
       }
-      next.push({ name: file.name, url: await readFile(file) })
+      try {
+        const cleaned = await stripImageMeta(file)
+        next.push({ name: cleaned.name, url: cleaned.url })
+      } catch {
+        toast(tx('That photo could not be prepared. Try another file.', 'ছবি প্রস্তুত করা যায়নি। অন্য ফাইল চেষ্টা করুন।'))
+      }
     }
     setForm((current) => ({ ...current, photos: [...current.photos, ...next].slice(0, 3) }))
   }
@@ -300,7 +297,7 @@ export function NewReportPage() {
 
         {step === 1 ? (
           <div className="space-y-4">
-            <Field label={tx('Photos', 'ছবি')} hint={tx('Optional. Up to 3. JPG, PNG, or WebP. 5 MB each. The preview is what the desk will see.', 'ঐচ্ছিক। সর্বোচ্চ ৩টি। JPG, PNG বা WebP। প্রতিটি ৫ এমবি। এই প্রিভিউই ডেস্ক দেখবে।')}>
+            <Field label={tx('Photos', 'ছবি')} hint={tx('Optional. Up to 3. JPG, PNG, or WebP. 5 MB each. EXIF and GPS in the file are removed before upload. The map pin is chosen separately on the next step.', 'ঐচ্ছিক। সর্বোচ্চ ৩টি। JPG, PNG বা WebP। প্রতিটি ৫ এমবি। আপলোডের আগে ফাইলের EXIF ও GPS সরানো হয়। ম্যাপের পিন পরের ধাপে আলাদা বেছে নিন।')}>
               <input className="input" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => { const list = event.target.files; if (list) void addPhotos(Array.from(list)); event.target.value = '' }} />
             </Field>
             {form.photos.length === 0 ? <p className="text-sm text-ink/60">{tx('No photo yet. You can continue without one.', 'এখনও ছবি নেই। ছবি ছাড়াও এগোনো যায়।')}</p> : <PhotoPreviews photos={form.photos} onRemove={(index) => setForm({ ...form, photos: form.photos.filter((_, item) => item !== index) })} removeLabel={tx('Remove', 'সরান')} />}
@@ -386,10 +383,18 @@ export function NewReportPage() {
               </label>
             ) : null}
             {form.anonymous ? (
-              <label className="flex gap-2 text-sm">
-                <input type="checkbox" checked={form.anonAck} onChange={(event) => setForm({ ...form, anonAck: event.target.checked })} />
-                {tx('I understand staff see Anonymous only, I keep My reports access, and reveal needs an audited emergency reason.', 'আমি বুঝেছি কর্মকর্তারা শুধু বেনামি দেখেন, আমি My reports রাখি, এবং পরিচয় খুলতে অডিটসহ জরুরি কারণ লাগে।')}
-              </label>
+              <div className="space-y-3">
+                <div className="rounded-2xl bg-clay/10 p-4 text-sm text-ink/80">
+                  {tx(
+                    'Photos can still identify you. Faces, uniforms, name tags, and background details in a picture may reveal who filed the report even when your name is hidden.',
+                    'ছবি থেকেও পরিচয় ফাঁস হতে পারে। মুখ, ইউনিফর্ম, নেমট্যাগ, এবং পেছনের বিবরণ নাম লুকানো থাকলেও রিপোর্টকারীকে চেনা দিতে পারে।',
+                  )}
+                </div>
+                <label className="flex gap-2 text-sm">
+                  <input type="checkbox" checked={form.anonAck} onChange={(event) => setForm({ ...form, anonAck: event.target.checked })} />
+                  {tx('I understand staff see Anonymous only, I keep My reports access, and reveal needs an audited emergency reason.', 'আমি বুঝেছি কর্মকর্তারা শুধু বেনামি দেখেন, আমি My reports রাখি, এবং পরিচয় খুলতে অডিটসহ জরুরি কারণ লাগে।')}
+                </label>
+              </div>
             ) : null}
           </div>
         ) : null}

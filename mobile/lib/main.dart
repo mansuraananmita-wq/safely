@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:safely_mobile/campus.dart';
 import 'package:safely_mobile/help.dart';
 import 'package:safely_mobile/live_map.dart';
 import 'package:safely_mobile/remote_config.dart';
 import 'package:safely_mobile/sos_panel.dart';
+import 'package:safely_mobile/strip_image_meta.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 Future<void> main() async {
@@ -329,6 +331,9 @@ class _NewReportState extends State<NewReport> {
   final _title = TextEditingController();
   final _body = TextEditingController();
   final _detail = TextEditingController();
+  final List<Map<String, String>> _photos = [];
+  bool _anonymous = false;
+  bool _busy = false;
   String? _error;
 
   @override
@@ -337,6 +342,28 @@ class _NewReportState extends State<NewReport> {
     _body.dispose();
     _detail.dispose();
     super.dispose();
+  }
+
+  Future<void> _addPhoto() async {
+    final store = widget.store;
+    if (_photos.length >= 3) return;
+    final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 100);
+    if (picked == null) return;
+    try {
+      final bytes = await picked.readAsBytes();
+      if (bytes.lengthInBytes > 5 * 1024 * 1024) {
+        setState(() => _error = store.tx('Each photo must be under 5 MB.', 'প্রতিটি ছবি ৫ এমবির কম হতে হবে।'));
+        return;
+      }
+      final mime = picked.mimeType ?? 'image/jpeg';
+      final payload = strippedPhotoPayload(bytes, fileName: picked.name, mime: mime);
+      setState(() {
+        _photos.add(payload);
+        _error = null;
+      });
+    } catch (_) {
+      setState(() => _error = store.tx('That photo could not be prepared. Try another file.', 'ছবি প্রস্তুত করা যায়নি। অন্য ফাইল চেষ্টা করুন।'));
+    }
   }
 
   Future<void> _submit() async {
@@ -356,6 +383,7 @@ class _NewReportState extends State<NewReport> {
         lng = position.longitude;
       } catch (_) {}
     }
+    setState(() => _busy = true);
     final report = await store.submit(
       title: _title.text,
       description: _body.text,
@@ -364,7 +392,11 @@ class _NewReportState extends State<NewReport> {
       locationDetail: _detail.text,
       lat: lat,
       lng: lng,
+      photos: List<Map<String, String>>.from(_photos),
+      anonymous: _anonymous,
     );
+    if (!mounted) return;
+    setState(() => _busy = false);
     if (report == null) {
       setState(() => _error = store.error ?? store.tx('The report was not saved.', 'রিপোর্ট সেভ হয়নি।'));
       return;
@@ -381,7 +413,7 @@ class _NewReportState extends State<NewReport> {
       children: [
         Text(tx('New report', 'নতুন রিপোর্ট'), style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
-        Text(tx('The pin uses your live location when the phone allows it. Otherwise it stays on the building you choose.', 'ফোন অনুমতি দিলে পিন আপনার লাইভ লোকেশনে যায়। না হলে আপনার বেছে নেওয়া ভবনে থাকে।')),
+        Text(tx('The pin uses your live location when the phone allows it. Otherwise it stays on the building you choose. Photo GPS is removed before upload.', 'ফোন অনুমতি দিলে পিন আপনার লাইভ লোকেশনে যায়। না হলে আপনার বেছে নেওয়া ভবনে থাকে। ছবির GPS আপলোডের আগে সরানো হয়।')),
         const SizedBox(height: 12),
         Wrap(
           spacing: 8,
@@ -414,12 +446,57 @@ class _NewReportState extends State<NewReport> {
         ),
         const SizedBox(height: 12),
         TextField(controller: _detail, decoration: InputDecoration(labelText: tx('Where exactly', 'ঠিক কোথায়'))),
+        const SizedBox(height: 12),
+        Text(tx('Photos (optional, up to 3)', 'ছবি (ঐচ্ছিক, সর্বোচ্চ ৩টি)'), style: const TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (var i = 0; i < _photos.length; i++)
+              InputChip(
+                label: Text(_photos[i]['name'] ?? 'photo'),
+                onDeleted: () => setState(() => _photos.removeAt(i)),
+              ),
+            if (_photos.length < 3)
+              OutlinedButton.icon(
+                onPressed: _busy ? null : _addPhoto,
+                icon: const Icon(Icons.photo_outlined),
+                label: Text(tx('Add photo', 'ছবি যোগ')),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        CheckboxListTile(
+          contentPadding: EdgeInsets.zero,
+          value: _anonymous,
+          onChanged: _busy ? null : (value) => setState(() => _anonymous = value ?? false),
+          title: Text(tx('Anonymous', 'বেনামি')),
+          controlAffinity: ListTileControlAffinity.leading,
+        ),
+        if (_anonymous)
+          Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF1EC),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE7C4B8)),
+            ),
+            child: Text(
+              tx(
+                'Photos can still identify you. Faces, uniforms, name tags, and background details in a picture may reveal who filed the report even when your name is hidden.',
+                'ছবি থেকেও পরিচয় ফাঁস হতে পারে। মুখ, ইউনিফর্ম, নেমট্যাগ, এবং পেছনের বিবরণ নাম লুকানো থাকলেও রিপোর্টকারীকে চেনা দিতে পারে।',
+              ),
+              style: const TextStyle(height: 1.35),
+            ),
+          ),
         if (_error != null) ...[
           const SizedBox(height: 8),
           Text(_error!, style: const TextStyle(color: Color(0xFFB42318))),
         ],
         const SizedBox(height: 16),
-        FilledButton(onPressed: () => _submit(), child: Text(tx('Submit report', 'রিপোর্ট জমা দিন'))),
+        FilledButton(onPressed: _busy ? null : () => _submit(), child: Text(tx('Submit report', 'রিপোর্ট জমা দিন'))),
       ],
     );
   }
