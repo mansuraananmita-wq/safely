@@ -128,8 +128,8 @@ On the phone, Safe Walk lets someone pick a campus destination and a timer betwe
 These are written up in [BACKEND.md](BACKEND.md):
 
 - Twilio, if SOS should also arrive as an SMS
-- An email provider, if status changes should send mail
-- FCM or APNs, if the phone should get push alerts
+- An email provider (`EMAIL_PROVIDER`, `EMAIL_API_KEY`, `EMAIL_FROM`), if status changes should send mail. The function skips and logs when a secret is missing
+- Firebase Cloud Messaging (`FCM_PROJECT_ID`, `FCM_CLIENT_EMAIL`, `FCM_PRIVATE_KEY`) and the phone app’s Firebase config, if status changes should send a push. The message is only “Your report status was updated” or “Your SOS status was updated”
 - A public host for the website
 - Real building coordinates, when the campus supplies them
 

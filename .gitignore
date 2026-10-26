@@ -11,4 +11,6 @@ dist
 credentials.json
 service-account*.json
 **/secrets.json
+google-services.json
+GoogleService-Info.plist
 supabase/.temp/

@@ -22,6 +22,8 @@ const appSettingsMigration = path.resolve('supabase/migrations/20261027040000_ap
 const appSettingsSql = path.resolve('supabase/tests/app_settings_rls.sql')
 const reportCapsMigration = path.resolve('supabase/migrations/20261027050000_report_abuse.sql')
 const reportCapsSql = path.resolve('supabase/tests/report_caps.sql')
+const deviceTokenMigration = path.resolve('supabase/migrations/20261027060000_device_tokens.sql')
+const deviceTokenSql = path.resolve('supabase/tests/device_tokens_rls.sql')
 
 function runSqlFile(file: string) {
   try {
@@ -120,5 +122,14 @@ describe('sos database guards', () => {
     expect(output).not.toMatch(/authenticated called account_recent_flag_count/i)
     expect(output).not.toMatch(/anonymous flag audit exposed the reporter/i)
     expect(output).not.toMatch(/report_flags stores a reporter id/i)
+  }, 120_000)
+
+  it('lets a user write only their own device token', () => {
+    expect(existsSync(deviceTokenMigration)).toBe(true)
+    expect(existsSync(deviceTokenSql)).toBe(true)
+    const output = runSqlFile(deviceTokenSql)
+    expect(output).not.toMatch(/student wrote another user device token/i)
+    expect(output).not.toMatch(/student could not read own device token/i)
+    expect(output).not.toMatch(/student read another user device token/i)
   }, 120_000)
 })

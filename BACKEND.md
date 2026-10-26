@@ -39,6 +39,7 @@ Supabase প্রজেক্ট এই রিপোজিটরি তৈর�
 - `notifications`, `announcements`, `lost_found`, `audit_log`
 - `support_contacts` — Get help directory; signed-in users read active rows; only admin writes
 - `emergency_contacts`, `sos_alerts` (`seen_at`, `resolved_at` সহ)
+- `device_tokens` — push token; user reads and writes only own rows
 - `safe_walks` — Safe Walk check-ins; optional location; `expire_due_safe_walks` / `cleanup_safe_walk_locations`; owner reads own, desk reads expired only
 - `app_settings` — key/value (যেমন `security_sms_number`); signed-in read; শুধু admin write
 - `report_flags` — অ্যাডমিন invalid/malicious ফ্ল্যাগ; বেনামি রিপোর্টে শুধু বিষয়বস্তু
@@ -99,8 +100,9 @@ Run-এর পর নিচে **Success** দেখা উচিত। error �
 - `20261027030000_safe_walks.sql` — Safe Walk table, expire + 24h location cleanup, RLS
 - `20261027040000_app_settings.sql` — `app_settings` + `security_sms_number`; signed-in read, admin write
 - `20261027050000_report_abuse.sql` — report flags, hidden account counts, daily caps (10, or 3 for 14 days)
+- `20261027060000_device_tokens.sql` — push `device_tokens`; user writes only own rows
 
-টেস্ট SQL: `supabase/tests/` (SOS রেট লিমিট, SOS RLS, বেনামি রিপোর্টার আইসোলেশন, support_contacts, public status counts, reveal dual-control, Safe Walk RLS/cleanup, app_settings RLS, report caps)। `npm run test` linked প্রজেক্টে এগুলো চালায়।
+টেস্ট SQL: `supabase/tests/` (SOS রেট লিমিট, SOS RLS, বেনামি রিপোর্টার আইসোলেশন, support_contacts, public status counts, reveal dual-control, Safe Walk RLS/cleanup, app_settings RLS, report caps, device_tokens RLS)। `npm run test` linked প্রজেক্টে এগুলো চালায়।
 
 ### SQL যদি auth.users-এ আটকায়
 
@@ -212,9 +214,74 @@ supabase functions deploy send-sos --project-ref rirqasqzdekohtqznexg
 এগুলো এই মেশিনের কোড দিয়ে শেষ হয় না। প্রতিটির জন্য বাইরের অ্যাকাউন্ট বা বিশ্ববিদ্যালয়ের সিদ্ধান্ত লাগে।
 
 1. **SOS-এর SMS।** `send-sos` ফাংশন Supabase-এ ডেপ্লয় করা আছে। Twilio-এর Account SID, Auth Token, এবং পাঠানোর নম্বর এখনও বসানো হয়নি। সিক্রেট না দিলে ডেস্ক শুধু অ্যাপের ভেতরে সতর্কতা পায়। কমান্ড সেকশন ৬-এ।
-2. **ইমেইল নোটিস।** প্রোফাইলে ইমেইলের সুইচ আছে। কোনো মেইল সার্ভারের কী নেই, তাই স্ট্যাটাস বদলালে ইমেইল যায় না।
-3. **ফোন পুশ।** পুশ সুইচ আছে। FCM বা APNs-এর কী নেই।
+2. **ইমেইল নোটিস।** কোড আছে (`send-status-email`)। সিক্রেট বসালে চলে। না বসালে ফাংশন পাঠানো বাদ দিয়ে লগ করে, ফেইল করে না। সেটআপ সেকশন ৯।
+3. **ফোন পুশ।** কোড আছে (`notify-status` + Flutter `firebase_messaging`)। FCM সিক্রেট ও `google-services` ফাইল বসালে চলে। না থাকলে টোকেন সেভ বা পুশ বাদ পড়ে। সেটআপ সেকশন ৯।
 4. **পাবলিক হোস্টিং।** সাইট লোকাল Vite-এ চলে। হোস্টের env-এ শুধু `VITE_SUPABASE_URL` ও `VITE_SUPABASE_ANON_KEY` দিতে হবে। `service_role` ও Twilio কী ওয়েবসাইটে দেবেন না।
 5. **প্রোডাকশন ইমেইল কনফার্ম।** এখন বন্ধ, যাতে রেজিস্ট্রেশন সাথে সাথে ঢোকে। চালু করতে আগে একটি মেইল প্রোভাইডার লাগবে।
 6. **ক্যাম্পাসের আসল ম্যাপ।** জায়গাগুলো ডেমো স্থানাঙ্ক। আসল ভবনের পিন বিশ্ববিদ্যালয়ের ম্যাপ থেকে বসাতে হবে।
 7. **একাধিক ক্যাম্পাস।** এখন একটি ডেস্ক। আলাদা ক্যাম্পাস চাইলে বিশ্ববিদ্যালয়ের তালিকা লাগবে।
+
+## ৯. স্ট্যাটাস পুশ ও ইমেইল
+
+রিপোর্টের স্ট্যাটাস বা SOS-এর seen/resolved বদলালে ডেস্কহোল্ডার নয়, **যে অ্যাকাউন্ট রিপোর্ট/SOS দিয়েছে** সে পুশ ও ইমেইল পায়। বার্তা সবসময় সাধারণ:
+
+- রিপোর্ট: `Your report status was updated`
+- SOS: `Your SOS status was updated`
+
+রিপোর্টের লেখা, ক্যাটাগরি, গোপন, বা বেনামি — এগুলো বার্তায় যায় না। বেনামি হলেও বার্তা একই। প্রোফাইলে ইমেইল বা পুশ বন্ধ থাকলে সেই চ্যানেল বাদ পড়ে।
+
+সিক্রেট না থাকলে ফাংশন **200** দিয়ে বাদ দেয় এবং লগে লেখে কোন সিক্রেট নেই। ওয়েবহুক রিট্রাই লুপে ঢোকে না।
+
+### সিক্রেট
+
+কোনোটাই `.env.local` বা অ্যাপে লিখবেন না। Supabase secret:
+
+| সিক্রেট | লাগে কখন | কী |
+| --- | --- | --- |
+| `NOTIFY_WEBHOOK_SECRET` | পুশ ফাংশন | ডেটাবেস ওয়েবহুকের সাথে মিলিয়ে দেয়। না দিলে অথেন্টিকেশন বাদ পড়ে এবং লগ হয় |
+| `FCM_PROJECT_ID` | পুশ | Firebase প্রজেক্ট আইডি |
+| `FCM_CLIENT_EMAIL` | পুশ | সার্ভিস অ্যাকাউন্ট ইমেইল |
+| `FCM_PRIVATE_KEY` | পুশ | সার্ভিস অ্যাকাউন্টের PEM প্রাইভেট কী (`\n` সহ এক লাইনে রাখা যায়) |
+| `EMAIL_PROVIDER` | ইমেইল | `resend`, `sendgrid`, অথবা `postmark` |
+| `EMAIL_API_KEY` | ইমেইল | সেই প্রোভাইডারের API কী |
+| `EMAIL_FROM` | ইমেইল | যে ঠিকানা থেকে যাবে, প্রোভাইডারে ভেরিফাই করা |
+
+`SUPABASE_URL` ও `SUPABASE_SERVICE_ROLE_KEY` Supabase নিজে ফাংশনে বসায়। আলাদা করে দিতে হয় না।
+
+```bash
+supabase secrets set NOTIFY_WEBHOOK_SECRET=choose-a-long-random-string FCM_PROJECT_ID=your-project FCM_CLIENT_EMAIL=firebase-adminsdk@your-project.iam.gserviceaccount.com FCM_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n" EMAIL_PROVIDER=resend EMAIL_API_KEY=re_xxx EMAIL_FROM="Safely <desk@your-domain>"
+```
+
+### ফাংশন ডেপ্লয়
+
+```bash
+supabase functions deploy notify-status --project-ref rirqasqzdekohtqznexg
+supabase functions deploy send-status-email --project-ref rirqasqzdekohtqznexg
+```
+
+`notify-status` পুশ পাঠায়, তারপর `send-status-email` ডাকে। ইমেইল ফাংশন না থাকলে পুশের ফল আলাদা থাকে; লগ হয়, পুরো কল ফেইল হয় না।
+
+### ডেটাবেস ওয়েবহুক
+
+Supabase ড্যাশবোর্ড → **Database** → **Webhooks** → **Create hook**। দুটি হুক, দুটোই `notify-status`-এ।
+
+1. Table `public.reports`, events **Insert** ও **Update**.
+2. Table `public.sos_alerts`, events **Insert** ও **Update**.
+
+HTTP Request:
+
+- Method POST
+- URL `https://rirqasqzdekohtqznexg.supabase.co/functions/v1/notify-status`
+- Header `x-webhook-secret`: উপরের `NOTIFY_WEBHOOK_SECRET`-এর মান
+- Header `Content-Type`: `application/json`
+
+ওয়েবহুকের বডিতে সারি থাকলেও ফাংশন শুধু স্ট্যাটাস বদল দেখে। বার্তায় রিপোর্টের টেক্সট বসায় না।
+
+### ফোন অ্যাপ
+
+1. [Firebase console](https://console.firebase.google.com) এ একটি প্রজেক্ট। Android অ্যাপের প্যাকেজ `edu.padma.safely_mobile`।
+2. `google-services.json` ডাউনলোড করে `mobile/android/app/`-এ রাখুন। iOS হলে `GoogleService-Info.plist` `mobile/ios/Runner/`-এ। এই ফাইল গিটে কমিট করবেন না।
+3. Firebase-এ Cloud Messaging চালু। Project settings → Service accounts → **Generate new private key**। সেই JSON থেকে `project_id`, `client_email`, `private_key` নিয়ে উপরের তিনটি FCM সিক্রেট বসান।
+4. অ্যাপ সাইন-ইন করার পর নোটিফিকেশন পারমিশন চায় এবং টোকেন `device_tokens`-এ সেভ করে। Firebase ফাইল না থাকলে অ্যাপ চলতে থাকে; লগে `Push token skipped` দেখায়।
+
+ইমেইল প্রোভাইডারের ডোমেইন (`EMAIL_FROM`) আগে ভেরিফাই না করলে প্রোভাইডার বার্তা ফেরত দেয়। ফাংশন সেটা লগ করে এবং 200 দেয়।

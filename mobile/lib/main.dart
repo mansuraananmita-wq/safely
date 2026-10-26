@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:safely_mobile/campus.dart';
+import 'package:safely_mobile/device_push.dart';
 import 'package:safely_mobile/fake_call.dart';
 import 'package:safely_mobile/help.dart';
 import 'package:safely_mobile/live_map.dart';
@@ -162,6 +165,7 @@ class _HomeShellState extends State<HomeShell> {
   void initState() {
     super.initState();
     _quickExit.load();
+    unawaited(registerDevicePush(widget.store));
   }
 
   @override
