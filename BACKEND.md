@@ -37,6 +37,7 @@ Supabase প্রজেক্ট এই রিপোজিটরি তৈর�
 - `reports`, `report_activities`, `report_confirmations`
 - `report_identities` — বেনামি রিপোর্টের ব্যক্তিগত যোগসূত্র; SELECT শুধু লেখকের
 - `notifications`, `announcements`, `lost_found`, `audit_log`
+- `support_contacts` — Get help directory; signed-in users read active rows; only admin writes
 - `emergency_contacts`, `sos_alerts` (`seen_at`, `resolved_at` সহ)
 - `public_reports` ভিউ। হয়রানি, গোপন, বেনামি, এবং safety রিপোর্ট এই ভিউতে নেই। `/status` এই ভিউ পড়ে।
 - Row Level Security। কে কোন রিপোর্ট/SOS দেখতে পাবে সেটা ডেটাবেসও ঠিক রাখে।
@@ -86,8 +87,9 @@ Run-এর পর নিচে **Success** দেখা উচিত। error �
 - `20261025184500_sos_insert_rate_limit.sql` — SOS ৬০ সেকেন্ড / দিনে ২০
 - `20261025190000_sos_desk_notify_and_status.sql` — ডেস্ক নোটিফিকেশন ট্রিগার, `seen_at`, security RLS
 - `20261026013000_anonymous_report_identities.sql` — `report_identities`, `reveal_reporter`, বেনামি `reporter_id` খালি
+- `20261027001500_support_contacts.sql` — Get help `support_contacts` টেবিল, seed (৯৯৯ + placeholder), RLS
 
-টেস্ট SQL: `supabase/tests/` (SOS রেট লিমিট, SOS RLS, বেনামি রিপোর্টার আইসোলেশন)। `npm run test` linked প্রজেক্টে এগুলো চালায়।
+টেস্ট SQL: `supabase/tests/` (SOS রেট লিমিট, SOS RLS, বেনামি রিপোর্টার আইসোলেশন, support_contacts student write block)। `npm run test` linked প্রজেক্টে এগুলো চালায়।
 
 ### SQL যদি auth.users-এ আটকায়
 
@@ -116,7 +118,7 @@ npm run dev
 
 `.env.local` গিটে যায় না।
 
-কী না দিলে সাইট আগের মতো ব্রাউজারের `localStorage`-এ চলে। কী দিলে সাইন-ইন, রিপোর্ট, সারি, নোটিফিকেশন, অ্যালার্ট, lost and found, SOS, এবং অডিট লগ ডেটাবেসে লেখে।
+কী না দিলে সাইট আগের মতো ব্রাউজারের `localStorage`-এ চলে। কী দিলে সাইন-ইন, রিপোর্ট, সারি, নোটিফিকেশন, অ্যালার্ট, Get help contacts, lost and found, SOS, এবং অডিট লগ ডেটাবেসে লেখে।
 
 ফোন অ্যাপ একই কী ব্যবহার করে। `mobile` ফোল্ডার থেকে:
 

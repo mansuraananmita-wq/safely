@@ -13,7 +13,7 @@ const items = [
   { to: '/app/notifications', icon: Bell, en: 'Notifications', bn: 'নোটিফিকেশন', shortEn: 'Notes', shortBn: 'বার্তা' },
   { to: '/app/alerts', icon: Megaphone, en: 'Alerts', bn: 'সতর্কতা', shortEn: 'Alerts', shortBn: 'সতর্কতা' },
   { to: '/app/lost', icon: KeyRound, en: 'Lost & found', bn: 'হারানো ও পাওয়া', shortEn: 'Lost', shortBn: 'হারানো' },
-  { to: '/app/help', icon: LifeBuoy, en: 'Help', bn: 'সহায়তা', shortEn: 'Help', shortBn: 'সহায়তা' },
+  { to: '/app/help', icon: LifeBuoy, en: 'Get help', bn: 'সাহায্য নিন', shortEn: 'Help', shortBn: 'সাহায্য' },
   { to: '/app/sos', icon: Siren, en: 'SOS', bn: 'এসওএস', shortEn: 'SOS', shortBn: 'এসওএস' },
   { to: '/app/profile', icon: UserRound, en: 'Profile', bn: 'প্রোফাইল', shortEn: 'Profile', shortBn: 'প্রোফাইল' },
 ]

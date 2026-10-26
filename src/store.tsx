@@ -21,6 +21,8 @@ import type {
   Report,
   Role,
   Status,
+  SupportCategory,
+  SupportContact,
   User,
 } from './types'
 
@@ -49,6 +51,7 @@ function shell(): AppState {
     reports: [],
     notifications: [],
     announcements: [],
+    supportContacts: [],
     lostFound: [],
     audit: [],
     emergencyContacts: [],
@@ -72,6 +75,7 @@ function load(): AppState {
       emergencyContacts: state.emergencyContacts ?? [],
       sosAlerts: state.sosAlerts ?? [],
       reportIdentities: state.reportIdentities ?? {},
+      supportContacts: state.supportContacts ?? [],
     }
   } catch {
     return buildSeed()
@@ -219,6 +223,20 @@ type Api = {
   markAllRead: () => void
   publishAnnouncement: (input: { title: string; body: string; kind: Announcement['kind']; locationId?: string }) => void
   setAnnouncementActive: (id: string, active: boolean) => void
+  saveSupportContact: (input: {
+    id?: string
+    nameEn: string
+    nameBn: string
+    category: SupportCategory
+    phone: string
+    email: string
+    hours: string
+    descriptionEn: string
+    descriptionBn: string
+    sortOrder: number
+    isActive: boolean
+  }) => void
+  setSupportContactActive: (id: string, isActive: boolean) => void
   addLost: (input: { title: string; place: string; detail: string; kind: LostItem['kind']; contact: string }) => void
   setLostStatus: (id: string, status: LostItem['status']) => void
   updateUser: (id: string, patch: Partial<Pick<User, 'role' | 'suspended' | 'departmentId'>>) => void
@@ -941,6 +959,51 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         ...current,
         announcements: current.announcements.map((item) => (item.id === id ? { ...item, active } : item)),
       }, user.name, active ? 'Restored a campus alert' : 'Hid a campus alert', id))
+    },
+    saveSupportContact: (input) => {
+      const user = stateRef.current.users.find((item) => item.id === stateRef.current.sessionUserId)
+      if (!user || user.role !== 'admin') return
+      const nameEn = input.nameEn.trim()
+      const nameBn = input.nameBn.trim()
+      const phone = input.phone.trim()
+      if (nameEn.length < 2 || nameBn.length < 2 || phone.length < 3) return
+      const item: SupportContact = {
+        id: input.id?.trim() || uid('sc'),
+        nameEn,
+        nameBn,
+        category: input.category,
+        phone,
+        email: input.email.trim(),
+        hours: input.hours.trim(),
+        descriptionEn: input.descriptionEn.trim(),
+        descriptionBn: input.descriptionBn.trim(),
+        isActive: input.isActive,
+        sortOrder: Number.isFinite(input.sortOrder) ? input.sortOrder : 0,
+      }
+      update((current) => {
+        const exists = current.supportContacts.some((row) => row.id === item.id)
+        const supportContacts = exists
+          ? current.supportContacts.map((row) => (row.id === item.id ? item : row))
+          : [...current.supportContacts, item]
+        return withAudit(
+          {
+            ...current,
+            supportContacts: [...supportContacts].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id)),
+          },
+          user.name,
+          exists ? 'Updated a help contact' : 'Added a help contact',
+          item.id,
+        )
+      })
+      say('Help contact saved.', 'সহায়তা যোগাযোগ সেভ হয়েছে।')
+    },
+    setSupportContactActive: (id, isActive) => {
+      const user = stateRef.current.users.find((item) => item.id === stateRef.current.sessionUserId)
+      if (!user || user.role !== 'admin') return
+      update((current) => withAudit({
+        ...current,
+        supportContacts: current.supportContacts.map((item) => (item.id === id ? { ...item, isActive } : item)),
+      }, user.name, isActive ? 'Restored a help contact' : 'Hid a help contact', id))
     },
     addLost: (input) => {
       const user = stateRef.current.users.find((item) => item.id === stateRef.current.sessionUserId)

@@ -3,7 +3,7 @@ import { AdminLayout } from './layouts/AdminLayout'
 import { ReporterLayout } from './layouts/ReporterLayout'
 import { AdminReportsPage } from './pages/admin/AdminReports'
 import { DepartmentQueuesPage } from './pages/admin/DepartmentQueues'
-import { AnnouncementsPage, AuditPage, CategoriesPage, DepartmentsPage, UsersPage } from './pages/admin/Manage'
+import { AnnouncementsPage, AuditPage, CategoriesPage, DepartmentsPage, SupportContactsPage, UsersPage } from './pages/admin/Manage'
 import { OverviewPage } from './pages/admin/Overview'
 import { ReviewPage } from './pages/admin/Review'
 import { Forgot, Login, Register, Verify } from './pages/AuthPages'
@@ -77,6 +77,7 @@ export default function App() {
             <Route path="/admin/reports" element={<AdminReportsPage />} />
             <Route path="/admin/departments" element={<DepartmentsPage />} />
             <Route path="/admin/alerts" element={<AnnouncementsPage />} />
+            <Route path="/admin/help" element={<SupportContactsPage />} />
             <Route path="/admin/audit" element={<AuditPage />} />
             <Route path="/admin/users" element={<UsersPage />} />
             <Route path="/admin/categories" element={<CategoriesPage />} />

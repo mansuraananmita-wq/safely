@@ -4,7 +4,44 @@ import { Button, Field, useTitle } from '../../components/ui'
 import { PLACES } from '../../data'
 import { average, hoursBetween, isOpen, isOverdue } from '../../logic'
 import { useApp } from '../../store'
-import type { Announcement, Role, User } from '../../types'
+import type { Announcement, Role, SupportCategory, SupportContact, User } from '../../types'
+
+const SUPPORT_CATEGORIES: SupportCategory[] = [
+  'emergency',
+  'counseling',
+  'women_safety',
+  'legal',
+  'health',
+  'proctor',
+  'anti_harassment_committee',
+]
+
+function supportCategoryLabel(category: SupportCategory, lang: 'en' | 'bn') {
+  const labels: Record<SupportCategory, [string, string]> = {
+    emergency: ['Emergency', 'জরুরি'],
+    counseling: ['Counseling', 'কাউন্সেলিং'],
+    women_safety: ['Women safety', 'নারী নিরাপত্তা'],
+    legal: ['Legal', 'আইনি'],
+    health: ['Health', 'স্বাস্থ্য'],
+    proctor: ['Proctor', 'প্রক্টর'],
+    anti_harassment_committee: ['Anti-harassment', 'হয়রানি বিরোধী'],
+  }
+  return lang === 'bn' ? labels[category][1] : labels[category][0]
+}
+
+const emptySupportForm = {
+  id: '',
+  nameEn: '',
+  nameBn: '',
+  category: 'counseling' as SupportCategory,
+  phone: '',
+  email: '',
+  hours: '',
+  descriptionEn: '',
+  descriptionBn: '',
+  sortOrder: 80,
+  isActive: true,
+}
 
 export function DepartmentsPage() {
   const { currentUser, state, tx, lang, updateDepartment } = useApp()
@@ -225,6 +262,93 @@ export function AuditPage() {
           </li>
         ))}
       </ul>
+    </div>
+  )
+}
+
+export function SupportContactsPage() {
+  const { currentUser, state, tx, lang, saveSupportContact, setSupportContactActive } = useApp()
+  const [form, setForm] = useState(emptySupportForm)
+  useTitle(tx('Get help contacts', 'সাহায্যের যোগাযোগ'))
+  if (!currentUser || currentUser.role !== 'admin') return null
+  const rows = state.supportContacts.slice().sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id))
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    saveSupportContact({
+      id: form.id || undefined,
+      nameEn: form.nameEn,
+      nameBn: form.nameBn,
+      category: form.category,
+      phone: form.phone,
+      email: form.email,
+      hours: form.hours,
+      descriptionEn: form.descriptionEn,
+      descriptionBn: form.descriptionBn,
+      sortOrder: form.sortOrder,
+      isActive: form.isActive,
+    })
+    setForm(emptySupportForm)
+  }
+  const edit = (item: SupportContact) => {
+    setForm({
+      id: item.id,
+      nameEn: item.nameEn,
+      nameBn: item.nameBn,
+      category: item.category,
+      phone: item.phone,
+      email: item.email,
+      hours: item.hours,
+      descriptionEn: item.descriptionEn,
+      descriptionBn: item.descriptionBn,
+      sortOrder: item.sortOrder,
+      isActive: item.isActive,
+    })
+  }
+  return (
+    <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
+      <form className="panel space-y-3 p-4" onSubmit={submit}>
+        <h1 className="font-display text-3xl">{form.id ? tx('Edit contact', 'যোগাযোগ সম্পাদনা') : tx('Add contact', 'যোগাযোগ যোগ')}</h1>
+        <p className="text-sm text-ink/60">{tx('These numbers appear on Get help for every signed-in member.', 'এই নম্বরগুলো সাইন-ইন করা সবার সাহায্য নিন পাতায় দেখায়।')}</p>
+        <Field label={tx('Name (English)', 'নাম (ইংরেজি)')}><input className="input" value={form.nameEn} onChange={(event) => setForm({ ...form, nameEn: event.target.value })} required /></Field>
+        <Field label={tx('Name (Bangla)', 'নাম (বাংলা)')}><input className="input" value={form.nameBn} onChange={(event) => setForm({ ...form, nameBn: event.target.value })} required /></Field>
+        <Field label={tx('Category', 'ক্যাটাগরি')}>
+          <select className="input" value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value as SupportCategory })}>
+            {SUPPORT_CATEGORIES.map((category) => <option key={category} value={category}>{supportCategoryLabel(category, lang)}</option>)}
+          </select>
+        </Field>
+        <Field label={tx('Phone', 'ফোন')}><input className="input" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} required /></Field>
+        <Field label={tx('Email', 'ইমেইল')}><input className="input" type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></Field>
+        <Field label={tx('Hours', 'সময়')}><input className="input" value={form.hours} onChange={(event) => setForm({ ...form, hours: event.target.value })} /></Field>
+        <Field label={tx('Description (English)', 'বিবরণ (ইংরেজি)')}><textarea className="input min-h-20" value={form.descriptionEn} onChange={(event) => setForm({ ...form, descriptionEn: event.target.value })} /></Field>
+        <Field label={tx('Description (Bangla)', 'বিবরণ (বাংলা)')}><textarea className="input min-h-20" value={form.descriptionBn} onChange={(event) => setForm({ ...form, descriptionBn: event.target.value })} /></Field>
+        <Field label={tx('Sort order', 'ক্রম')}><input className="input" type="number" value={form.sortOrder} onChange={(event) => setForm({ ...form, sortOrder: Number(event.target.value) || 0 })} /></Field>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={form.isActive} onChange={(event) => setForm({ ...form, isActive: event.target.checked })} />
+          {tx('Visible on Get help', 'সাহায্য নিন-এ দেখাবে')}
+        </label>
+        <div className="flex flex-wrap gap-2">
+          <Button type="submit">{form.id ? tx('Save changes', 'পরিবর্তন সেভ') : tx('Add contact', 'যোগাযোগ যোগ')}</Button>
+          {form.id ? <Button type="button" variant="secondary" onClick={() => setForm(emptySupportForm)}>{tx('Cancel edit', 'সম্পাদনা বাতিল')}</Button> : null}
+        </div>
+      </form>
+      <div className="space-y-3">
+        {rows.map((item) => (
+          <article key={item.id} className="panel p-4">
+            <p className="text-xs uppercase tracking-wide text-teal-800">
+              {supportCategoryLabel(item.category, lang)} · {item.isActive ? tx('Showing', 'দেখাচ্ছে') : tx('Hidden', 'লুকানো')} · #{item.sortOrder}
+            </p>
+            <h2 className="font-display text-2xl">{lang === 'bn' ? item.nameBn : item.nameEn}</h2>
+            <a href={`tel:${item.phone.replace(/[^\d+]/g, '')}`} className="mt-1 inline-block text-lg font-semibold text-night">{item.phone}</a>
+            <p className="mt-1 text-sm text-ink/70">{lang === 'bn' ? item.descriptionBn : item.descriptionEn}</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button variant="secondary" onClick={() => edit(item)}>{tx('Edit', 'সম্পাদনা')}</Button>
+              <Button variant="secondary" onClick={() => setSupportContactActive(item.id, !item.isActive)}>
+                {item.isActive ? tx('Hide', 'লুকান') : tx('Show again', 'আবার দেখান')}
+              </Button>
+            </div>
+          </article>
+        ))}
+      </div>
     </div>
   )
 }

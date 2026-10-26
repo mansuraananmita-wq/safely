@@ -1,7 +1,7 @@
 import type { Session } from '@supabase/supabase-js'
 import { buildSeed } from '../data'
 import { supabase } from './supabase'
-import type { Activity, Announcement, AppNotification, AppState, AuditEntry, Category, Department, EmergencyContact, LostItem, Photo, Report, SosAlert, User } from '../types'
+import type { Activity, Announcement, AppNotification, AppState, AuditEntry, Category, Department, EmergencyContact, LostItem, Photo, Report, SosAlert, SupportContact, SupportCategory, User } from '../types'
 
 let signedIn: User | null = null
 let pullError: string | null = null
@@ -61,6 +61,22 @@ function departmentFrom(row: Record<string, unknown>): Department {
     lead: String(row.lead),
     email: String(row.email),
     sensitive: Boolean(row.sensitive),
+  }
+}
+
+function supportFrom(row: Record<string, unknown>): SupportContact {
+  return {
+    id: String(row.id),
+    nameEn: String(row.name_en ?? ''),
+    nameBn: String(row.name_bn ?? ''),
+    category: row.category as SupportCategory,
+    phone: String(row.phone ?? ''),
+    email: String(row.email ?? ''),
+    hours: String(row.hours ?? ''),
+    descriptionEn: String(row.description_en ?? ''),
+    descriptionBn: String(row.description_bn ?? ''),
+    isActive: Boolean(row.is_active),
+    sortOrder: Number(row.sort_order ?? 0),
   }
 }
 
@@ -177,6 +193,7 @@ export async function pullCampus(session: Session | null): Promise<AppState> {
     reportIdentities: {},
     notifications: [],
     announcements: [],
+    supportContacts: [],
     lostFound: [],
     audit: [],
     emergencyContacts: [],
@@ -186,10 +203,11 @@ export async function pullCampus(session: Session | null): Promise<AppState> {
   }
   if (!supabase) return empty
 
-  const [categories, departments, announcements] = await Promise.all([
+  const [categories, departments, announcements, support] = await Promise.all([
     rows('categories'),
     rows('departments'),
     rows('announcements'),
+    rows('support_contacts'),
   ])
 
   empty.categories = categories.data.length ? categories.data.map(categoryFrom) : fallback.categories
@@ -203,6 +221,9 @@ export async function pullCampus(session: Session | null): Promise<AppState> {
     active: Boolean(row.active),
     createdAt: String(row.created_at),
   }))
+  empty.supportContacts = support.data.length
+    ? support.data.map(supportFrom).sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id))
+    : fallback.supportContacts
 
   if (!session) {
     const { data, error } = await supabase.from('public_reports').select('*')
@@ -436,6 +457,32 @@ export async function pushDiff(prev: AppState, next: AppState): Promise<string |
       note(inserted.error)
     } else {
       const updated = await supabase.from('announcements').update({ active: item.active }).eq('id', item.id)
+      note(updated.error)
+    }
+  }
+
+  const prevSupport = new Map((prev.supportContacts ?? []).map((item) => [item.id, item]))
+  for (const item of next.supportContacts ?? []) {
+    const old = prevSupport.get(item.id)
+    if (old && same(old, item)) continue
+    const row = {
+      id: item.id,
+      name_en: item.nameEn,
+      name_bn: item.nameBn,
+      category: item.category,
+      phone: item.phone,
+      email: item.email,
+      hours: item.hours,
+      description_en: item.descriptionEn,
+      description_bn: item.descriptionBn,
+      is_active: item.isActive,
+      sort_order: item.sortOrder,
+    }
+    if (!old) {
+      const inserted = await supabase.from('support_contacts').insert(row)
+      note(inserted.error)
+    } else {
+      const updated = await supabase.from('support_contacts').update(row).eq('id', item.id)
       note(updated.error)
     }
   }

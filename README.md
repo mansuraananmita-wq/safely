@@ -16,6 +16,7 @@ Campus members can:
 - Confirm someone else’s open report at the same place instead of filing a copy
 - Send an SOS: a 3-second countdown, then a help message with the device’s live location to the campus desk
 - Save up to five personal phone numbers that also receive the SOS text once Twilio is connected
+- Open Get help for campus support numbers (tap-to-call), including 999
 - Read alerts, use lost and found, and switch between English and Bangla
 
 The operations desk can:
@@ -25,7 +26,7 @@ The operations desk can:
 - Mark SOS alerts as seen and solved; the sender sees Sent → Seen by desk → Solved
 - Assign a report to an office, change status, ask for information, and leave an internal note
 - Open each office queue, including Facilities and Cleaning
-- Manage users, categories, alerts, and the audit log
+- Manage users, categories, alerts, Get help contacts, and the audit log
 - For a harassment or safety emergency only, call audited `reveal_reporter` (operations or Student Affairs)
 
 The public page `/status` shows counts for ordinary reports. Harassment, confidential, anonymous, and safety stories are left off that page and off the public campus map.
@@ -58,7 +59,7 @@ npm run dev
 
 Open [http://localhost:5173/](http://localhost:5173/).
 
-`npm run test` checks privacy rules, SOS helpers, and linked-database guards (rate limit, SOS RLS, anonymous reporter isolation). `npm run build` typechecks and builds the site. `npm run preview` serves that build.
+`npm run test` checks privacy rules, SOS helpers, and linked-database guards (rate limit, SOS RLS, anonymous reporter isolation, support_contacts write lock). `npm run build` typechecks and builds the site. `npm run preview` serves that build.
 
 To use the campus database, copy `.env.example` to `.env.local` and set:
 

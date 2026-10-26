@@ -10,6 +10,8 @@ const deskMigration = path.resolve('supabase/migrations/20261025190000_sos_desk_
 const rlsSql = path.resolve('supabase/tests/sos_rls_student.sql')
 const anonMigration = path.resolve('supabase/migrations/20261026013000_anonymous_report_identities.sql')
 const anonSql = path.resolve('supabase/tests/anonymous_reporter_rls.sql')
+const supportMigration = path.resolve('supabase/migrations/20261027001500_support_contacts.sql')
+const supportSql = path.resolve('supabase/tests/support_contacts_rls.sql')
 
 function runSqlFile(file: string) {
   try {
@@ -45,5 +47,14 @@ describe('sos database guards', () => {
     const output = runSqlFile(anonSql)
     expect(output).not.toMatch(/returned reporter for anonymous report/i)
     expect(output).not.toMatch(/read report_identities/i)
+  }, 120_000)
+
+  it('blocks a student from inserting or updating support_contacts', () => {
+    expect(existsSync(supportMigration)).toBe(true)
+    expect(existsSync(supportSql)).toBe(true)
+    const output = runSqlFile(supportSql)
+    expect(output).not.toMatch(/student inserted into support_contacts/i)
+    expect(output).not.toMatch(/student updated support_contacts/i)
+    expect(output).not.toMatch(/student could not read active support_contacts/i)
   }, 120_000)
 })

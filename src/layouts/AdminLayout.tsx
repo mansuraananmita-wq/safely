@@ -1,4 +1,4 @@
-import { Building2, ClipboardList, Inbox, LayoutDashboard, Megaphone, MoreHorizontal, ScrollText, Siren, Tags, UserRound, Users } from 'lucide-react'
+import { Building2, ClipboardList, Inbox, LayoutDashboard, LifeBuoy, Megaphone, MoreHorizontal, ScrollText, Siren, Tags, UserRound, Users } from 'lucide-react'
 import { useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { AccountTools } from '../components/AccountTools'
@@ -25,6 +25,7 @@ export function AdminLayout() {
         { to: '/admin/users', icon: Users, en: 'Users', bn: 'ব্যবহারকারী', shortEn: 'Users', shortBn: 'ব্যক্তি', primary: false },
         { to: '/admin/categories', icon: Tags, en: 'Categories', bn: 'ক্যাটাগরি', shortEn: 'Types', shortBn: 'ধরন', primary: false },
         { to: '/admin/alerts', icon: Megaphone, en: 'Alerts', bn: 'সতর্কতা', shortEn: 'Alerts', shortBn: 'সতর্কতা', primary: false },
+        { to: '/admin/help', icon: LifeBuoy, en: 'Get help', bn: 'সাহায্য নিন', shortEn: 'Help', shortBn: 'সাহায্য', primary: false },
         { to: '/admin/audit', icon: ScrollText, en: 'Audit log', bn: 'অডিট লগ', shortEn: 'Audit', shortBn: 'অডিট', primary: false },
         { to: '/admin/profile', icon: UserRound, en: 'Profile', bn: 'প্রোফাইল', shortEn: 'Profile', shortBn: 'প্রোফাইল', primary: false },
       ]

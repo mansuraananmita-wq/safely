@@ -140,6 +140,29 @@ export interface Announcement {
   createdAt: string
 }
 
+export type SupportCategory =
+  | 'emergency'
+  | 'counseling'
+  | 'women_safety'
+  | 'legal'
+  | 'health'
+  | 'proctor'
+  | 'anti_harassment_committee'
+
+export interface SupportContact {
+  id: string
+  nameEn: string
+  nameBn: string
+  category: SupportCategory
+  phone: string
+  email: string
+  hours: string
+  descriptionEn: string
+  descriptionBn: string
+  isActive: boolean
+  sortOrder: number
+}
+
 export interface LostItem {
   id: string
   title: string
@@ -200,6 +223,7 @@ export interface AppState {
   reportIdentities: Record<string, string>
   notifications: AppNotification[]
   announcements: Announcement[]
+  supportContacts: SupportContact[]
   lostFound: LostItem[]
   audit: AuditEntry[]
   emergencyContacts: EmergencyContact[]

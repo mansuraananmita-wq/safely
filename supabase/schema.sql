@@ -128,6 +128,30 @@ create table if not exists public.announcements (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.support_contacts (
+  id text primary key,
+  name_en text not null,
+  name_bn text not null,
+  category text not null check (category in (
+    'emergency',
+    'counseling',
+    'women_safety',
+    'legal',
+    'health',
+    'proctor',
+    'anti_harassment_committee'
+  )),
+  phone text not null,
+  email text not null default '',
+  hours text not null default '',
+  description_en text not null default '',
+  description_bn text not null default '',
+  is_active boolean not null default true,
+  sort_order integer not null default 0
+);
+
+create index if not exists support_contacts_active_sort on public.support_contacts (is_active, sort_order, id);
+
 create table if not exists public.lost_found (
   id text primary key,
   title text not null,
@@ -519,6 +543,7 @@ alter table public.report_activities enable row level security;
 alter table public.report_confirmations enable row level security;
 alter table public.notifications enable row level security;
 alter table public.announcements enable row level security;
+alter table public.support_contacts enable row level security;
 alter table public.lost_found enable row level security;
 alter table public.audit_log enable row level security;
 
@@ -597,6 +622,20 @@ drop policy if exists announcements_update on public.announcements;
 create policy announcements_update on public.announcements for update to authenticated
   using (public.is_admin()) with check (public.is_admin());
 
+drop policy if exists support_contacts_select on public.support_contacts;
+create policy support_contacts_select on public.support_contacts for select to authenticated
+  using (is_active = true or public.is_admin());
+drop policy if exists support_contacts_insert on public.support_contacts;
+create policy support_contacts_insert on public.support_contacts for insert to authenticated
+  with check (public.is_admin());
+drop policy if exists support_contacts_update on public.support_contacts;
+create policy support_contacts_update on public.support_contacts for update to authenticated
+  using (public.is_admin())
+  with check (public.is_admin());
+drop policy if exists support_contacts_delete on public.support_contacts;
+create policy support_contacts_delete on public.support_contacts for delete to authenticated
+  using (public.is_admin());
+
 drop policy if exists lost_read on public.lost_found;
 create policy lost_read on public.lost_found for select to authenticated using (true);
 drop policy if exists lost_insert on public.lost_found;
@@ -622,6 +661,7 @@ grant select, insert, delete on public.report_activities to authenticated;
 grant select, insert on public.report_confirmations to authenticated;
 grant select, insert, update on public.notifications to authenticated;
 grant insert, update on public.announcements to authenticated;
+grant select, insert, update, delete on public.support_contacts to authenticated;
 grant select, insert, update on public.lost_found to authenticated;
 grant select, insert on public.audit_log to authenticated;
 grant update on public.departments, public.categories to authenticated;

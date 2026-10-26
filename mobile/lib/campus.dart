@@ -51,6 +51,159 @@ class Report {
   final DateTime createdAt;
 }
 
+class SupportContact {
+  const SupportContact({
+    required this.id,
+    required this.nameEn,
+    required this.nameBn,
+    required this.category,
+    required this.phone,
+    required this.email,
+    required this.hours,
+    required this.descriptionEn,
+    required this.descriptionBn,
+    required this.isActive,
+    required this.sortOrder,
+  });
+
+  final String id;
+  final String nameEn;
+  final String nameBn;
+  final String category;
+  final String phone;
+  final String email;
+  final String hours;
+  final String descriptionEn;
+  final String descriptionBn;
+  final bool isActive;
+  final int sortOrder;
+
+  factory SupportContact.fromRow(Map<String, dynamic> row) {
+    return SupportContact(
+      id: row['id'] as String? ?? '',
+      nameEn: row['name_en'] as String? ?? '',
+      nameBn: row['name_bn'] as String? ?? '',
+      category: row['category'] as String? ?? 'other',
+      phone: row['phone'] as String? ?? '',
+      email: row['email'] as String? ?? '',
+      hours: row['hours'] as String? ?? '',
+      descriptionEn: row['description_en'] as String? ?? '',
+      descriptionBn: row['description_bn'] as String? ?? '',
+      isActive: row['is_active'] as bool? ?? true,
+      sortOrder: (row['sort_order'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+String supportCategoryLabel(String category, bool bangla) {
+  const labels = <String, (String, String)>{
+    'emergency': ('Emergency', 'জরুরি'),
+    'counseling': ('Counseling', 'কাউন্সেলিং'),
+    'women_safety': ('Women safety', 'নারী নিরাপত্তা'),
+    'legal': ('Legal', 'আইনি'),
+    'health': ('Health', 'স্বাস্থ্য'),
+    'proctor': ('Proctor', 'প্রক্টর'),
+    'anti_harassment_committee': ('Anti-harassment', 'হয়রানি বিরোধী'),
+  };
+  final pair = labels[category];
+  if (pair == null) return category;
+  return bangla ? pair.$2 : pair.$1;
+}
+
+const seedSupportContacts = <SupportContact>[
+  SupportContact(
+    id: 'sc-emergency-999',
+    nameEn: 'National emergency',
+    nameBn: 'জাতীয় জরুরি সেবা',
+    category: 'emergency',
+    phone: '999',
+    email: '',
+    hours: '24 hours',
+    descriptionEn: 'Call if someone is in danger. Safely is not an emergency service.',
+    descriptionBn: 'কেউ বিপদে থাকলে কল করুন। সেইফলি জরুরি সেবা নয়।',
+    isActive: true,
+    sortOrder: 10,
+  ),
+  SupportContact(
+    id: 'sc-counseling',
+    nameEn: 'Student counseling',
+    nameBn: 'শিক্ষার্থী কাউন্সেলিং',
+    category: 'counseling',
+    phone: '01XXXXXXXXX',
+    email: 'counseling@campus.example',
+    hours: 'Sun–Thu 9:00–17:00',
+    descriptionEn: 'Placeholder, replace with real campus number.',
+    descriptionBn: 'Placeholder, replace with real campus number.',
+    isActive: true,
+    sortOrder: 20,
+  ),
+  SupportContact(
+    id: 'sc-women-safety',
+    nameEn: 'Women safety desk',
+    nameBn: 'নারী নিরাপত্তা ডেস্ক',
+    category: 'women_safety',
+    phone: '01XXXXXXXXX',
+    email: 'womensafety@campus.example',
+    hours: 'Sun–Thu 9:00–17:00',
+    descriptionEn: 'Placeholder, replace with real campus number.',
+    descriptionBn: 'Placeholder, replace with real campus number.',
+    isActive: true,
+    sortOrder: 30,
+  ),
+  SupportContact(
+    id: 'sc-legal',
+    nameEn: 'Legal aid desk',
+    nameBn: 'আইনি সহায়তা ডেস্ক',
+    category: 'legal',
+    phone: '01XXXXXXXXX',
+    email: 'legal@campus.example',
+    hours: 'Sun–Thu 9:00–17:00',
+    descriptionEn: 'Placeholder, replace with real campus number.',
+    descriptionBn: 'Placeholder, replace with real campus number.',
+    isActive: true,
+    sortOrder: 40,
+  ),
+  SupportContact(
+    id: 'sc-health',
+    nameEn: 'Campus medical center',
+    nameBn: 'ক্যাম্পাস মেডিকেল সেন্টার',
+    category: 'health',
+    phone: '01XXXXXXXXX',
+    email: 'medical@campus.example',
+    hours: '24 hours',
+    descriptionEn: 'Placeholder, replace with real campus number.',
+    descriptionBn: 'Placeholder, replace with real campus number.',
+    isActive: true,
+    sortOrder: 50,
+  ),
+  SupportContact(
+    id: 'sc-proctor',
+    nameEn: 'Proctor office',
+    nameBn: 'প্রক্টর অফিস',
+    category: 'proctor',
+    phone: '01XXXXXXXXX',
+    email: 'proctor@campus.example',
+    hours: 'Sun–Thu 9:00–17:00',
+    descriptionEn: 'Placeholder, replace with real campus number.',
+    descriptionBn: 'Placeholder, replace with real campus number.',
+    isActive: true,
+    sortOrder: 60,
+  ),
+  SupportContact(
+    id: 'sc-anti-harassment',
+    nameEn: 'Anti-harassment committee',
+    nameBn: 'হয়রানি বিরোধী কমিটি',
+    category: 'anti_harassment_committee',
+    phone: '01XXXXXXXXX',
+    email: 'ahc@campus.example',
+    hours: 'Sun–Thu 9:00–17:00',
+    descriptionEn: 'Placeholder, replace with real campus number.',
+    descriptionBn: 'Placeholder, replace with real campus number.',
+    isActive: true,
+    sortOrder: 70,
+  ),
+];
+
 const members = <Member>[
   Member(id: 'u-amina', name: 'Amina Rahman', email: 'amina@padma.edu', unit: 'Computer Science', role: 'Student'),
   Member(id: 'u-karim', name: 'Dr. Karim Hassan', email: 'karim@padma.edu', unit: 'Physics', role: 'Teacher'),
@@ -100,6 +253,7 @@ String categoryName(String id, bool bangla) {
 class CampusStore extends ChangeNotifier {
   CampusStore() {
     _reports.addAll(_seed());
+    _supportContacts.addAll(seedSupportContacts);
   }
 
   Member? member;
@@ -107,11 +261,18 @@ class CampusStore extends ChangeNotifier {
   String? error;
   final List<Report> _reports = [];
   final List<SosAlert> _sosAlerts = [];
+  final List<SupportContact> _supportContacts = [];
   int _next = 10530;
 
   bool get remote => remoteReady && Supabase.instance.isInitialized;
 
   List<Report> get reports => List.unmodifiable(_reports);
+
+  List<SupportContact> activeSupportContacts() {
+    final items = _supportContacts.where((item) => item.isActive).toList()
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder) != 0 ? a.sortOrder.compareTo(b.sortOrder) : a.id.compareTo(b.id));
+    return items;
+  }
 
   List<SosAlert> mySosAlerts() {
     final id = member?.id;
@@ -160,6 +321,9 @@ class CampusStore extends ChangeNotifier {
       _reports
         ..clear()
         ..addAll(_seed());
+      _supportContacts
+        ..clear()
+        ..addAll(seedSupportContacts);
     }
     notifyListeners();
   }
@@ -320,7 +484,37 @@ class CampusStore extends ChangeNotifier {
           ),
       ]);
     await refreshSosAlerts();
+    await refreshSupportContacts();
     notifyListeners();
+  }
+
+  Future<void> refreshSupportContacts() async {
+    if (!remote) {
+      if (_supportContacts.isEmpty) {
+        _supportContacts.addAll(seedSupportContacts);
+      }
+      notifyListeners();
+      return;
+    }
+    try {
+      final rows = await Supabase.instance.client
+          .from('support_contacts')
+          .select()
+          .eq('is_active', true)
+          .order('sort_order', ascending: true);
+      _supportContacts
+        ..clear()
+        ..addAll([for (final row in rows as List) SupportContact.fromRow(Map<String, dynamic>.from(row as Map))]);
+      if (_supportContacts.isEmpty) {
+        _supportContacts.addAll(seedSupportContacts);
+      }
+      notifyListeners();
+    } catch (_) {
+      if (_supportContacts.isEmpty) {
+        _supportContacts.addAll(seedSupportContacts);
+        notifyListeners();
+      }
+    }
   }
 
   Future<void> refreshSosAlerts() async {

@@ -157,32 +157,43 @@ export function LostFoundPage() {
 }
 
 export function HelpPage() {
-  const { tx } = useApp()
-  useTitle(tx('Help', 'সহায়তা'))
+  const { state, tx, lang } = useApp()
+  useTitle(tx('Get help', 'সাহায্য নিন'))
+  const contacts = state.supportContacts
+    .filter((item) => item.isActive)
+    .slice()
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id))
   const faqs = [
     [tx('Is this for emergencies?', 'এটা কি জরুরি সেবা?'), tx('Call 999 if someone is in danger. SOS messages your saved numbers and the campus desk with your location. It does not call 999.', 'কেউ বিপদে থাকলে ৯৯৯-এ কল করুন। SOS আপনার সেভ করা নম্বরে ও ক্যাম্পাস ডেস্কে লোকেশনসহ বার্তা পাঠায়। এতে ৯৯৯-এ কল হয় না।')],
     [tx('Who sees an ordinary report?', 'সাধারণ রিপোর্ট কে দেখে?'), tx('The operations desk, the office it is assigned to, and other members can see the problem. They see your role, not a public profile.', 'অপারেশন ডেস্ক, যে দপ্তরে বরাদ্দ হয়, এবং অন্য সদস্যরা সমস্যা দেখতে পান। তারা আপনার ভূমিকা দেখেন, প্রকাশ্য প্রোফাইল নয়।')],
     [tx('Who sees a harassment report?', 'হয়রানির রিপোর্ট কে দেখে?'), tx('Campus security, student affairs, and the operations desk. Facilities offices do not.', 'ক্যাম্পাস নিরাপত্তা, শিক্ষার্থী বিষয়ক দপ্তর, এবং অপারেশন ডেস্ক। রক্ষণাবেক্ষণ দপ্তর দেখে না।')],
-    [tx('What does hiding my name mean here?', 'নাম লুকানোর অর্থ কী?'), tx('Officers do not see your name. This preview still keeps the report in your account. A full anonymity design needs the backend.', 'কর্মকর্তারা আপনার নাম দেখেন না। এই প্রিভিউতে রিপোর্ট আপনার অ্যাকাউন্টে থাকে। সম্পূর্ণ বেনামির জন্য ব্যাকএন্ড দরকার।')],
+    [tx('What does hiding my name mean here?', 'নাম লুকানোর অর্থ কী?'), tx('Officers do not see your name. Your report stays on your account so you can follow it and reply.', 'কর্মকর্তারা আপনার নাম দেখেন না। রিপোর্ট আপনার অ্যাকাউন্টে থাকে যাতে আপনি ফলো করতে ও জবাব দিতে পারেন।')],
     [tx('Can I save a draft?', 'খসড়া সেভ করা যাবে?'), tx('Yes. Drafts stay on this device until you submit or delete them.', 'হ্যাঁ। জমা বা মুছে ফেলার আগে খসড়া এই ডিভাইসে থাকে।')],
-  ]
-  const contacts = [
-    [tx('National emergency', 'জাতীয় জরুরি সেবা'), '999', tx('Use this if someone is in danger', 'কেউ বিপদে থাকলে এটি ব্যবহার করুন')],
-    [tx('Campus security desk', 'ক্যাম্পাস নিরাপত্তা ডেস্ক'), '01700-110221', tx('Demo number', 'ডেমো নম্বর')],
-    [tx('Medical center', 'মেডিকেল সেন্টার'), '01700-110119', tx('Demo number', 'ডেমো নম্বর')],
   ]
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <h1 className="font-display text-4xl">{tx('Help', 'সহায়তা')}</h1>
+      <h1 className="font-display text-4xl">{tx('Get help', 'সাহায্য নিন')}</h1>
       <div className="rounded-2xl bg-clay/10 p-4 text-sm">{tx('If you can, call 999. The SOS button messages the numbers you save and the campus desk. It does not call 999 and it cannot send a rescue.', 'পারলে ৯৯৯-এ কল করুন। SOS বোতাম আপনার সেভ করা নম্বরে ও ক্যাম্পাস ডেস্কে বার্তা পাঠায়। এতে ৯৯৯-এ কল হয় না এবং উদ্ধার পাঠানো যায় না।')}</div>
-      <div className="grid gap-3 sm:grid-cols-3">
-        {contacts.map(([name, phone, note]) => (
-          <a key={phone} href={`tel:${phone.replaceAll('-', '')}`} className="panel p-4">
-            <p className="text-sm text-ink/60">{name}</p>
-            <p className="font-display text-3xl">{phone}</p>
-            <p className="text-xs text-ink/50">{note}</p>
-          </a>
-        ))}
+      <div className="space-y-3">
+        {contacts.map((item) => {
+          const name = lang === 'bn' ? item.nameBn : item.nameEn
+          const description = lang === 'bn' ? item.descriptionBn : item.descriptionEn
+          const tel = item.phone.replace(/[^\d+]/g, '')
+          return (
+            <article key={item.id} className="panel p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-teal-800">{supportCategoryLabel(item.category, lang)}</p>
+              <h2 className="mt-1 font-display text-2xl">{name}</h2>
+              {description ? <p className="mt-1 text-sm text-ink/75">{description}</p> : null}
+              <a href={`tel:${tel}`} className="mt-3 inline-block font-display text-3xl text-night underline-offset-4 hover:underline">
+                {item.phone}
+              </a>
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink/55">
+                {item.hours ? <span>{item.hours}</span> : null}
+                {item.email ? <a href={`mailto:${item.email}`} className="font-semibold text-teal-800">{item.email}</a> : null}
+              </div>
+            </article>
+          )
+        })}
       </div>
       <div className="space-y-2">
         {faqs.map(([q, a]) => (
@@ -194,6 +205,21 @@ export function HelpPage() {
       </div>
     </div>
   )
+}
+
+function supportCategoryLabel(category: string, lang: 'en' | 'bn') {
+  const labels: Record<string, [string, string]> = {
+    emergency: ['Emergency', 'জরুরি'],
+    counseling: ['Counseling', 'কাউন্সেলিং'],
+    women_safety: ['Women safety', 'নারী নিরাপত্তা'],
+    legal: ['Legal', 'আইনি'],
+    health: ['Health', 'স্বাস্থ্য'],
+    proctor: ['Proctor', 'প্রক্টর'],
+    anti_harassment_committee: ['Anti-harassment', 'হয়রানি বিরোধী'],
+  }
+  const pair = labels[category]
+  if (!pair) return category
+  return lang === 'bn' ? pair[1] : pair[0]
 }
 
 function Choice({ pressed, onClick, children }: { pressed: boolean; onClick: () => void; children: string }) {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:safely_mobile/campus.dart';
+import 'package:safely_mobile/help.dart';
 import 'package:safely_mobile/live_map.dart';
 import 'package:safely_mobile/remote_config.dart';
 import 'package:safely_mobile/sos_panel.dart';
@@ -218,6 +219,11 @@ class MemberHome extends StatelessWidget {
         LiveMap(bangla: store.bangla),
         const SizedBox(height: 16),
         FilledButton(onPressed: onReport, child: Text(tx('Report a problem', 'সমস্যা জানান'))),
+        const SizedBox(height: 10),
+        OutlinedButton(
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => HelpScreen(store: store))),
+          child: Text(tx('Get help', 'সাহায্য নিন')),
+        ),
         const SizedBox(height: 20),
         Text(tx('Your reports', 'আপনার রিপোর্ট'), style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
