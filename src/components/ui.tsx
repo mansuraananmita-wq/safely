@@ -66,7 +66,7 @@ export function Empty({ title, body, action }: { title: string; body: string; ac
   )
 }
 
-export function Bars({ rows }: { rows: { label: string; value: number }[] }) {
+export function Bars({ rows }: { rows: { label: string; value: number; display?: string }[] }) {
   const max = Math.max(1, ...rows.map((row) => row.value))
   if (!rows.length) return <p className="text-sm text-slate">No reports in this view yet.</p>
   return (
@@ -75,7 +75,7 @@ export function Bars({ rows }: { rows: { label: string; value: number }[] }) {
         <div key={row.label}>
           <div className="mb-1 flex justify-between gap-3 text-sm">
             <span className="text-night">{row.label}</span>
-            <span className="tabular-nums text-slate">{row.value}</span>
+            <span className="text-right tabular-nums text-slate">{row.display ?? row.value}</span>
           </div>
           <div className="h-2 rounded-full bg-frost">
             <div className="h-2 rounded-full bg-steel" style={{ width: `${(row.value / max) * 100}%` }} />

@@ -39,7 +39,8 @@ Supabase প্রজেক্ট এই রিপোজিটরি তৈর�
 - `notifications`, `announcements`, `lost_found`, `audit_log`
 - `support_contacts` — Get help directory; signed-in users read active rows; only admin writes
 - `emergency_contacts`, `sos_alerts` (`seen_at`, `resolved_at` সহ)
-- `public_reports` ভিউ। হয়রানি, গোপন, বেনামি, এবং safety রিপোর্ট এই ভিউতে নেই। `/status` এই ভিউ পড়ে।
+- `public_reports` ভিউ। হয়রানি, গোপন, বেনামি, এবং safety রিপোর্ট এই ভিউতে নেই।
+- `public_status_by_category`, `public_status_by_office`, `public_status_summary` — `/status` এর গণনা; ৫-এর কম সংখ্যা `fewer than 5`; সংবেদনশীল রিপোর্ট বাদ।
 - Row Level Security। কে কোন রিপোর্ট/SOS দেখতে পাবে সেটা ডেটাবেসও ঠিক রাখে।
 - হয়রানির রিপোর্ট সবসময় confidential। বেনামি রিপোর্টেও confidential চালু এবং `reporter_id` খালি।
 - গোপন রিপোর্ট শুধু Security (`d-sec`) বা Student Affairs (`d-affairs`)-এ বরাদ্দ হয়।
@@ -88,8 +89,9 @@ Run-এর পর নিচে **Success** দেখা উচিত। error �
 - `20261025190000_sos_desk_notify_and_status.sql` — ডেস্ক নোটিফিকেশন ট্রিগার, `seen_at`, security RLS
 - `20261026013000_anonymous_report_identities.sql` — `report_identities`, `reveal_reporter`, বেনামি `reporter_id` খালি
 - `20261027001500_support_contacts.sql` — Get help `support_contacts` টেবিল, seed (৯৯৯ + placeholder), RLS
+- `20261027010000_public_status_counts.sql` — `/status` bucketed counts + 30-day avg resolution views
 
-টেস্ট SQL: `supabase/tests/` (SOS রেট লিমিট, SOS RLS, বেনামি রিপোর্টার আইসোলেশন, support_contacts student write block)। `npm run test` linked প্রজেক্টে এগুলো চালায়।
+টেস্ট SQL: `supabase/tests/` (SOS রেট লিমিট, SOS RLS, বেনামি রিপোর্টার আইসোলেশন, support_contacts student write block, public status count hide)। `npm run test` linked প্রজেক্টে এগুলো চালায়।
 
 ### SQL যদি auth.users-এ আটকায়
 

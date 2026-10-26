@@ -12,13 +12,15 @@ const anonMigration = path.resolve('supabase/migrations/20261026013000_anonymous
 const anonSql = path.resolve('supabase/tests/anonymous_reporter_rls.sql')
 const supportMigration = path.resolve('supabase/migrations/20261027001500_support_contacts.sql')
 const supportSql = path.resolve('supabase/tests/support_contacts_rls.sql')
+const publicStatusMigration = path.resolve('supabase/migrations/20261027010000_public_status_counts.sql')
+const publicStatusSql = path.resolve('supabase/tests/public_status_counts.sql')
 
 function runSqlFile(file: string) {
   try {
     return execFileSync(
       'supabase',
       ['db', 'query', '--linked', '--project-ref', projectRef, '--file', file],
-      { encoding: 'utf8', cwd: path.resolve('.'), stdio: ['ignore', 'pipe', 'pipe'], timeout: 90_000 },
+      { encoding: 'utf8', cwd: path.resolve('.'), stdio: ['ignore', 'pipe', 'pipe'], timeout: 120_000 },
     )
   } catch (error) {
     const err = error as { stdout?: string; stderr?: string; message?: string; code?: string }
@@ -56,5 +58,15 @@ describe('sos database guards', () => {
     expect(output).not.toMatch(/student inserted into support_contacts/i)
     expect(output).not.toMatch(/student updated support_contacts/i)
     expect(output).not.toMatch(/student could not read active support_contacts/i)
+  }, 120_000)
+
+  it('hides small public status counts and excludes confidential reports', () => {
+    expect(existsSync(publicStatusMigration)).toBe(true)
+    expect(existsSync(publicStatusSql)).toBe(true)
+    const output = runSqlFile(publicStatusSql)
+    expect(output).not.toMatch(/public_count_label\(3\) should be fewer than 5/i)
+    expect(output).not.toMatch(/small water open count was not hidden/i)
+    expect(output).not.toMatch(/confidential report changed public/i)
+    expect(output).not.toMatch(/harassment\/safety must not appear/i)
   }, 120_000)
 })

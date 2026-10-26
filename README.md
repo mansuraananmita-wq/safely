@@ -30,7 +30,7 @@ The operations desk can:
 - Manage users, categories, alerts, Get help contacts, and the audit log
 - For a harassment or safety emergency only, call audited `reveal_reporter` (operations or Student Affairs)
 
-The public page `/status` shows counts for ordinary reports. Harassment, confidential, anonymous, and safety stories are left off that page and off the public campus map.
+The public page `/status` shows open and resolved counts per category and office, plus average resolution time for the last 30 days. Aggregation happens in database views. Counts under 5 appear as **fewer than 5**. Harassment, confidential, anonymous, and safety stories never contribute to those figures or to the public campus map.
 
 ### Anonymous reports
 
@@ -60,7 +60,7 @@ npm run dev
 
 Open [http://localhost:5173/](http://localhost:5173/).
 
-`npm run test` checks privacy rules, SOS helpers, image EXIF strip helpers, and linked-database guards (rate limit, SOS RLS, anonymous reporter isolation, support_contacts write lock). `npm run build` typechecks and builds the site. `npm run preview` serves that build.
+`npm run test` checks privacy rules, SOS helpers, image EXIF strip helpers, public count labels, and linked-database guards (rate limit, SOS RLS, anonymous reporter isolation, support_contacts write lock, public status count bucketing). `npm run build` typechecks and builds the site. `npm run preview` serves that build.
 
 To use the campus database, copy `.env.example` to `.env.local` and set:
 
