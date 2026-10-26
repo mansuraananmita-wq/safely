@@ -17,6 +17,9 @@ begin
   if public.sos_live_accuracy_ok(15, 400) is not false then
     raise exception 'a much worse later guess should be rejected';
   end if;
+  if public.sos_live_accuracy_ok(null, 500) is not false then
+    raise exception 'neighbourhood accuracy should be rejected';
+  end if;
   if public.sos_live_accuracy_ok(30, 0) is not false then
     raise exception 'zero accuracy should be rejected';
   end if;

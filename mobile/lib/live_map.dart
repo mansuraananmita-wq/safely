@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:safely_mobile/sos.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 class LiveMap extends StatefulWidget {
@@ -79,12 +80,17 @@ class _LiveMapState extends State<LiveMap> {
       return;
     }
     _stream = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 15),
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.best, distanceFilter: 8),
     ).listen((position) {
       if (!mounted) return;
+      final fix = LiveFix(lat: position.latitude, lng: position.longitude, accuracy: position.accuracy, at: position.timestamp);
+      if (!isPreciseFix(fix)) {
+        setState(() => _status = 'weak');
+        return;
+      }
       setState(() {
-        _lat = position.latitude;
-        _lng = position.longitude;
+        _lat = fix.lat;
+        _lng = fix.lng;
         _status = 'live';
       });
       _show(_lat, _lng);
@@ -96,11 +102,10 @@ class _LiveMapState extends State<LiveMap> {
   }
 
   void _show(double lat, double lng, {bool force = false}) {
-    final key = '${lat.toStringAsFixed(4)},${lng.toStringAsFixed(4)},${widget.bangla}';
+    final key = '${lat.toStringAsFixed(5)},${lng.toStringAsFixed(5)},${widget.bangla}';
     if (!force && key == _loaded) return;
     _loaded = key;
-    final hl = widget.bangla ? 'bn' : 'en';
-    _controller?.loadRequest(Uri.parse('https://maps.google.com/maps?q=$lat,$lng&z=16&hl=$hl&output=embed'));
+    _controller?.loadRequest(Uri.parse(osmEmbedHref(lat, lng)));
   }
 
   @override
@@ -117,7 +122,8 @@ class _LiveMapState extends State<LiveMap> {
         switch (_status) {
           'live' => widget.bangla ? 'এই পিন আপনার লাইভ লোকেশন অনুসরণ করে।' : 'This pin follows your live location.',
           'seeking' => widget.bangla ? 'আপনার লোকেশন খোঁজা হচ্ছে…' : 'Finding your location…',
-          'pin' => widget.bangla ? 'গুগল ম্যাপে এই রিপোর্টের পিন।' : 'This report’s pin on Google Maps.',
+          'pin' => widget.bangla ? 'এই পিন ঠিক যে কোঅর্ডিনেটে পাঠানো হয়েছে।' : 'This pin sits on the coordinates that were sent.',
+          'weak' => widget.bangla ? 'রিডিং খুব চওড়া। সঠিক লোকেশন অনুমতি দিন।' : 'That reading is too wide. Allow a precise location.',
           _ => widget.bangla ? 'লোকেশন বন্ধ। অনুমতি দিলে পিন আপনার কাছে আসবে।' : 'Location is off. Allow it and the pin moves to you.',
         };
     return Column(
@@ -135,7 +141,7 @@ class _LiveMapState extends State<LiveMap> {
                 ],
               ),
             ),
-            if (_status == 'off')
+            if (_status == 'off' || _status == 'weak')
               TextButton(
                 onPressed: _listen,
                 child: Text(widget.bangla ? 'আবার' : 'Retry'),

@@ -7,8 +7,11 @@ void main() {
     final walked = LiveFix(lat: 23.810800, lng: 90.412900, accuracy: 18, at: DateTime(2026, 1, 1, 0, 0, 8));
     final jitter = LiveFix(lat: 23.810332, lng: 90.412522, accuracy: 14, at: DateTime(2026, 1, 1, 0, 0, 2));
     final city = LiveFix(lat: 23.7942, lng: 90.4097, accuracy: 8000, at: DateTime(2026, 1, 1, 0, 0, 9));
+    final neighbourhood = LiveFix(lat: 24.071, lng: 90.219, accuracy: 500, at: DateTime(2026, 1, 1, 0, 0, 4));
     expect(shouldPushLiveFix(sent, walked), isTrue);
     expect(shouldPushLiveFix(sent, jitter), isFalse);
     expect(shouldPushLiveFix(sent, city), isFalse);
+    expect(isPreciseFix(neighbourhood), isFalse);
+    expect(shouldPushLiveFix(sent, neighbourhood), isFalse);
   });
 }

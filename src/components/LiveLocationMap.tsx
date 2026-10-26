@@ -1,54 +1,45 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { isPreciseFix } from '../lib/sos'
+import { watchLiveLocation } from '../lib/sos'
 import { GooglePlaceMap } from './GooglePlaceMap'
 import { Button } from './ui'
 import { useApp } from '../store'
 
 const campus = { lat: 23.7342, lng: 90.392 }
 
-function round(value: number) {
-  return Math.round(value * 10000) / 10000
-}
-
 export function LiveLocationMap() {
   const { tx } = useApp()
   const [point, setPoint] = useState<{ lat: number; lng: number } | null>(null)
   const [mode, setMode] = useState<'seeking' | 'live' | 'weak' | 'off'>('seeking')
-  const watchId = useRef<number | null>(null)
+  const stopWatch = useRef<(() => void) | null>(null)
 
   const stop = useCallback(() => {
-    if (watchId.current != null && navigator.geolocation) {
-      navigator.geolocation.clearWatch(watchId.current)
-      watchId.current = null
-    }
+    stopWatch.current?.()
+    stopWatch.current = null
   }, [])
 
   const start = useCallback(() => {
-    if (!navigator.geolocation) {
-      setMode('off')
-      return
-    }
-    setMode('seeking')
     stop()
-    watchId.current = navigator.geolocation.watchPosition(
-      (position) => {
-        const reading = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-          accuracy: position.coords.accuracy,
-          at: position.timestamp || Date.now(),
-        }
-        if (!isPreciseFix(reading)) {
-          setMode('weak')
-          return
-        }
-        const next = { lat: round(reading.lat), lng: round(reading.lng) }
-        setPoint((current) => (current && current.lat === next.lat && current.lng === next.lng ? current : next))
+    setPoint(null)
+    setMode('seeking')
+    const timer = window.setTimeout(() => {
+      setMode((current) => (current === 'seeking' ? 'weak' : current))
+    }, 15_000)
+    stopWatch.current = watchLiveLocation(
+      (fix) => {
+        window.clearTimeout(timer)
+        setPoint({ lat: fix.lat, lng: fix.lng })
         setMode('live')
       },
-      () => setMode('off'),
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 },
+      () => {
+        window.clearTimeout(timer)
+        setMode('off')
+      },
     )
+    const previous = stopWatch.current
+    stopWatch.current = () => {
+      window.clearTimeout(timer)
+      previous()
+    }
   }, [stop])
 
   useEffect(() => {

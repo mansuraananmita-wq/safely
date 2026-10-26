@@ -8,7 +8,7 @@ void main() {
     expect(body, contains('Amina Rahman'));
     expect(body, contains('23.780887'));
     expect(body, contains('90.407268'));
-    expect(body, contains('https://maps.google.com/?q=23.780887,90.407268'));
+    expect(body, contains('q=23.780887,90.407268'));
     expect(body, contains('does not call 999'));
   });
 

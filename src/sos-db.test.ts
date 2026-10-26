@@ -27,6 +27,7 @@ const deviceTokenSql = path.resolve('supabase/tests/device_tokens_rls.sql')
 const reportMediaMigration = path.resolve('supabase/migrations/20261027070000_report_media.sql')
 const reportMediaSql = path.resolve('supabase/tests/report_media_rls.sql')
 const sosLiveMigration = path.resolve('supabase/migrations/20261027080000_sos_live_location.sql')
+const sosCloseMigration = path.resolve('supabase/migrations/20261027090000_sos_close_fix.sql')
 const sosLiveSql = path.resolve('supabase/tests/sos_live_location.sql')
 
 function runSqlFile(file: string) {
@@ -139,10 +140,12 @@ describe('sos database guards', () => {
 
   it('allows a later SOS pin with similar GPS accuracy and rejects a city guess', () => {
     expect(existsSync(sosLiveMigration)).toBe(true)
+    expect(existsSync(sosCloseMigration)).toBe(true)
     expect(existsSync(sosLiveSql)).toBe(true)
     const output = runSqlFile(sosLiveSql)
     expect(output).not.toMatch(/similar GPS accuracy after a short move should be ok/i)
     expect(output).not.toMatch(/city or IP accuracy should be rejected/i)
+    expect(output).not.toMatch(/neighbourhood accuracy should be rejected/i)
   }, 120_000)
 
   it('hides a report voice file from an unrelated user', () => {

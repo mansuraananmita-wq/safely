@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { GooglePlaceMap } from './GooglePlaceMap'
 import { formatWhen, sosDeskStatus } from '../logic'
-import { sosLiveOpen } from '../lib/sos'
+import { LIVE_MAX_M, sosLiveOpen } from '../lib/sos'
 import { useApp } from '../store'
 import { Button } from './ui'
 import type { SosAlert } from '../types'
@@ -82,7 +82,7 @@ function statusLabel(item: SosAlert, tx: (en: string, bn: string) => string) {
 function SosCard({ item, desk }: { item: SosAlert; desk: boolean }) {
   const { tx, lang, resolveSos } = useApp()
   const hasPlace = typeof item.lat === 'number' && typeof item.lng === 'number'
-  const rough = typeof item.accuracyM === 'number' && item.accuracyM > 1_000
+  const rough = typeof item.accuracyM === 'number' && item.accuracyM > LIVE_MAX_M
   const status = sosDeskStatus(item)
   return (
     <li className="rounded-2xl border border-line bg-white p-4">

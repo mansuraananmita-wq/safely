@@ -1444,7 +1444,7 @@ immutable
 as $$
   select new_accuracy is not null
     and new_accuracy > 0
-    and new_accuracy <= 1000
+    and new_accuracy <= 150
     and (
       old_accuracy is null
       or new_accuracy <= greatest(old_accuracy + 80, old_accuracy * 2)

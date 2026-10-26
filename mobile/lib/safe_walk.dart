@@ -147,7 +147,9 @@ class _SafeWalkScreenState extends State<SafeWalkScreen> {
     final permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) return;
     try {
-      final position = await Geolocator.getCurrentPosition();
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.best, timeLimit: Duration(seconds: 12)),
+      );
       final fix = LiveFix(lat: position.latitude, lng: position.longitude, accuracy: position.accuracy, at: DateTime.now());
       if (!isPreciseFix(fix)) return;
       await widget.store.updateSafeWalkLocation(walk.id, fix);
@@ -178,7 +180,9 @@ class _SafeWalkScreenState extends State<SafeWalkScreen> {
       });
       if (ok == LocationPermission.always || ok == LocationPermission.whileInUse) {
         try {
-          final position = await Geolocator.getCurrentPosition();
+          final position = await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(accuracy: LocationAccuracy.best, timeLimit: Duration(seconds: 12)),
+          );
           fix = LiveFix(lat: position.latitude, lng: position.longitude, accuracy: position.accuracy, at: DateTime.now());
           if (!isPreciseFix(fix)) fix = null;
         } catch (_) {}

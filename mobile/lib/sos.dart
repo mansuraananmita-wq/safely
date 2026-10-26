@@ -2,7 +2,7 @@
 
 import 'dart:math';
 
-const liveMaxM = 1000.0;
+const liveMaxM = 150.0;
 const liveShareMs = 180000;
 const liveMoveM = 15.0;
 const liveAccuracySlackM = 80.0;
@@ -43,10 +43,20 @@ bool shouldPushLiveFix(LiveFix? sent, LiveFix next) {
   return metersBetween(sent, next) >= liveMoveM;
 }
 
+String mapsPinHref(double lat, double lng) {
+  final q = '${lat.toStringAsFixed(6)},${lng.toStringAsFixed(6)}';
+  return 'https://www.google.com/maps?q=$q&ll=$q&z=18';
+}
+
+String osmEmbedHref(double lat, double lng) {
+  const delta = 0.003;
+  return 'https://www.openstreetmap.org/export/embed.html?bbox=${lng - delta},${lat - delta},${lng + delta},${lat + delta}&layer=mapnik&marker=$lat,$lng';
+}
+
 String sosMessage(String name, LiveFix? place) {
   final where = place == null
       ? 'Location was not available.'
-      : 'https://maps.google.com/?q=${place.lat.toStringAsFixed(6)},${place.lng.toStringAsFixed(6)}';
+      : mapsPinHref(place.lat, place.lng);
   return 'Safely SOS. $name needs help now. $where This does not call 999.';
 }
 
@@ -58,7 +68,7 @@ String offlineSosSmsBody(String name, LiveFix? place) {
   }
   final lat = place.lat.toStringAsFixed(6);
   final lng = place.lng.toStringAsFixed(6);
-  final maps = 'https://maps.google.com/?q=$lat,$lng';
+  final maps = mapsPinHref(place.lat, place.lng);
   return 'Safely SOS. $name needs help now. Coordinates: $lat, $lng. Map: $maps This does not call 999.';
 }
 

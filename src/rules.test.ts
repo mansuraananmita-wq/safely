@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { assignmentBlocked, deskReports, identityMode, inboxNotifications, isPublicFeed, isReportOwner, officeCanRead, QUEUE_OFFICES, sosDeskStatus, staffVisibleReporterId } from './logic'
-import { isPreciseFix, preferLiveFix, normalizePhone, sendDecision, shouldPushLiveFix, sosLiveOpen, sosMessage } from './lib/sos'
+import { isPreciseFix, mapsPinHref, preferLiveFix, normalizePhone, readCloseLocation, sendDecision, shouldPushLiveFix, sosLiveOpen, sosMessage } from './lib/sos'
 import type { Report, User } from './types'
 
 function user(partial: Partial<User> & Pick<User, 'id' | 'role'>): User {
@@ -120,7 +120,7 @@ describe('sos live location', () => {
     expect(preferLiveFix(coarse, live)).toEqual(live)
     expect(preferLiveFix(live, moved)).toEqual(moved)
     expect(preferLiveFix(moved, coarseAgain)).toEqual(moved)
-    expect(sosMessage('Amina Rahman', moved)).toContain('https://maps.google.com/?q=23.811102,90.413204')
+    expect(sosMessage('Amina Rahman', moved)).toContain('q=23.811102,90.413204')
     expect(sosMessage('Amina Rahman', null)).toContain('Location was not available.')
   })
 
@@ -132,11 +132,12 @@ describe('sos live location', () => {
     const ip = { lat: 24.7399, lng: 88.2099, accuracy: 50_000, at: 1_000 }
     expect(isPreciseFix(precise)).toBe(true)
     expect(isPreciseFix(wifi)).toBe(true)
-    expect(isPreciseFix(neighbourhood)).toBe(true)
+    expect(isPreciseFix(neighbourhood)).toBe(false)
     expect(isPreciseFix(city)).toBe(false)
     expect(sendDecision(precise, 0, false)).toBe('send')
     expect(sendDecision(wifi, 0, false)).toBe('send')
-    expect(sendDecision(neighbourhood, 0, false)).toBe('send')
+    expect(sendDecision(neighbourhood, 0, false)).toBe('wait')
+    expect(sendDecision(neighbourhood, 25_000, false)).toBe('blocked')
     expect(sendDecision(city, 4_000, false)).toBe('wait')
     expect(sendDecision(city, 25_000, false)).toBe('blocked')
     expect(sendDecision(ip, 25_000, false)).toBe('blocked')
@@ -145,6 +146,28 @@ describe('sos live location', () => {
     expect(preferLiveFix(city, wifi)).toEqual(wifi)
     expect(preferLiveFix(wifi, precise)).toEqual(precise)
     expect(preferLiveFix(precise, ip)).toEqual(precise)
+    expect(mapsPinHref(23.810331, 90.412521)).toContain('q=23.810331,90.412521')
+    expect(mapsPinHref(23.810331, 90.412521)).toContain('ll=23.810331,90.412521')
+  })
+
+  it('readCloseLocation keeps a sync GPS callback and does not throw', async () => {
+    const geo = {
+      getCurrentPosition(ok: (position: GeolocationPosition) => void) {
+        ok({
+          coords: { latitude: 24.071391, longitude: 90.21624, accuracy: 12, altitude: null, altitudeAccuracy: null, heading: null, speed: null },
+          timestamp: 1,
+        } as GeolocationPosition)
+      },
+      watchPosition() { return 1 },
+      clearWatch() {},
+    }
+    const previous = globalThis.navigator
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { geolocation: geo } })
+    const got = await new Promise<{ lat: number; accuracy: number } | string>((resolve) => {
+      readCloseLocation((fix) => resolve({ lat: fix.lat, accuracy: fix.accuracy }), (reason) => resolve(reason), 1_000)
+    })
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: previous })
+    expect(got).toEqual({ lat: 24.071391, accuracy: 12 })
   })
 
   it('pushes a walk of similar GPS accuracy and rejects a city-wide later guess', () => {

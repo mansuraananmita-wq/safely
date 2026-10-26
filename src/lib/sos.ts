@@ -14,17 +14,15 @@ export function normalizePhone(raw: string): string | null {
 
 export type LiveFix = { lat: number; lng: number; accuracy: number; at: number }
 
-/** Wider than this is a city or IP guess, not the device GPS or Wi-Fi fix. */
-export const LIVE_MAX_M = 1_000
+/** Wider than this is a neighbourhood, city, or IP guess — not close enough to find someone. */
+export const LIVE_MAX_M = 150
 
 export function isPreciseFix(fix: LiveFix | null): fix is LiveFix {
   return !!fix && fix.accuracy > 0 && fix.accuracy <= LIVE_MAX_M
 }
 
 export function sosMessage(name: string, place: { lat: number; lng: number } | null): string {
-  const where = place
-    ? `https://maps.google.com/?q=${place.lat.toFixed(6)},${place.lng.toFixed(6)}`
-    : 'Location was not available.'
+  const where = place ? mapsPinHref(place.lat, place.lng) : 'Location was not available.'
   return `Safely SOS. ${name} needs help now. ${where} This does not call 999.`
 }
 
@@ -67,6 +65,8 @@ export function sosLiveOpen(createdAt: string, now = Date.now()): boolean {
   return now - started < LIVE_SHARE_MS
 }
 
+const gpsOptions: PositionOptions = { enableHighAccuracy: true, maximumAge: 0, timeout: 20_000 }
+
 export function watchLiveLocation(onFix: (fix: LiveFix) => void, onDenied?: () => void): () => void {
   if (typeof navigator === 'undefined' || !navigator.geolocation) {
     onDenied?.()
@@ -80,14 +80,50 @@ export function watchLiveLocation(onFix: (fix: LiveFix) => void, onDenied?: () =
       at: position.timestamp || Date.now(),
     }
     if (!isPreciseFix(next)) return
-    onFix(next)
+    queueMicrotask(() => onFix(next))
   }
   const denied = (error: GeolocationPositionError) => {
-    if (error.code === error.PERMISSION_DENIED) onDenied?.()
+    if (error.code === error.PERMISSION_DENIED) queueMicrotask(() => onDenied?.())
   }
-  navigator.geolocation.getCurrentPosition(take, denied, { enableHighAccuracy: false, maximumAge: 0, timeout: 10_000 })
-  const watch = navigator.geolocation.watchPosition(take, denied, { enableHighAccuracy: true, maximumAge: 0, timeout: 25_000 })
+  navigator.geolocation.getCurrentPosition(take, denied, gpsOptions)
+  const watch = navigator.geolocation.watchPosition(take, denied, gpsOptions)
   return () => navigator.geolocation.clearWatch(watch)
+}
+
+export function readCloseLocation(
+  onFix: (fix: LiveFix) => void,
+  onFail: (reason: 'denied' | 'weak' | 'missing') => void,
+  waitMs = 15_000,
+): () => void {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) {
+    onFail('missing')
+    return () => {}
+  }
+  let done = false
+  let stopWatch = () => {}
+  let timer = 0
+  const finish = (next: () => void) => {
+    if (done) return
+    done = true
+    clearTimeout(timer)
+    stopWatch()
+    next()
+  }
+  stopWatch = watchLiveLocation(
+    (fix) => finish(() => onFix(fix)),
+    () => finish(() => onFail('denied')),
+  )
+  timer = setTimeout(() => finish(() => onFail('weak')), waitMs) as unknown as number
+  return () => finish(() => {})
+}
+
+export function mapsPinHref(lat: number, lng: number, zoom = 18): string {
+  const q = `${lat.toFixed(6)},${lng.toFixed(6)}`
+  return `https://www.google.com/maps?q=${q}&ll=${q}&z=${zoom}`
+}
+
+export function mapsDirectionsHref(lat: number, lng: number): string {
+  return `https://www.google.com/maps/dir/?api=1&destination=${lat.toFixed(6)},${lng.toFixed(6)}`
 }
 
 export function sendDecision(fix: LiveFix | null, waitedMs: number, denied: boolean): 'wait' | 'send' | 'blocked' {

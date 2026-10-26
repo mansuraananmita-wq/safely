@@ -6,6 +6,7 @@ import { PinPicker } from '../../components/PinPicker'
 import { Button, Field, useTitle } from '../../components/ui'
 import { PLACES, SUBCATEGORIES, subcategoryLabel } from '../../data'
 import { mediaProblem } from '../../lib/reportMedia'
+import { readCloseLocation } from '../../lib/sos'
 import { stripImageMeta } from '../../lib/stripImageMeta'
 import { isMapPin, isOpen, isPublicFeed, priorityLabel } from '../../logic'
 import { useApp, type ReportInput } from '../../store'
@@ -265,18 +266,25 @@ export function NewReportPage() {
       toast(tx('This browser cannot share a location. The building pin is enough.', 'এই ব্রাউজার লোকেশন দিতে পারে না। ভবনের পিনই যথেষ্ট।'))
       return
     }
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
+    toast(tx('Reading a close device location…', 'কাছের ডিভাইস লোকেশন পড়া হচ্ছে…'))
+    readCloseLocation(
+      (fix) => {
         setForm((current) => ({
           ...current,
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
+          lat: fix.lat,
+          lng: fix.lng,
           pinFromDevice: true,
           pinMoved: false,
         }))
-        toast(tx('The pin moved to where this device is. That is what the office will see.', 'পিন এই ডিভাইসের জায়গায় গেছে। দপ্তর সেটিই দেখবে।'))
+        toast(tx(`The pin moved to this device (${Math.round(fix.accuracy)} m). That is what the office will see.`, `পিন এই ডিভাইসে গেছে (${Math.round(fix.accuracy)} মি)। দপ্তর সেটিই দেখবে।`))
       },
-      () => toast(tx('Location was blocked. The building pin is enough.', 'লোকেশন বন্ধ আছে। ভবনের পিনই যথেষ্ট।')),
+      (reason) => {
+        if (reason === 'denied') {
+          toast(tx('Location was blocked. The building pin is enough.', 'লোকেশন বন্ধ আছে। ভবনের পিনই যথেষ্ট।'))
+          return
+        }
+        toast(tx('A close location did not arrive, so the pin stayed on the building. A city or IP pin is not used.', 'কাছের লোকেশন আসেনি, তাই পিন ভবনেই আছে। শহর বা আইপি পিন ব্যবহার হয় না।'))
+      },
     )
   }
 

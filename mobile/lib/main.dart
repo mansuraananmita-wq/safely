@@ -14,6 +14,7 @@ import 'package:safely_mobile/remote_config.dart';
 import 'package:safely_mobile/report_clips.dart';
 import 'package:safely_mobile/safe_walk.dart';
 import 'package:safely_mobile/shake_sos.dart';
+import 'package:safely_mobile/sos.dart';
 import 'package:safely_mobile/sos_panel.dart';
 import 'package:safely_mobile/strip_image_meta.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -479,9 +480,14 @@ class _NewReportState extends State<NewReport> {
     final permission = await GeolocatorPermission.ask();
     if (permission) {
       try {
-        final position = await Geolocator.getCurrentPosition();
-        lat = position.latitude;
-        lng = position.longitude;
+        final position = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(accuracy: LocationAccuracy.best, timeLimit: Duration(seconds: 12)),
+        );
+        final fix = LiveFix(lat: position.latitude, lng: position.longitude, accuracy: position.accuracy, at: position.timestamp);
+        if (isPreciseFix(fix)) {
+          lat = fix.lat;
+          lng = fix.lng;
+        }
       } catch (_) {}
     }
     setState(() => _busy = true);
