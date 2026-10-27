@@ -17,13 +17,14 @@ export function HomePage() {
   const hour = new Date().getHours()
   const hello = hour < 12 ? tx('Good morning', 'সুপ্রভাত') : hour < 17 ? tx('Good afternoon', 'শুভ অপরাহ্ন') : tx('Good evening', 'শুভ সন্ধ্যা')
 
+  const first = currentUser?.name.split(' ')[0] ?? ''
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm text-ink/60">{hello}</p>
-          <h1 className="font-display text-4xl">{currentUser?.name}</h1>
-          <p className="mt-1 text-sm text-ink/70">{currentUser?.unit}</p>
+          <p className="text-sm text-ink/60">{hello}{first ? `, ${first}` : ''}</p>
+          <h1 className="text-3xl font-semibold tracking-tight text-night">{tx('Your desk', 'আপনার ডেস্ক')}</h1>
+          <p className="mt-1 text-sm text-ink/70">{tx('Open reports, drafts, and campus notices.', 'খোলা রিপোর্ট, খসড়া, এবং ক্যাম্পাস নোটিশ।')}</p>
         </div>
         <Link to="/app/report/new" className={buttonClass('primary')}>{tx('Report a problem', 'সমস্যা জানান')}</Link>
       </div>

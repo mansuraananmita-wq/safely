@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Bars, Logo, buttonClass, useTitle } from '../components/ui'
+import { SiteHeader } from '../components/SiteHeader'
+import { Bars, useTitle } from '../components/ui'
 import { barRank, loadPublicStatus, localizeCountLabel, statusRowLabel, type PublicStatusSnapshot } from '../lib/publicStatus'
 import { useApp } from '../store'
 
@@ -32,12 +32,10 @@ export default function PublicStatus() {
     .sort((a, b) => barRank(b.openLabel, b.openCount) - barRank(a.openLabel, a.openCount))
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <Link to="/"><Logo /></Link>
-        <Link to="/login" className={buttonClass('primary')}>{tx('Sign in', 'সাইন ইন')}</Link>
-      </header>
-      <p className="mt-10 text-xs font-semibold uppercase tracking-[0.16em] text-teal-800">{tx('Public desk', 'প্রকাশ্য ডেস্ক')}</p>
+    <div>
+      <SiteHeader />
+      <div className="mx-auto max-w-5xl px-4 py-10">
+      <p className="text-sm text-slate">{tx('Public desk', 'প্রকাশ্য ডেস্ক')}</p>
       <h1 className="mt-2 max-w-2xl font-display text-5xl leading-tight">{tx('What the campus can see.', 'ক্যাম্পাস যা দেখতে পায়।')}</h1>
       <p className="mt-4 max-w-2xl text-ink/70">
         {tx(
@@ -100,6 +98,7 @@ export default function PublicStatus() {
       {snapshot?.source === 'preview' ? (
         <p className="mt-4 text-xs text-ink/50">{tx('Preview mode: local sample data with the same count rules.', 'প্রিভিউ: একই গণনার নিয়মে স্থানীয় নমুনা ডেটা।')}</p>
       ) : null}
+      </div>
     </div>
   )
 }

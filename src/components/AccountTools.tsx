@@ -57,16 +57,19 @@ export function AccountTools({ bellTo, profileTo }: { bellTo: string; profileTo:
         {unread > 0 ? <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-clay px-1 text-[11px] font-bold text-white">{unread}</span> : null}
       </Link>
       <div className="relative">
-        <button type="button" onClick={() => setOpen((value) => !value)} className="rounded-full border border-haze bg-white px-3 py-1.5 text-sm font-semibold text-night">
-          {currentUser?.name.split(' ')[0]}
+        <button type="button" onClick={() => setOpen((value) => !value)} className="grid h-9 w-9 place-items-center rounded-full bg-dusk text-xs font-semibold text-frost" aria-label={tx('Account menu', 'অ্যাকাউন্ট মেনু')}>
+          {(currentUser?.name ?? 'S').trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? '').join('') || 'S'}
         </button>
         {open ? (
           <>
             <button type="button" className="fixed inset-0 z-40 cursor-default" aria-label={tx('Close menu', 'মেনু বন্ধ')} onClick={() => setOpen(false)} />
-            <div className="absolute right-0 z-50 mt-2 w-56 rounded-2xl border border-haze bg-card p-2 shadow-card">
-              <p className="px-2 py-1 text-xs text-slate">{currentUser?.email}</p>
-              <Link to={profileTo} onClick={() => setOpen(false)} className="block rounded-xl px-2 py-2 text-sm text-night hover:bg-frost">
-                {tx('Profile and settings', 'প্রোফাইল ও সেটিংস')}
+            <div className="absolute right-0 z-50 mt-2 w-64 rounded-lg border border-haze bg-white p-2 shadow-card">
+              <div className="border-b border-haze px-2 py-2">
+                <p className="truncate text-sm font-semibold text-night">{currentUser?.name}</p>
+                <p className="truncate text-xs text-slate">{currentUser?.email}</p>
+              </div>
+              <Link to={profileTo} onClick={() => setOpen(false)} className="mt-1 block rounded-md px-2 py-2 text-sm text-night hover:bg-frost">
+                {tx('View profile', 'প্রোফাইল দেখুন')}
               </Link>
               <button
                 type="button"

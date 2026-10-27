@@ -3,8 +3,9 @@ import { ArrowRight, Lock, ThumbsUp, Timer } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { categoryIcon } from '../categoryUi'
 import type { LucideIcon } from 'lucide-react'
+import { SiteHeader } from '../components/SiteHeader'
 import { Logo, StatusPill, buttonClass, cx, useTitle } from '../components/ui'
-import { homePath, isMember, statusLabel } from '../logic'
+import { homePath, isMember, isPublicFeed, statusLabel } from '../logic'
 import { useApp } from '../store'
 import type { Status } from '../types'
 
@@ -21,84 +22,65 @@ function ReportLink({ category, className, children }: { category?: string; clas
 export default function Landing() {
   const { tx, lang, state, remote } = useApp()
   useTitle(tx('Campus desk', 'ক্যাম্পাস ডেস্ক'))
+  const publicCases = state.reports.filter((report) => isPublicFeed(report) && report.status !== 'draft').slice(0, 3)
   return (
     <div>
-      <header className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-5">
-        <Link to="/" aria-label="Safely"><Logo /></Link>
-        <nav className="ml-auto hidden items-center gap-5 text-sm md:flex">
-          <a href="#how" className="text-ink/70 hover:text-ink">{tx('How it works', 'কীভাবে কাজ করে')}</a>
-          <a href="#privacy" className="text-ink/70 hover:text-ink">{tx('Privacy', 'গোপনীয়তা')}</a>
-          <Link to="/status" className="text-ink/70 hover:text-ink">{tx('Public figures', 'প্রকাশ্য হিসাব')}</Link>
-        </nav>
-        <Link to="/login" className={buttonClass('secondary', 'ml-auto md:ml-0')}>{tx('Sign in', 'সাইন ইন')}</Link>
-        <ReportLink className={cx(buttonClass('primary'), 'hidden sm:inline-flex')}>{tx('Report a problem', 'সমস্যা জানান')}</ReportLink>
-      </header>
-      <nav className="flex gap-4 overflow-x-auto px-4 pb-2 text-sm md:hidden" aria-label={tx('Sections', 'বিভাগ')}>
-        <a href="#how" className="shrink-0 text-ink/70">{tx('How it works', 'কীভাবে কাজ করে')}</a>
-        <a href="#privacy" className="shrink-0 text-ink/70">{tx('Privacy', 'গোপনীয়তা')}</a>
-        <Link to="/status" className="shrink-0 text-ink/70">{tx('Public figures', 'প্রকাশ্য হিসাব')}</Link>
-      </nav>
+      <SiteHeader />
 
       <main>
-        <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 pb-16 pt-6 lg:grid-cols-[1.1fr_0.9fr]">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-dusk">{tx('Padma University', 'পদ্মা বিশ্ববিদ্যালয়')}</p>
-            <h1 className="mt-3 max-w-xl font-display text-5xl leading-[1.05] text-night sm:text-6xl">
-              {tx('A broken light should not wait in a group chat.', 'একটি ভাঙা বাতি গ্রুপ চ্যাটে আটকে থাকবে না।')}
-            </h1>
-            <p className="mt-5 max-w-lg text-lg text-steel">
-              {tx(
-                'Students, teachers, and staff file one report. The right office gets the work, you see the status, and sensitive cases stay with a smaller desk.',
-                'শিক্ষার্থী, শিক্ষক ও কর্মকর্তারা একটি রিপোর্ট দেন। সঠিক দপ্তর কাজ পায়, আপনি স্ট্যাটাস দেখেন, আর সংবেদনশীল ঘটনা ছোট একটি ডেস্কে থাকে।',
-              )}
-            </p>
-            <div className="mt-7 flex flex-wrap gap-3">
-              <ReportLink className={buttonClass('primary')}>
-                {tx('File a campus report', 'ক্যাম্পাস রিপোর্ট দিন')}
-                <ArrowRight className="h-4 w-4" />
-              </ReportLink>
-              <Link to="/login" className={buttonClass('secondary')}>{tx('Sign in', 'সাইন ইন')}</Link>
-            </div>
-            <p className="mt-4 max-w-md text-sm text-slate">
-              {tx(
-                'Nothing is sent on its own. You keep the report ID and follow each status. For danger, call 999.',
-                'কিছুই নিজে থেকে যায় না। রিপোর্ট আইডি আপনার কাছে থাকে, প্রতিটি স্ট্যাটাস আপনি দেখেন। বিপদে ৯৯৯-এ কল করুন।',
-              )}
-            </p>
-          </div>
-          <div className="relative">
-            <div className="absolute -left-4 top-8 hidden w-64 rotate-[-4deg] rounded-2xl border border-haze bg-white/90 p-4 shadow-card sm:block">
-              <p className="text-xs font-semibold text-dusk">SF-10510</p>
-              <p className="mt-1 font-display text-xl leading-tight text-night">{tx('Library wifi keeps dropping', 'লাইব্রেরির ওয়াইফাই বারবার ছুটে যাচ্ছে')}</p>
-              <p className="mt-2 text-xs text-slate">{tx('Submitted · waiting for a first reply', 'জমা হয়েছে · প্রথম উত্তরের অপেক্ষায়')}</p>
-            </div>
-            <div className="ml-auto max-w-md rounded-[28px] bg-night p-4 text-frost shadow-card">
-              <div className="rounded-[22px] bg-card p-5 text-night">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs font-semibold tracking-wide text-dusk">SF-10482</p>
-                  <StatusPill status="in_progress" />
-                </div>
-                <p className="mt-3 font-display text-3xl leading-tight">{tx('Broken asphalt at the main gate', 'প্রধান ফটকে ভাঙা রাস্তা')}</p>
-                <p className="mt-3 text-sm text-steel">{tx('Maintenance has the crew on the west footpath.', 'রক্ষণাবেক্ষণ দল পশ্চিম ফুটপাতে কাজ করছে।')}</p>
-                <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
-                  <div className="rounded-2xl bg-frost p-3">
-                    <p className="text-xs uppercase tracking-wide text-slate">{tx('Target', 'লক্ষ্য')}</p>
-                    <p className="font-display text-3xl text-night">22h</p>
-                  </div>
-                  <div className="rounded-2xl bg-frost p-3">
-                    <p className="text-xs uppercase tracking-wide text-slate">{tx('Same spot', 'একই জায়গা')}</p>
-                    <p className="font-display text-3xl text-night">4</p>
-                  </div>
-                </div>
+        <section className="border-b border-haze/70 bg-white">
+          <div className="mx-auto grid max-w-6xl gap-12 px-4 py-12 lg:grid-cols-[1.15fr_0.85fr] lg:py-16">
+            <div>
+              <p className="text-sm text-slate">{tx('Padma University', 'পদ্মা বিশ্ববিদ্যালয়')}</p>
+              <h1 className="mt-2 max-w-xl text-4xl font-semibold leading-tight tracking-tight text-night sm:text-[2.75rem]">
+                {tx('Report a campus problem and follow the office that takes it.', 'ক্যাম্পাসের সমস্যা জানান, যে দপ্তর নেয় সেটি অনুসরণ করুন।')}
+              </h1>
+              <p className="mt-5 max-w-lg text-base leading-relaxed text-steel">
+                {tx(
+                  'Students, teachers, and staff file one report. The right office gets the work, you keep the report ID, and sensitive cases stay with a smaller desk.',
+                  'শিক্ষার্থী, শিক্ষক ও কর্মকর্তারা একটি রিপোর্ট দেন। সঠিক দপ্তর কাজ পায়, রিপোর্ট আইডি আপনার কাছে থাকে, আর সংবেদনশীল ঘটনা ছোট একটি ডেস্কে থাকে।',
+                )}
+              </p>
+              <div className="mt-7 flex flex-wrap items-center gap-3">
+                <ReportLink className={buttonClass('primary', 'rounded-md')}>
+                  {tx('File a report', 'রিপোর্ট দিন')}
+                  <ArrowRight className="h-4 w-4" />
+                </ReportLink>
+                <Link to="/login" className="text-sm font-semibold text-dusk hover:underline">{tx('Sign in to your account', 'অ্যাকাউন্টে সাইন ইন')}</Link>
               </div>
+              <p className="mt-5 max-w-md text-sm text-slate">
+                {tx(
+                  'Nothing is sent on its own. If someone is in danger, call 999. Safely is the follow-up desk, not rescue.',
+                  'কিছুই নিজে থেকে যায় না। কেউ বিপদে থাকলে ৯৯৯-এ কল করুন। সেইফলি ফলো-আপ ডেস্ক, উদ্ধারকারী দল নয়।',
+                )}
+              </p>
             </div>
+            <aside className="overflow-hidden rounded-lg border border-haze bg-white">
+              <div className="flex items-center justify-between border-b border-haze px-4 py-3">
+                <h2 className="text-sm font-semibold text-night">{tx('Open public cases', 'খোলা প্রকাশ্য কেস')}</h2>
+                <Link to="/status" className="text-xs font-semibold text-dusk hover:underline">{tx('All figures', 'সব হিসাব')}</Link>
+              </div>
+              <ul className="divide-y divide-haze/70">
+                {publicCases.map((report) => (
+                  <li key={report.id} className="px-4 py-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-slate">{report.id}</p>
+                        <p className="mt-0.5 truncate text-sm font-semibold text-night">{report.title}</p>
+                      </div>
+                      <StatusPill status={report.status} />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </aside>
           </div>
         </section>
 
-        <section className="mx-auto max-w-6xl px-4 pb-10">
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-clay px-4 py-3 text-sm text-white">
-            <p className="font-semibold">{tx('If someone is in danger, call 999. Safely is the follow-up desk, not rescue.', 'কেউ বিপদে থাকলে ৯৯৯-এ কল করুন। সেইফলি ফলো-আপ ডেস্ক, উদ্ধারকারী দল নয়।')}</p>
-            <a href="tel:999" className="rounded-full bg-white px-3 py-1.5 text-sm font-semibold text-clay">{tx('Call 999', '৯৯৯ কল')}</a>
+        <section className="border-b border-haze/70 bg-frost/60">
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
+            <p className="text-steel">{tx('If someone is in danger, call 999. Safely does not replace campus security or emergency services.', 'কেউ বিপদে থাকলে ৯৯৯-এ কল করুন। সেইফলি ক্যাম্পাস নিরাপত্তা বা জরুরি সেবার বিকল্প নয়।')}</p>
+            <a href="tel:999" className="font-semibold text-clay hover:underline">{tx('Call 999', '৯৯৯ কল')}</a>
           </div>
         </section>
 
